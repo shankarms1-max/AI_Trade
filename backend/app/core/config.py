@@ -1,0 +1,242 @@
+from functools import lru_cache
+
+from datetime import date, time
+
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Runtime settings; secret values stay masked in repr and logs."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+        hide_input_in_errors=True,
+    )
+
+    app_env: str = "development"
+    enable_api_docs: bool = True
+    cors_allowed_origins: str = ""
+    log_level: str = "INFO"
+    timezone: str = Field(default="Asia/Kolkata", validation_alias="TZ")
+
+    kotak_consumer_key: SecretStr
+    kotak_mobile_number: SecretStr | None = None
+    kotak_ucc: SecretStr | None = None
+    kotak_totp_secret: SecretStr | None = None
+    kotak_mpin: SecretStr | None = None
+
+    kotak_strike_range: int = Field(default=10, ge=0, le=50)
+    kotak_nifty_strike_step: int = Field(default=50, gt=0)
+    kotak_option_chain_diagnostics: bool = False
+
+    database_url: SecretStr | None = None
+    collector_interval_minutes: int = Field(default=3, ge=1, le=60)
+    collector_start_time: time = time(9, 18)
+    collector_end_time: time = time(15, 27)
+    collector_holidays: str = ""
+
+    feature_top_n: int = Field(default=5, ge=1, le=20)
+    feature_min_data_coverage: float = Field(default=0.6, ge=0, le=1)
+    feature_cluster_max_fraction: float = Field(default=0.6, gt=0, le=1)
+    feature_opening_range_start: time = time(9, 15)
+    feature_opening_range_end: time = time(9, 30)
+    feature_opening_range_min_samples: int = Field(default=4, ge=2)
+    feature_vix_low: float = 12.0
+    feature_vix_elevated: float = 16.0
+    feature_vix_high: float = 22.0
+
+    regime_min_confidence: float = Field(default=60, ge=0, le=100)
+    regime_min_directional_margin: float = Field(default=2.0, ge=0)
+    regime_min_contracts: int = Field(default=10, ge=1)
+    regime_small_move_pct: float = Field(default=0.05, ge=0)
+    regime_pcr_low: float = Field(default=0.8, gt=0)
+    regime_pcr_high: float = Field(default=1.2, gt=0)
+    regime_price_weight: float = Field(default=3.0, ge=0)
+    regime_dynamic_oi_weight: float = Field(default=4.0, ge=0)
+    regime_positioning_weight: float = Field(default=4.0, ge=0)
+    regime_futures_weight: float = Field(default=2.0, ge=0)
+    regime_static_oi_weight: float = Field(default=1.5, ge=0)
+    regime_pcr_weight: float = Field(default=1.0, ge=0)
+    regime_oi_dependency_cap: float = Field(default=6.0, ge=0)
+    regime_low_quality_confidence_cap: float = Field(default=55, ge=0, le=100)
+    regime_insufficient_confidence_cap: float = Field(default=30, ge=0, le=100)
+
+    openai_api_key: SecretStr | None = None
+    ai_research_model: str | None = None
+    ai_max_retries: int = Field(default=1, ge=0, le=3)
+    ai_input_cost_per_million: float | None = Field(default=None, ge=0)
+    ai_output_cost_per_million: float | None = Field(default=None, ge=0)
+    ai_confidence_cap_insufficient: float = Field(default=40, ge=0, le=100)
+    ai_confidence_cap_low: float = Field(default=55, ge=0, le=100)
+    ai_confidence_cap_medium: float = Field(default=75, ge=0, le=100)
+    ai_confidence_cap_high: float = Field(default=90, ge=0, le=100)
+
+    strategy_min_regime_confidence: float = Field(default=60, ge=0, le=100)
+    strategy_min_evidence_quality: str = "MEDIUM"
+    strategy_require_structure_reference: bool = True
+    strategy_min_short_distance_points: float = Field(default=100, ge=0)
+    strategy_min_short_distance_pct: float = Field(default=0.25, ge=0)
+    strategy_allowed_spread_widths: str = "50,100,150,200"
+    strategy_min_short_premium: float = Field(default=1, ge=0)
+    strategy_min_net_credit: float = Field(default=1, ge=0)
+    strategy_min_credit_to_width_ratio: float = Field(default=0.03, ge=0)
+    strategy_min_short_open_interest: int = Field(default=100, ge=0)
+    strategy_min_long_open_interest: int = Field(default=100, ge=0)
+    strategy_min_short_volume: int = Field(default=1, ge=0)
+    strategy_min_long_volume: int = Field(default=1, ge=0)
+    strategy_require_usable_volume: bool = False
+    strategy_max_bid_ask_spread_pct: float = Field(default=30, ge=0)
+    strategy_short_delta_min_abs: float | None = Field(default=None, ge=0, le=1)
+    strategy_short_delta_max_abs: float | None = Field(default=None, ge=0, le=1)
+    strategy_max_candidates: int = Field(default=5, ge=1, le=50)
+    strategy_max_snapshot_age_seconds: int = Field(default=600, ge=1)
+
+    risk_max_loss_per_trade: float | None = Field(default=None, gt=0)
+    risk_max_capital_per_trade: float | None = Field(default=None, gt=0)
+    risk_max_trades_per_day: int = Field(default=1, ge=0)
+    risk_max_daily_loss: float | None = Field(default=None, gt=0)
+    risk_max_spread_width: float = Field(default=200, gt=0)
+    risk_min_net_credit: float = Field(default=1, ge=0)
+    risk_min_credit_to_width: float = Field(default=0.03, ge=0)
+    risk_min_short_oi: int = Field(default=100, ge=0)
+    risk_min_long_oi: int = Field(default=100, ge=0)
+    risk_min_short_volume: int = Field(default=1, ge=0)
+    risk_min_long_volume: int = Field(default=1, ge=0)
+    risk_require_volume: bool = True
+    risk_max_bid_ask_spread_pct: float = Field(default=30, ge=0)
+    risk_entry_start_time: time = time(9, 35)
+    risk_entry_end_time: time = time(13, 30)
+    risk_min_regime_confidence: float = Field(default=60, ge=0, le=100)
+    risk_min_evidence_quality: str = "MEDIUM"
+    risk_require_bid_ask: bool = False
+    risk_allow_ltp_estimate: bool = True
+    risk_max_snapshot_age_seconds: int = Field(default=600, ge=1)
+    risk_allow_expiry_day: bool = False
+    risk_require_intraday_oi: bool = True
+    risk_required_consecutive_directional_snapshots: int = Field(default=2, ge=1, le=20)
+    risk_require_candidate_stability: bool = False
+    risk_candidate_stability_snapshots: int = Field(default=2, ge=2, le=20)
+    risk_market_events_json: str = "[]"
+
+    shadow_profit_target_credit_capture_pct: float = Field(default=50, gt=0, le=100)
+    shadow_stop_loss_credit_multiple: float = Field(default=1.5, gt=0)
+    shadow_force_exit_time: time = time(15, 20)
+    shadow_hard_exit_cutoff: time = time(15, 29)
+    shadow_exit_on_opposite_regime: bool = True
+    shadow_exit_on_structural_breach: bool = True
+    shadow_max_new_trades_per_day: int = Field(default=1, ge=1)
+    shadow_allow_multiple_open_trades: bool = False
+    shadow_risk_capital_base: float | None = Field(default=None, gt=0)
+    shadow_risk_max_loss_per_trade: float | None = Field(default=None, gt=0)
+    shadow_risk_max_capital_per_trade: float | None = Field(default=None, gt=0)
+    shadow_risk_max_daily_loss: float | None = Field(default=None, gt=0)
+    shadow_risk_max_trades_per_day: int = Field(default=1, ge=0)
+
+    pipeline_after_snapshot: bool = False
+    pipeline_run_ai_research: bool = False
+
+    obs_collector_worker_id: str = "collector-main"
+    obs_collector_heartbeat_seconds: int = Field(default=60, ge=10, le=3600)
+    obs_expected_snapshot_interval_seconds: int = Field(default=180, ge=30, le=3600)
+    obs_data_fresh_healthy_seconds: int = Field(default=300, ge=1)
+    obs_data_fresh_degraded_seconds: int = Field(default=600, ge=1)
+    obs_pipeline_degraded_fraction: float = Field(default=0.5, gt=0, le=1)
+    log_dir: str = "logs"
+    log_max_bytes: int = Field(default=10_485_760, ge=1024)
+    log_backup_count: int = Field(default=7, ge=1, le=100)
+
+    telegram_enabled: bool = False
+    telegram_bot_token: SecretStr | None = None
+    telegram_chat_id: SecretStr | None = None
+    telegram_timeout_seconds: float = Field(default=10, gt=0, le=60)
+    telegram_max_retries: int = Field(default=2, ge=0, le=5)
+    telegram_notify_operational: bool = True
+    telegram_notify_regime: bool = True
+    telegram_notify_strategy: bool = True
+    telegram_notify_risk: bool = True
+    telegram_notify_shadow: bool = True
+    telegram_notify_daily_summary: bool = True
+    telegram_notify_range: bool = False
+    telegram_send_startup_message: bool = False
+    telegram_daily_summary_time: time = time(15, 40)
+
+    @field_validator("kotak_consumer_key")
+    @classmethod
+    def consumer_key_must_not_be_blank(cls, value: SecretStr) -> SecretStr:
+        if not value.get_secret_value().strip():
+            raise ValueError("KOTAK_CONSUMER_KEY is required")
+        return value
+
+    @field_validator("database_url")
+    @classmethod
+    def database_url_must_not_be_blank(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        return value
+
+    @field_validator("openai_api_key")
+    @classmethod
+    def openai_api_key_must_not_be_blank(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        return value
+
+    @field_validator("telegram_bot_token", "telegram_chat_id")
+    @classmethod
+    def telegram_secret_must_not_be_blank(
+        cls, value: SecretStr | None
+    ) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        return value
+
+    @field_validator("ai_research_model")
+    @classmethod
+    def ai_research_model_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return value.strip()
+
+    @field_validator("strategy_min_evidence_quality", "risk_min_evidence_quality")
+    @classmethod
+    def strategy_evidence_quality_is_valid(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"INSUFFICIENT", "LOW", "MEDIUM", "HIGH"}:
+            raise ValueError("STRATEGY_MIN_EVIDENCE_QUALITY is invalid")
+        return normalized
+
+    @property
+    def configured_strategy_widths(self) -> tuple[float, ...]:
+        widths = tuple(float(part.strip()) for part in self.strategy_allowed_spread_widths.split(",") if part.strip())
+        if not widths or any(width <= 0 for width in widths):
+            raise ValueError("STRATEGY_ALLOWED_SPREAD_WIDTHS must contain positive numbers")
+        return tuple(sorted(set(widths)))
+
+    @property
+    def configured_holidays(self) -> frozenset[date]:
+        values = (part.strip() for part in self.collector_holidays.split(","))
+        return frozenset(date.fromisoformat(value) for value in values if value)
+
+    @property
+    def configured_cors_origins(self) -> tuple[str, ...]:
+        local = ("http://localhost:3000", "http://127.0.0.1:3000")
+        extra = tuple(
+            value.strip().rstrip("/")
+            for value in self.cors_allowed_origins.split(",")
+            if value.strip()
+        )
+        if "*" in extra:
+            raise ValueError("CORS_ALLOWED_ORIGINS must not contain a wildcard")
+        return tuple(dict.fromkeys((*local, *extra)))
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
+

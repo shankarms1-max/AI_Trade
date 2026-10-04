@@ -1,0 +1,10 @@
+const IST = "Asia/Kolkata";
+export const number = (value: number | null | undefined, digits = 2) => value == null ? "N/A" : new Intl.NumberFormat("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
+export const integer = (value: number | null | undefined) => value == null ? "N/A" : new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(value);
+export const money = (value: number | null | undefined) => value == null ? "N/A" : `${value < 0 ? "−" : ""}₹${number(Math.abs(value))}`;
+export const percent = (value: number | null | undefined) => value == null ? "N/A" : `${number(value, 1)}%`;
+export const timeIST = (value: string | null | undefined) => value ? `${new Intl.DateTimeFormat("en-GB", { timeZone: IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value))} IST` : "N/A";
+export const dateIST = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("en-GB", { timeZone: IST, day: "2-digit", month: "short", year: "numeric" }).format(new Date(value)) : "N/A";
+export const ageSeconds = (value: string, now = Date.now()) => Math.max(0, Math.floor((now - new Date(value).getTime()) / 1000));
+export const ageLabel = (seconds: number) => seconds < 60 ? `${seconds}s` : seconds < 3600 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${Math.floor(seconds / 3600)}h`;
+export const pretty = (value: string) => value.replaceAll("_", " ");

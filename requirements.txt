@@ -1,0 +1,16 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+pydantic>=2.10,<3
+pydantic-settings>=2.7,<3
+python-dotenv>=1.0,<2
+pandas>=2.2,<3
+numpy>=1.26,<3
+httpx[http2]>=0.27,<1
+kotakneoapi==3.0.7
+SQLAlchemy>=2.0,<3
+alembic>=1.14,<2
+psycopg[binary]>=3.2,<4
+APScheduler>=3.11,<4
+openai>=2,<3
+pytest>=8.3,<10
+
