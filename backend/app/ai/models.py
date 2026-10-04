@@ -4,8 +4,8 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-AI_VERSION = "phase5_v1"
-PROMPT_VERSION = "phase5_prompt_v2"
+AI_VERSION = "phase14_1_ai_v1"
+PROMPT_VERSION = "phase14_1_prompt_v1"
 
 ConfidencePercent = Annotated[
     float,
@@ -35,6 +35,21 @@ class AgreementStatus(str, Enum):
     AGREE = "AGREE"
     PARTIAL = "PARTIAL"
     DISAGREE = "DISAGREE"
+    NOT_COMPARABLE = "NOT_COMPARABLE"
+
+
+class AlphaAssessmentDirection(str, Enum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
+    CONFLICT = "CONFLICT"
+    INSUFFICIENT = "INSUFFICIENT"
+
+
+class AlphaDerivativesAlignment(str, Enum):
+    AGREE = "AGREE"
+    PARTIAL = "PARTIAL"
+    CONFLICT = "CONFLICT"
     NOT_COMPARABLE = "NOT_COMPARABLE"
 
 
@@ -92,12 +107,37 @@ class Phase4Summary(StrictModel):
     reason_codes: list[str]
 
 
+class Phase14AlphaSummary(StrictModel):
+    available: bool
+    price_return: float | None = None
+    alpha_1: float | None = None
+    alpha_2: float | None = None
+    atm_volume_activity: float | None = None
+    atm_option_volatility: float | None = None
+    joint_alpha_direction: str | None = None
+    confirmation_count: int = 0
+    evidence_quality: str = "INSUFFICIENT"
+    warnings: list[str] = Field(default_factory=list)
+    signed_log_return: float | None = None
+    hypothesis_type: str | None = None
+    alpha_1_direction: str | None = None
+    alpha_2_direction: str | None = None
+    participation_state: str | None = None
+    underlying_horizon_volatility: float | None = None
+    validity_state: str | None = None
+    signal_persistence_count: int = 0
+    legacy_alpha2_raw: float | None = None
+
+
 class AIResearchInput(StrictModel):
     snapshot_id: int
     snapshot: SnapshotInput
     data_quality: DataQualityInput
     phase3_summary: Phase3Summary
     phase4: Phase4Summary
+    phase14_alpha: Phase14AlphaSummary = Field(
+        default_factory=lambda: Phase14AlphaSummary(available=False)
+    )
 
 
 class AIResearchModelOutput(StrictModel):
@@ -113,6 +153,12 @@ class AIResearchModelOutput(StrictModel):
     missing_evidence: list[str]
     what_would_change_view: list[str]
     research_summary: str = Field(max_length=1000)
+    statistical_alpha_assessment: str = Field(default="Statistical alpha unavailable", max_length=500)
+    alpha_direction: AlphaAssessmentDirection = AlphaAssessmentDirection.INSUFFICIENT
+    alpha_quality_assessment: str = Field(default="INSUFFICIENT", max_length=200)
+    alpha_vs_derivatives_alignment: AlphaDerivativesAlignment = AlphaDerivativesAlignment.NOT_COMPARABLE
+    key_alpha_evidence: list[str] = Field(default_factory=list)
+    key_alpha_risks: list[str] = Field(default_factory=list)
 
 
 class ProviderUsage(StrictModel):
@@ -161,3 +207,9 @@ class AIResearchResult(StrictModel):
     output_tokens: int | None
     total_tokens: int | None
     estimated_cost_usd: float | None
+    statistical_alpha_assessment: str = "Statistical alpha unavailable"
+    alpha_direction: AlphaAssessmentDirection = AlphaAssessmentDirection.INSUFFICIENT
+    alpha_quality_assessment: str = "INSUFFICIENT"
+    alpha_vs_derivatives_alignment: AlphaDerivativesAlignment = AlphaDerivativesAlignment.NOT_COMPARABLE
+    key_alpha_evidence: list[str] = Field(default_factory=list)
+    key_alpha_risks: list[str] = Field(default_factory=list)

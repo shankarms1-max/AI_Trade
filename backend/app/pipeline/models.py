@@ -31,12 +31,14 @@ class PipelineRun(BaseModel):
     completed_at: datetime | None = None
     status: PipelineStatus
     feature_status: StepStatus = StepStatus.PENDING
+    alpha_status: StepStatus = StepStatus.SKIPPED
     regime_status: StepStatus = StepStatus.PENDING
     ai_status: StepStatus = StepStatus.SKIPPED
     strategy_status: StepStatus = StepStatus.PENDING
     risk_status: StepStatus = StepStatus.PENDING
     shadow_status: StepStatus = StepStatus.PENDING
     feature_snapshot_id: int | None = None
+    alpha_feature_snapshot_id: int | None = None
     regime_snapshot_id: int | None = None
     ai_research_id: int | None = None
     strategy_candidate_set_id: int | None = None

@@ -35,6 +35,11 @@ class MarketSnapshotRecord(Base):
     )
     nifty_spot: Mapped[Decimal] = mapped_column(PRICE, nullable=False)
     nifty_future: Mapped[Decimal | None] = mapped_column(PRICE)
+    future_instrument_id: Mapped[str | None] = mapped_column(String(160))
+    future_expiry: Mapped[date | None] = mapped_column(Date)
+    source_market_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    request_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    response_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     india_vix: Mapped[Decimal | None] = mapped_column(PRICE)
     lot_size: Mapped[int | None] = mapped_column(Integer)
     atm_strike: Mapped[Decimal] = mapped_column(PRICE, nullable=False)
@@ -66,6 +71,10 @@ class OptionContractSnapshotRecord(Base):
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
     trading_symbol: Mapped[str] = mapped_column(String(160), nullable=False)
     instrument_token: Mapped[str | None] = mapped_column(String(160))
+    exchange: Mapped[str] = mapped_column(String(16), nullable=False, default="nse_fo")
+    source_market_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    bid_quantity: Mapped[int | None] = mapped_column(BigInteger)
+    ask_quantity: Mapped[int | None] = mapped_column(BigInteger)
     ltp: Mapped[Decimal | None] = mapped_column(PRICE)
     open_interest: Mapped[int | None] = mapped_column(BigInteger)
     previous_open_interest: Mapped[int | None] = mapped_column(BigInteger)
@@ -151,6 +160,94 @@ class MarketFeatureSnapshotRecord(Base):
         Index("ix_feature_snapshots_expiry", "expiry"),
         Index("ix_feature_snapshots_market_snapshot_id", "market_snapshot_id"),
     )
+
+
+class AlphaFeatureSnapshotRecord(Base):
+    __tablename__ = "alpha_feature_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    market_snapshot_id: Mapped[int] = mapped_column(
+        ForeignKey("market_snapshots.id", ondelete="CASCADE"), nullable=False
+    )
+    alpha_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    calculation_mode: Mapped[str] = mapped_column(String(24), nullable=False, default="HISTORICAL_REPLAY")
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expiry: Mapped[date] = mapped_column(Date, nullable=False)
+    price_source: Mapped[str] = mapped_column(String(16), nullable=False)
+    price_return: Mapped[Decimal | None] = mapped_column(GREEK)
+    session_id: Mapped[str | None] = mapped_column(String(32))
+    session_date: Mapped[date | None] = mapped_column(Date)
+    lookback_clock_mode: Mapped[str | None] = mapped_column(String(20))
+    actual_horizon_seconds: Mapped[int | None] = mapped_column(Integer)
+    signed_log_return: Mapped[Decimal | None] = mapped_column(GREEK)
+    hypothesis_type: Mapped[str | None] = mapped_column(String(16))
+    validity_state: Mapped[str | None] = mapped_column(String(16))
+    participation_state: Mapped[str | None] = mapped_column(String(16))
+    underlying_horizon_volatility: Mapped[Decimal | None] = mapped_column(GREEK)
+    confirmation_reset_reason: Mapped[str | None] = mapped_column(String(80))
+    source_market_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    response_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    feature_calculated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    alpha_1: Mapped[Decimal | None] = mapped_column(GREEK)
+    atm_strike: Mapped[Decimal | None] = mapped_column(PRICE)
+    atm_ce_token: Mapped[str | None] = mapped_column(String(160))
+    atm_pe_token: Mapped[str | None] = mapped_column(String(160))
+    atm_ce_interval_volume: Mapped[int | None] = mapped_column(BigInteger)
+    atm_pe_interval_volume: Mapped[int | None] = mapped_column(BigInteger)
+    ce_volume_ratio: Mapped[Decimal | None] = mapped_column(GREEK)
+    pe_volume_ratio: Mapped[Decimal | None] = mapped_column(GREEK)
+    atm_volume_activity: Mapped[Decimal | None] = mapped_column(GREEK)
+    ce_observed_volatility: Mapped[Decimal | None] = mapped_column(GREEK)
+    pe_observed_volatility: Mapped[Decimal | None] = mapped_column(GREEK)
+    atm_option_volatility: Mapped[Decimal | None] = mapped_column(GREEK)
+    directional_impulse_raw: Mapped[Decimal | None] = mapped_column(GREEK)
+    alpha_2: Mapped[Decimal | None] = mapped_column(GREEK)
+    alpha_1_direction: Mapped[str] = mapped_column(String(24), nullable=False)
+    alpha_2_direction: Mapped[str] = mapped_column(String(24), nullable=False)
+    joint_alpha_direction: Mapped[str] = mapped_column(String(40), nullable=False)
+    consecutive_confirmation_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_quality: Mapped[str] = mapped_column(String(16), nullable=False)
+    warnings_json: Mapped[list] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    result_json: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("market_snapshot_id", "alpha_version", "calculation_mode", name="uq_alpha_snapshot_version_mode"),
+        CheckConstraint("price_source IN ('SPOT','FUTURE')", name="ck_alpha_price_source"),
+        CheckConstraint(
+            "evidence_quality IN ('HIGH','MEDIUM','LOW','INSUFFICIENT')",
+            name="ck_alpha_evidence_quality",
+        ),
+        Index("ix_alpha_feature_timestamp", "timestamp"),
+        Index("ix_alpha_feature_expiry", "expiry"),
+        Index("ix_alpha_feature_market_snapshot", "market_snapshot_id"),
+    )
+
+
+class ResearchExperimentRecord(Base):
+    __tablename__ = "research_experiment_registry"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    parameters_json: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    train_period: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    validation_period: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    test_period: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    split_name: Mapped[str] = mapped_column(String(20), nullable=False)
+    result_summary: Mapped[dict] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)
+    sample_tier: Mapped[str] = mapped_column(String(24), nullable=False)
+
+    __table_args__ = (Index("ix_research_experiment_config_hash", "config_hash"),)
 
 
 class MarketRegimeSnapshotRecord(Base):
@@ -406,12 +503,14 @@ class PipelineRunRecord(Base):
     pipeline_version: Mapped[str] = mapped_column(String(32), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     feature_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    alpha_status: Mapped[str] = mapped_column(String(16), nullable=False, default="SKIPPED")
     regime_status: Mapped[str] = mapped_column(String(16), nullable=False)
     ai_status: Mapped[str] = mapped_column(String(16), nullable=False)
     strategy_status: Mapped[str] = mapped_column(String(16), nullable=False)
     risk_status: Mapped[str] = mapped_column(String(16), nullable=False)
     shadow_status: Mapped[str] = mapped_column(String(16), nullable=False)
     feature_snapshot_id: Mapped[int | None] = mapped_column(Integer)
+    alpha_feature_snapshot_id: Mapped[int | None] = mapped_column(Integer)
     regime_snapshot_id: Mapped[int | None] = mapped_column(Integer)
     ai_research_id: Mapped[int | None] = mapped_column(Integer)
     strategy_candidate_set_id: Mapped[int | None] = mapped_column(Integer)

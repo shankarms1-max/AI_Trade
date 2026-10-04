@@ -22,6 +22,7 @@ class PipelineSteps:
     strategy: Callable[[int], Any]
     risk: Callable[[int], Any]
     shadow_entry: Callable[[int], Any]
+    alpha: Callable[[int], Any] | None = None
     ai: Callable[[int], Any] | None = None
 
 
@@ -46,6 +47,7 @@ class ResearchPipelineOrchestrator:
             started_at=datetime.now(IST),
             status=PipelineStatus.STARTED,
             ai_status=StepStatus.PENDING if run_ai else StepStatus.SKIPPED,
+            alpha_status=StepStatus.PENDING if self._steps.alpha is not None else StepStatus.SKIPPED,
         )
         run = self._repository.save(run)
         logger.info("PIPELINE_STARTED snapshot_id=%d", snapshot_id)
@@ -69,6 +71,32 @@ class ResearchPipelineOrchestrator:
                              stage_timings_ms=timings.copy(),
                              **self._repository.related_ids(snapshot_id))
             logger.info("FEATURES_BUILT snapshot_id=%d", snapshot_id)
+
+            if self._steps.alpha is not None:
+                active_status = "alpha_status"
+                stage_started = perf_counter()
+                alpha_result = self._steps.alpha(snapshot_id)
+                timings["alpha"] = round((perf_counter() - stage_started) * 1000, 2)
+                run = self._save(run, alpha_status=StepStatus.SUCCESS,
+                                 stage_timings_ms=timings.copy(),
+                                 **self._repository.related_ids(snapshot_id))
+                logger.info("ALPHA_BUILT snapshot_id=%d", snapshot_id)
+                if self._operations is not None:
+                    from app.observability.models import EventSeverity
+                    operational_codes = {
+                        "INSUFFICIENT_ALPHA_HISTORY": "ALPHA_HISTORY_INSUFFICIENT",
+                        "ALPHA_ATM_DATA_MISSING": "ALPHA_ATM_DATA_MISSING",
+                        "ALPHA_VOLUME_UNUSABLE": "ALPHA_VOLUME_UNUSABLE",
+                        "ALPHA_VOLATILITY_UNUSABLE": "ALPHA_VOLATILITY_UNUSABLE",
+                    }
+                    for warning in getattr(alpha_result, "warnings", []):
+                        code = operational_codes.get(warning)
+                        if code:
+                            self._operations.record_event(
+                                "ALPHA", EventSeverity.WARN, code,
+                                "Statistical alpha evidence is warming up or incomplete",
+                                snapshot_id=snapshot_id, pipeline_run_id=run.id,
+                            )
 
             active_status = "regime_status"
             stage_started = perf_counter()
@@ -154,7 +182,7 @@ class ResearchPipelineOrchestrator:
             timings["total_pipeline"] = round((perf_counter() - pipeline_started) * 1000, 2)
             updates: dict[str, Any] = {active_status: StepStatus.FAILED}
             run = run.model_copy(update=updates)
-            for field in ("feature_status", "regime_status", "strategy_status", "risk_status"):
+            for field in ("feature_status", "alpha_status", "regime_status", "strategy_status", "risk_status"):
                 if getattr(run, field) == StepStatus.PENDING:
                     run = run.model_copy(update={field: StepStatus.SKIPPED})
             if run.shadow_status == StepStatus.PENDING:

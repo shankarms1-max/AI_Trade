@@ -24,6 +24,12 @@ def config_from_settings(settings) -> StrategyConfig:
         short_delta_max_abs=settings.strategy_short_delta_max_abs,
         max_candidates=settings.strategy_max_candidates,
         max_snapshot_age_seconds=settings.strategy_max_snapshot_age_seconds,
+        volatility_buffer_enabled=settings.strategy_volatility_buffer_enabled,
+        vix_low_distance_multiplier=settings.strategy_vix_low_distance_multiplier,
+        vix_normal_distance_multiplier=settings.strategy_vix_normal_distance_multiplier,
+        vix_elevated_distance_multiplier=settings.strategy_vix_elevated_distance_multiplier,
+        vix_high_distance_multiplier=settings.strategy_vix_high_distance_multiplier,
+        no_candidate_on_high_vix=settings.strategy_no_candidate_on_high_vix,
     )
 
 

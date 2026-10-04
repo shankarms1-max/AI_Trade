@@ -139,6 +139,56 @@ class Settings(BaseSettings):
     pipeline_after_snapshot: bool = False
     pipeline_run_ai_research: bool = False
 
+    # Phase 14 is deliberately disabled until live interval-volume validation.
+    alpha_engine_enabled: bool = False
+    regime_use_statistical_alpha: bool = False
+    alpha_price_source: str = "FUTURE"
+    alpha_price_horizon_seconds: int = Field(default=300, ge=60, le=3600)
+    alpha_horizon_tolerance_seconds: int = Field(default=120, ge=0, le=1800)
+    alpha_min_horizon_seconds: int = Field(default=240, ge=1, le=3600)
+    alpha_max_horizon_seconds: int = Field(default=420, ge=1, le=3600)
+    alpha_lookback_clock_mode: str = "TRADING_MINUTES"
+    alpha_hypothesis_type: str = "CONTINUATION"
+    alpha1_lookback_minutes: int = Field(default=800, ge=30)
+    alpha2_lookback_minutes: int = Field(default=300, ge=30)
+    alpha_volume_lookback_minutes: int = Field(default=300, ge=30)
+    alpha_volatility_lookback_minutes: int = Field(default=300, ge=30)
+    alpha_min_rank_observations: int = Field(default=50, ge=2)
+    alpha_min_volume_observations: int = Field(default=5, ge=1)
+    alpha_min_volatility_returns: int = Field(default=5, ge=2)
+    alpha_max_sequence_gap_seconds: int = Field(default=600, ge=60)
+    volume_max_interval_seconds: int = Field(default=420, ge=60)
+    volatility_min_valid_level: float = Field(default=0.00001, gt=0)
+    alpha_activity_baseline_method: str = "MEDIAN"
+    alpha_activity_min_baseline: float = Field(default=1.0, gt=0)
+    alpha_activity_ratio_cap: float = Field(default=10.0, gt=0)
+    alpha_atm_max_distance_percent: float = Field(default=0.5, gt=0)
+    alpha_volatility_epsilon: float = Field(default=1e-8, gt=0)
+    alpha_strong_upper: float = Field(default=0.80, ge=0, le=1)
+    alpha_strong_lower: float = Field(default=0.20, ge=0, le=1)
+    alpha_moderate_upper: float = Field(default=0.70, ge=0, le=1)
+    alpha_moderate_lower: float = Field(default=0.30, ge=0, le=1)
+    alpha_required_consecutive_confirmations: int = Field(default=2, ge=1, le=20)
+    alpha_stale_after_seconds: int = Field(default=600, ge=60)
+
+    regime_alpha1_weight: float = Field(default=4.0, ge=0)
+    regime_alpha2_weight: float = Field(default=4.0, ge=0)
+    regime_statistical_alpha_cap: float = Field(default=5.0, ge=0)
+    regime_price_movement_cap: float = Field(default=5.0, ge=0)
+    regime_basis_weight: float = Field(default=1.0, ge=0)
+    regime_require_alpha_for_directional: bool = True
+    regime_alpha_contradiction_confidence_penalty: float = Field(default=25.0, ge=0, le=100)
+
+    strategy_volatility_buffer_enabled: bool = False
+    strategy_vix_low_distance_multiplier: float = Field(default=1.0, ge=1)
+    strategy_vix_normal_distance_multiplier: float = Field(default=1.0, ge=1)
+    strategy_vix_elevated_distance_multiplier: float = Field(default=1.25, ge=1)
+    strategy_vix_high_distance_multiplier: float = Field(default=1.5, ge=1)
+    strategy_no_candidate_on_high_vix: bool = False
+
+    research_min_trades_for_evaluation: int = Field(default=30, ge=1)
+    research_max_experiment_combinations: int = Field(default=100, ge=1, le=1000)
+
     obs_collector_worker_id: str = "collector-main"
     obs_collector_heartbeat_seconds: int = Field(default=60, ge=10, le=3600)
     obs_expected_snapshot_interval_seconds: int = Field(default=180, ge=30, le=3600)
@@ -209,6 +259,38 @@ class Settings(BaseSettings):
         normalized = value.strip().upper()
         if normalized not in {"INSUFFICIENT", "LOW", "MEDIUM", "HIGH"}:
             raise ValueError("STRATEGY_MIN_EVIDENCE_QUALITY is invalid")
+        return normalized
+
+    @field_validator("alpha_price_source")
+    @classmethod
+    def alpha_price_source_is_valid(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"SPOT", "FUTURE"}:
+            raise ValueError("ALPHA_PRICE_SOURCE must be SPOT or FUTURE")
+        return normalized
+
+    @field_validator("alpha_lookback_clock_mode")
+    @classmethod
+    def alpha_clock_is_valid(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"WALL_CLOCK", "TRADING_MINUTES", "SESSION_ONLY"}:
+            raise ValueError("ALPHA_LOOKBACK_CLOCK_MODE is invalid")
+        return normalized
+
+    @field_validator("alpha_hypothesis_type")
+    @classmethod
+    def alpha_hypothesis_is_valid(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"CONTINUATION", "REVERSAL"}:
+            raise ValueError("ALPHA_HYPOTHESIS_TYPE is invalid")
+        return normalized
+
+    @field_validator("alpha_activity_baseline_method")
+    @classmethod
+    def alpha_activity_method_is_valid(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"MEDIAN", "TRIMMED_MEAN"}:
+            raise ValueError("ALPHA_ACTIVITY_BASELINE_METHOD is invalid")
         return normalized
 
     @property

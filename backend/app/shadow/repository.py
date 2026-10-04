@@ -2,11 +2,12 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
 from app.db.models import (
     MarketFeatureSnapshotRecord,
+    AlphaFeatureSnapshotRecord,
     MarketRegimeSnapshotRecord,
     MarketSnapshotRecord,
     RiskDecisionRecord,
@@ -20,6 +21,7 @@ from app.regime.models import REGIME_VERSION, RegimeResult
 from app.risk.models import RISK_VERSION, RiskDecision
 from app.shadow.models import SHADOW_VERSION, ShadowTrade, ShadowTradeMark
 from app.strategy.models import STRATEGY_VERSION, StrategyCandidateSet
+from app.alpha.models import ALPHA_VERSION, AlphaFeatureSnapshot
 
 
 def _decimal(value: float | None) -> Decimal | None:
@@ -52,6 +54,11 @@ class ShadowRepository:
                 RiskDecisionRecord.risk_version == RISK_VERSION,
                 RiskDecisionRecord.decision == "APPROVED",
             )).all()
+            alpha = session.scalar(select(AlphaFeatureSnapshotRecord).where(
+                AlphaFeatureSnapshotRecord.market_snapshot_id == snapshot_id,
+                AlphaFeatureSnapshotRecord.alpha_version == ALPHA_VERSION,
+                AlphaFeatureSnapshotRecord.calculation_mode != "RESEARCH_RECOMPUTE",
+            ).order_by(case((AlphaFeatureSnapshotRecord.calculation_mode == "LIVE_ORIGINAL", 0), else_=1)))
             if raw is None or feature is None or regime is None or candidates is None:
                 return None
             return (
@@ -60,6 +67,7 @@ class ShadowRepository:
                 RegimeResult.model_validate(regime.result_json),
                 StrategyCandidateSet.model_validate(candidates.result_json),
                 [(item.id, RiskDecision.model_validate(item.result_json)) for item in risks],
+                None if alpha is None else AlphaFeatureSnapshot.model_validate(alpha.result_json),
             )
 
     def latest_risk_snapshot_id(self) -> int | None:

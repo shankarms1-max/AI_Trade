@@ -5,10 +5,12 @@ from app.ai.models import (
     DataQualityInput,
     Phase3Summary,
     Phase4Summary,
+    Phase14AlphaSummary,
     SnapshotInput,
 )
 from app.features.models import ContractFeature, MarketFeatureSnapshot
 from app.regime.models import RegimeResult
+from app.alpha.models import AlphaFeatureSnapshot
 
 
 def _contract(row: ContractFeature) -> dict:
@@ -40,7 +42,8 @@ def _cluster(item) -> dict:
 
 
 def build_ai_research_input(
-    feature: MarketFeatureSnapshot, regime: RegimeResult
+    feature: MarketFeatureSnapshot, regime: RegimeResult,
+    alpha: AlphaFeatureSnapshot | None = None,
 ) -> AIResearchInput:
     price = feature.price_structure_features
     positioning = Counter(
@@ -107,5 +110,26 @@ def build_ai_research_input(
             range_evidence=regime.range_evidence,
             warnings=regime.warnings,
             reason_codes=all_reasons,
+        ),
+        phase14_alpha=Phase14AlphaSummary(
+            available=alpha is not None and alpha.validity_state.value == "VALID",
+            price_return=None if alpha is None else alpha.price_return,
+            alpha_1=None if alpha is None else alpha.alpha_1,
+            signed_log_return=None if alpha is None else alpha.signed_log_return,
+            hypothesis_type=None if alpha is None else alpha.hypothesis_type.value,
+            alpha_1_direction=None if alpha is None else alpha.alpha_1_direction.value,
+            alpha_2_direction=None if alpha is None else alpha.alpha_2_direction.value,
+            participation_state=None if alpha is None else alpha.participation_state.value,
+            underlying_horizon_volatility=None if alpha is None else alpha.underlying_horizon_volatility,
+            validity_state=None if alpha is None else alpha.validity_state.value,
+            signal_persistence_count=0 if alpha is None else alpha.consecutive_confirmation_count,
+            legacy_alpha2_raw=None if alpha is None else alpha.legacy_alpha2_raw,
+            alpha_2=None if alpha is None else alpha.alpha_2,
+            atm_volume_activity=None if alpha is None else alpha.atm_volume_activity,
+            atm_option_volatility=None if alpha is None else alpha.atm_option_volatility,
+            joint_alpha_direction=None if alpha is None else alpha.joint_alpha_direction.value,
+            confirmation_count=0 if alpha is None else alpha.consecutive_confirmation_count,
+            evidence_quality="INSUFFICIENT" if alpha is None else alpha.evidence_quality.value,
+            warnings=[] if alpha is None else alpha.warnings,
         ),
     )

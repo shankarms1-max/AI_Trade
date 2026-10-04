@@ -2,14 +2,16 @@ from dataclasses import dataclass
 
 from app.features.models import MarketFeatureSnapshot
 from app.regime.confidence import calculate_confidence
-from app.regime.futures_signals import futures_signal
-from app.regime.models import EvidenceQuality, Regime, RegimeResult, SignalDirection
+from app.regime.futures_signals import basis_signal, futures_signal
+from app.regime.models import EvidenceQuality, Regime, RegimeResult, SignalDirection, SignalGroup
 from app.regime.oi_signals import dynamic_oi_signal, positioning_signal, static_oi_signal
 from app.regime.pcr_signals import pcr_signal
 from app.regime.price_signals import price_structure_signal
 from app.regime.quality import evidence_quality
-from app.regime.scoring import RegimeWeights, weighted_scores
+from app.regime.scoring import RegimeWeights, evidence_mechanism, weighted_scores
 from app.regime.volatility_context import volatility_context
+from app.alpha.models import AlphaFeatureSnapshot, JointAlphaDirection
+from app.regime.alpha_signals import statistical_alpha_signals
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,9 @@ class RegimeConfig:
     low_quality_confidence_cap: float = 55
     insufficient_confidence_cap: float = 30
     weights: RegimeWeights = RegimeWeights()
+    use_statistical_alpha: bool = False
+    require_alpha_for_directional: bool = True
+    alpha_contradiction_confidence_penalty: float = 25
 
 
 def classify_regime(
@@ -30,6 +35,7 @@ def classify_regime(
     feature: MarketFeatureSnapshot,
     prior: MarketFeatureSnapshot | None,
     config: RegimeConfig = RegimeConfig(),
+    alpha: AlphaFeatureSnapshot | None = None,
 ) -> RegimeResult:
     quality = evidence_quality(feature, config.minimum_contracts)
     volatility, risk_flags = volatility_context(feature)
@@ -37,12 +43,28 @@ def classify_regime(
         price_structure_signal(feature, config.small_move_pct),
         dynamic_oi_signal(feature),
         static_oi_signal(feature),
-        futures_signal(feature, prior),
+        futures_signal(feature, prior, include_basis=not config.use_statistical_alpha),
         pcr_signal(feature, config.pcr_low, config.pcr_high),
         positioning_signal(feature),
         volatility,
     ]
-    bull, bear, range_score, contributions = weighted_scores(groups, config.weights)
+    if config.use_statistical_alpha and alpha is not None:
+        # Broker-reported OI change has an unknown baseline. Keep these groups
+        # as context until same-contract local OI and price changes are audited.
+        groups = [SignalGroup(name=item.name, direction=SignalDirection.UNAVAILABLE,
+                              score=0, strength=0,
+                              reason_codes=["BROKER_OI_BASELINE_NOT_LOCAL"],
+                              details={"evidence_group": "POSITIONING"})
+                  if item.name in {"DYNAMIC_OI", "OPTION_POSITIONING"} else item
+                  for item in groups]
+        groups.extend(statistical_alpha_signals(alpha))
+    if config.use_statistical_alpha:
+        groups.append(basis_signal(feature, prior, synchronized=False))
+        groups = [item.model_copy(update={"details": {**item.details,
+                                                      "evidence_group": evidence_mechanism(item.name)}})
+                  for item in groups]
+    bull, bear, range_score, contributions = weighted_scores(
+        groups, config.weights, group_caps_enabled=config.use_statistical_alpha)
     scores = {Regime.BULLISH: bull, Regime.BEARISH: bear, Regime.RANGE: range_score}
     ordered = sorted(scores.items(), key=lambda item: (-item[1], item[0].value))
     winner, winning_score = ordered[0]
@@ -51,19 +73,19 @@ def classify_regime(
         SignalDirection.NEUTRAL if winner == Regime.RANGE
         else SignalDirection(winner.value)
     )
-    confirming = sum(
-        group.direction == winning_direction and group.score > 0 for group in groups
-    )
-    contradictory = sum(
-        group.direction in {SignalDirection.BULLISH, SignalDirection.BEARISH}
-        and group.direction.value != winner.value
-        and group.score >= 0.3
-        for group in groups
-    )
-    maximum_score = (
-        config.weights.price_structure + config.weights.futures
-        + config.weights.static_oi + config.weights.oi_dependency_cap
-    )
+    confirming_groups = [group for group in groups
+                         if group.direction == winning_direction and group.score > 0]
+    contradicting_groups = [group for group in groups
+                            if group.direction in {SignalDirection.BULLISH, SignalDirection.BEARISH}
+                            and group.direction.value != winner.value and group.score >= 0.3]
+    confirming = (len({evidence_mechanism(item.name) for item in confirming_groups})
+                  if config.use_statistical_alpha else len(confirming_groups))
+    contradictory = (len({evidence_mechanism(item.name) for item in contradicting_groups})
+                     if config.use_statistical_alpha else len(contradicting_groups))
+    maximum_score = ((config.weights.price_movement_cap + config.weights.oi_dependency_cap
+                      + config.weights.basis) if config.use_statistical_alpha else
+                     (config.weights.price_structure + config.weights.futures
+                      + config.weights.static_oi + config.weights.oi_dependency_cap))
     confidence = calculate_confidence(
         winning_score,
         runner_up_score,
@@ -86,11 +108,44 @@ def classify_regime(
         missing.append("FUTURE")
     if not feature.data_quality.vix_available:
         missing.append("INDIA_VIX")
+    if config.use_statistical_alpha and alpha is None:
+        missing.append("STATISTICAL_ALPHA")
+        warnings.append("ALPHA_HISTORY_INSUFFICIENT")
     margin = winning_score - runner_up_score
     range_confirmations = sum(
         group.direction == SignalDirection.NEUTRAL and group.score > 0 for group in groups
     )
     final = winner
+    alpha_direction = None
+    if alpha is not None:
+        if "BULLISH" in alpha.joint_alpha_direction.value:
+            alpha_direction = Regime.BULLISH
+        elif "BEARISH" in alpha.joint_alpha_direction.value:
+            alpha_direction = Regime.BEARISH
+    non_alpha_directional = [
+        group for group in groups
+        if not group.name.startswith("STATISTICAL_")
+        and group.direction in {SignalDirection.BULLISH, SignalDirection.BEARISH}
+        and group.score > 0
+    ]
+    independent_confirmation = any(
+        group.direction.value == winner.value and group.name not in {"PRICE_STRUCTURE", "FUTURES"}
+        for group in non_alpha_directional
+    ) if config.use_statistical_alpha else any(
+        group.direction.value == winner.value for group in non_alpha_directional
+    )
+    strong_contradiction = bool(
+        alpha is not None
+        and alpha.joint_alpha_direction in {
+            JointAlphaDirection.STRONG_BULLISH_CONFIRMATION,
+            JointAlphaDirection.STRONG_BEARISH_CONFIRMATION,
+        }
+        and any(group.direction.value != alpha_direction.value and group.score >= 0.6
+                for group in non_alpha_directional)
+    )
+    if strong_contradiction:
+        confidence = max(0, confidence - config.alpha_contradiction_confidence_penalty)
+        warnings.append("STRONG_SIGNAL_CONTRADICTION")
     if quality == EvidenceQuality.INSUFFICIENT:
         final = Regime.NO_TRADE
         warnings.append("INSUFFICIENT_EVIDENCE")
@@ -106,6 +161,16 @@ def classify_regime(
     elif winner in {Regime.BULLISH, Regime.BEARISH} and prior is None:
         final = Regime.NO_TRADE
         warnings.append("DIRECTION_REQUIRES_HISTORY")
+    elif config.use_statistical_alpha and winner in {Regime.BULLISH, Regime.BEARISH} and (
+        alpha is None or not alpha.confirmed or alpha_direction != winner
+    ) and config.require_alpha_for_directional:
+        final = Regime.NO_TRADE
+        warnings.append("DIRECTION_REQUIRES_CONFIRMED_ALPHA")
+    elif config.use_statistical_alpha and winner in {Regime.BULLISH, Regime.BEARISH} and not independent_confirmation:
+        final = Regime.NO_TRADE
+        warnings.append("DIRECTION_REQUIRES_INDEPENDENT_CONFIRMATION")
+    elif strong_contradiction:
+        final = Regime.NO_TRADE
     elif winner == Regime.RANGE and range_confirmations < 2:
         final = Regime.NO_TRADE
         warnings.append("INSUFFICIENT_POSITIVE_RANGE_EVIDENCE")
@@ -156,5 +221,13 @@ def config_from_settings(settings) -> RegimeConfig:
             static_oi=settings.regime_static_oi_weight,
             pcr=settings.regime_pcr_weight,
             oi_dependency_cap=settings.regime_oi_dependency_cap,
+            alpha_1=settings.regime_alpha1_weight,
+            alpha_2=settings.regime_alpha2_weight,
+            statistical_alpha_cap=settings.regime_statistical_alpha_cap,
+            price_movement_cap=settings.regime_price_movement_cap,
+            basis=settings.regime_basis_weight,
         ),
+        use_statistical_alpha=settings.regime_use_statistical_alpha,
+        require_alpha_for_directional=settings.regime_require_alpha_for_directional,
+        alpha_contradiction_confidence_penalty=settings.regime_alpha_contradiction_confidence_penalty,
     )

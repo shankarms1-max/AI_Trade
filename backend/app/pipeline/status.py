@@ -4,7 +4,7 @@ from app.pipeline.models import PipelineRun, PipelineStatus, StepStatus
 def failed_run(run: PipelineRun, exc: BaseException) -> PipelineRun:
     completed = sum(
         status == StepStatus.SUCCESS
-        for status in (run.shadow_status, run.feature_status, run.regime_status,
+        for status in (run.shadow_status, run.feature_status, run.alpha_status, run.regime_status,
                        run.strategy_status, run.risk_status)
     )
     return run.model_copy(update={

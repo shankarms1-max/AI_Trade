@@ -34,3 +34,23 @@ def test_blank_ai_configuration_is_treated_as_missing() -> None:
     assert settings.openai_api_key is None
     assert settings.ai_research_model is None
 
+
+def test_phase14_is_disabled_by_default() -> None:
+    settings = Settings(_env_file=None, kotak_consumer_key="configured")
+    assert settings.alpha_engine_enabled is False
+    assert settings.regime_use_statistical_alpha is False
+    assert settings.strategy_volatility_buffer_enabled is False
+    assert settings.pipeline_run_ai_research is False
+
+
+@pytest.mark.parametrize("source", ["SPOT", "future"])
+def test_alpha_price_source_is_validated(source: str) -> None:
+    assert Settings(
+        _env_file=None, kotak_consumer_key="configured", alpha_price_source=source
+    ).alpha_price_source in {"SPOT", "FUTURE"}
+
+
+def test_invalid_alpha_price_source_is_rejected() -> None:
+    with pytest.raises(ValidationError, match="ALPHA_PRICE_SOURCE"):
+        Settings(_env_file=None, kotak_consumer_key="configured", alpha_price_source="MIXED")
+

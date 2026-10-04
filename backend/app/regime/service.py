@@ -11,7 +11,8 @@ def build_and_store_regime(
         raise LookupError(f"phase3_v1 features for snapshot {snapshot_id} not found")
     feature_id, feature = loaded
     prior = repository.load_prior_feature(feature.timestamp)
-    result = classify_regime(feature_id, feature, prior, config)
+    alpha = repository.load_alpha(snapshot_id) if config.use_statistical_alpha else None
+    result = classify_regime(feature_id, feature, prior, config, alpha=alpha)
     repository.upsert(result)
     return result
 

@@ -4,8 +4,8 @@ import { api } from "@/lib/api";
 import { ageLabel, ageSeconds, integer, money, number, percent, pretty, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
-import { BreakdownChart, EquityChart, OIChart, PnlChart } from "@/components/charts";
-import type { DashboardData, RiskDecision } from "@/types";
+import { AlphaHistoryChart, BreakdownChart, EquityChart, OIChart, PnlChart } from "@/components/charts";
+import type { AlphaFeature, DashboardData, RiskDecision } from "@/types";
 
 function freshness(data: DashboardData) {
   if (!data.snapshot) return { label: "NO DATA", tone: "muted", age: "N/A" };
@@ -21,6 +21,27 @@ function freshness(data: DashboardData) {
   return { label:"STALE", tone:"negative", age:ageLabel(age) };
 }
 function RiskTable({ decisions }: { decisions: RiskDecision[] }) { return decisions.length ? <div className="table-wrap"><table><thead><tr><th>Candidate</th><th>Decision</th><th>Max profit / lot</th><th>Max loss / lot</th><th>Reward / risk</th><th>Failed</th><th>Warnings</th></tr></thead><tbody>{decisions.map((item,index)=><tr key={`${item.candidate_reference}-${index}`}><td><details><summary>{item.candidate_reference ?? "No candidate"}</summary><table><thead><tr><th>Check</th><th>Status</th><th>Actual</th><th>Threshold</th><th>Message</th></tr></thead><tbody>{item.checks.map(check=><tr key={check.check_code}><td>{pretty(check.check_code)}</td><td><Badge value={check.status}/></td><td>{String(check.actual_value ?? "N/A")}</td><td>{String(check.threshold ?? "N/A")}</td><td>{check.message}</td></tr>)}</tbody></table></details></td><td><Badge value={item.decision}/></td><td>{money(item.max_profit_per_lot)}</td><td>{money(item.max_loss_per_lot)}</td><td>{number(item.reward_to_risk_ratio)}</td><td>{item.failed_checks.length}</td><td>{item.warnings.length}</td></tr>)}</tbody></table></div> : <Empty>NO RISK APPROVALS</Empty>; }
+
+function AlphaPanel({ alpha }: { alpha: AlphaFeature | null | undefined }) {
+  if (!alpha) return <Empty>STATISTICAL ALPHA WARMING UP OR DISABLED</Empty>;
+  const details: Array<[string, string]> = [
+    ["Session", alpha.session_id ?? "N/A"], ["Hypothesis", alpha.hypothesis_type ?? "N/A"],
+    ["Lookback clock", alpha.lookback_clock_mode ?? "N/A"],
+    ["Actual horizon", alpha.actual_horizon_seconds == null ? "N/A" : `${alpha.actual_horizon_seconds}s`],
+    ["Signed log return", number(alpha.signed_log_return,6)], ["Alpha 1 rank", number(alpha.alpha_1,2)],
+    ["Alpha 2 rank", number(alpha.alpha_2,2)], ["Standardized return", number(alpha.standardized_return,4)],
+    ["Validity", alpha.validity_state ?? "N/A"], ["Participation", alpha.participation_state ?? "N/A"],
+    ["Underlying volatility", number(alpha.underlying_horizon_volatility,6)],
+    ["CE / PE activity state", `${alpha.ce_volume_state ?? "N/A"} / ${alpha.pe_volume_state ?? "N/A"}`],
+    ["Persistence reset", alpha.confirmation_reset_reason ?? "N/A"],
+    ["Legacy Alpha 2 (diagnostic)", number(alpha.legacy_alpha2_raw,4)],
+  ];
+  return <>
+    <div className="kv-grid"><div className="kv"><dt>Alpha 1</dt><dd>{number(alpha.alpha_1,2)} · {pretty(alpha.alpha_1_direction)}</dd></div><div className="kv"><dt>Alpha 2</dt><dd>{number(alpha.alpha_2,2)} · {pretty(alpha.alpha_2_direction)}</dd></div><div className="kv"><dt>Joint alpha</dt><dd>{pretty(alpha.joint_alpha_direction)}</dd></div><div className="kv"><dt>Signal persistence</dt><dd>{alpha.consecutive_confirmation_count} snapshots</dd></div><div className="kv"><dt>Quality</dt><dd>{alpha.evidence_quality}</dd></div><div className="kv"><dt>Status</dt><dd>{pretty(alpha.status)}</dd></div></div>
+    {alpha.warnings.length>0&&<p className="warning">{alpha.warnings.map(pretty).join(" · ")}</p>}
+    <details><summary>Research diagnostics</summary><dl className="kv-grid">{details.map(([label,value])=><div className="kv" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p className="metric-detail">Signal persistence uses overlapping observations; it is not independent confirmation.</p></details>
+  </>;
+}
 
 export function Dashboard() {
   const loader=useCallback(()=>api.dashboard(),[]);
@@ -51,17 +72,23 @@ export function Dashboard() {
       <div className="grid grid-3">
         <Panel title="Deterministic market regime">
           {data.regime ? <><div className={`regime-value ${data.regime.regime === "BULLISH" ? "positive" : data.regime.regime === "BEARISH" ? "negative" : data.regime.regime === "RANGE" ? "accent" : "muted"}`}>{pretty(data.regime.regime)}</div><div className="kv-grid"><dl className="kv"><dt>Confidence</dt><dd>{percent(data.regime.confidence)}</dd></dl><dl className="kv"><dt>Evidence</dt><dd>{data.regime.evidence_quality}</dd></dl><dl className="kv"><dt>Confirmed</dt><dd>{confirmation?.status ?? "N/A"}</dd></dl></div>{[["Bull",data.regime.bull_score],["Bear",data.regime.bear_score],["Range",data.regime.range_score]].map(([label,value])=><div className="score-row" key={String(label)}><span>{label}</span><div className="track"><div className="fill" style={{width:`${Math.min(100,Number(value)*10)}%`}}/></div><span>{number(Number(value),1)}</span></div>)}<ul className="reason-list">{[...data.regime.bull_evidence,...data.regime.bear_evidence,...data.regime.range_evidence].slice(0,5).map(item=><li key={item}>{pretty(item)}</li>)}</ul>{data.regime.warnings.length>0&&<p className="warning">{data.regime.warnings.map(pretty).join(" · ")}</p>}</> : <Empty>NO REGIME RESULT</Empty>}
+          {data.regime?.signal_groups?.length ? <ul className="reason-list">{data.regime.signal_groups.map(group=><li key={group.name}>{pretty(group.name)}: {pretty(group.direction)}</li>)}</ul> : null}
+          <p className="metric-detail">Confidence score is a deterministic evidence score, not a calibrated probability of profit.</p>
+        </Panel>
+        <Panel title="Statistical alpha">
+          <AlphaPanel alpha={data.alpha}/>
         </Panel>
         <Panel title="Market structure">
           {data.features ? <dl className="kv-grid"><div className="kv"><dt>Spot / ATM</dt><dd>{number(data.features.spot)} / {number(data.features.atm_strike,0)}</dd></div><div className="kv"><dt>Support</dt><dd className="positive">{number(support,0)}</dd></div><div className="kv"><dt>Resistance</dt><dd className="negative">{number(resistance,0)}</dd></div><div className="kv"><dt>Local PCR OI</dt><dd>{number(data.features.pcr_features.local_pcr_oi)}</dd></div><div className="kv"><dt>Local PCR ΔOI</dt><dd>{number(data.features.pcr_features.local_pcr_oi_change)}</dd></div><div className="kv"><dt>Intraday OI</dt><dd><Badge value={data.features.data_quality.intraday_oi_usable?"SUCCESS":"FAILED"}/></dd></div><div className="kv"><dt>Futures basis</dt><dd>{number(data.features.futures_features.futures_basis)}</dd></div><div className="kv"><dt>VIX bucket</dt><dd>{data.features.volatility_features.vix_regime??"N/A"}</dd></div><div className="kv"><dt>Observed open</dt><dd>{number(data.features.price_structure_features.session_open_proxy)}</dd></div><div className="kv"><dt>Observed high / low</dt><dd>{number(data.features.price_structure_features.collector_observed_high)} / {number(data.features.price_structure_features.collector_observed_low)}</dd></div><div className="kv"><dt>VWAP</dt><dd>N/A</dd></div></dl> : <Empty>MARKET STRUCTURE UNAVAILABLE</Empty>}
         </Panel>
         <Panel title="Pipeline health">
-          {data.pipeline ? <><div className="status-grid">{[["Feature",data.pipeline.feature_status],["Regime",data.pipeline.regime_status],["AI",data.pipeline.ai_status],["Strategy",data.pipeline.strategy_status],["Risk",data.pipeline.risk_status],["Shadow",data.pipeline.shadow_status]].map(([label,status])=><div className="status-cell" key={label}><span>{label}</span><Badge value={status}/></div>)}</div><ul className="reason-list"><li>Last success: {timeIST(data.pipeline_health.last_success?.completed_at)}</li><li>Last partial: {timeIST(data.pipeline_health.last_partial?.completed_at)}</li><li>Last failure: {timeIST(data.pipeline_health.last_failed?.completed_at)}</li></ul></> : <Empty>NO PIPELINE RUN</Empty>}
+          {data.pipeline ? <><div className="status-grid">{[["Feature",data.pipeline.feature_status],["Alpha",data.pipeline.alpha_status??"SKIPPED"],["Regime",data.pipeline.regime_status],["AI",data.pipeline.ai_status],["Strategy",data.pipeline.strategy_status],["Risk",data.pipeline.risk_status],["Shadow",data.pipeline.shadow_status]].map(([label,status])=><div className="status-cell" key={label}><span>{label}</span><Badge value={status}/></div>)}</div><ul className="reason-list"><li>Last success: {timeIST(data.pipeline_health.last_success?.completed_at)}</li><li>Last partial: {timeIST(data.pipeline_health.last_partial?.completed_at)}</li><li>Last failure: {timeIST(data.pipeline_health.last_failed?.completed_at)}</li></ul></> : <Empty>NO PIPELINE RUN</Empty>}
         </Panel>
 
         <Panel title="Strike-level OI structure" className="span-2" action={<div className="toggle"><button className={oiMode==="OI"?"active":""} onClick={()=>setOiMode("OI")}>OI</button><button disabled={!data.features?.data_quality.intraday_oi_usable} className={oiMode==="DOI"?"active":""} onClick={()=>setOiMode("DOI")}>ΔOI</button></div>}>
           {data.features?.oi_features.contracts.length ? <OIChart contracts={data.features.oi_features.contracts} mode={oiMode} atm={data.features.atm_strike} support={support} resistance={resistance}/> : <Empty>OPTION OI STRUCTURE UNAVAILABLE</Empty>}
         </Panel>
+        <Panel title="Same-day statistical alpha" className="span-2">{data.alpha_history?.length ? <AlphaHistoryChart values={data.alpha_history}/> : <Empty>NO ALPHA HISTORY YET</Empty>}</Panel>
         <Panel title="Option positioning"><div className="table-wrap">{positioning.length ? <table><thead><tr><th>Strike</th><th>Type</th><th>LTP</th><th>OI</th><th>ΔOI</th><th>Positioning</th></tr></thead><tbody>{positioning.map((row,index)=><tr key={`${row.strike}-${row.option_type}-${index}`}><td>{number(row.strike,0)}</td><td>{row.option_type}</td><td>{number(row.ltp)}</td><td>{integer(row.open_interest)}</td><td>{integer(row.change_in_open_interest)}</td><td>{pretty(row.positioning_class)}</td></tr>)}</tbody></table> : <Empty>POSITIONING DATA UNAVAILABLE</Empty>}</div></Panel>
 
         <Panel title="Strategy candidates" className="span-2">

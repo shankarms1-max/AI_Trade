@@ -190,7 +190,11 @@ def test_alembic_upgrade_succeeds(tmp_path: Path, monkeypatch: pytest.MonkeyPatc
         "risk_decisions",
         "shadow_trades", "shadow_trade_marks",
         "pipeline_runs",
+        "alpha_feature_snapshots",
     }
     assert "lot_size" in {
         column["name"] for column in migrated.get_columns("market_snapshots")
     }
+    assert {"alpha_status", "alpha_feature_snapshot_id"}.issubset({
+        column["name"] for column in migrated.get_columns("pipeline_runs")
+    })

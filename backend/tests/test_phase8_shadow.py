@@ -51,11 +51,11 @@ def marked_snapshot(raw, trade, short_close, long_close, *, ltp=False, minutes=3
     for item in raw.options:
         if item.option_type.value == trade.short_leg.option_type and item.strike == trade.short_leg.strike:
             update = ({"bid": None, "ask": None, "ltp": short_close} if ltp
-                      else {"ask": short_close})
+                      else {"bid": max(0, short_close - 1), "ask": short_close})
             item = item.model_copy(update=update)
         if item.option_type.value == trade.long_leg.option_type and item.strike == trade.long_leg.strike:
             update = ({"bid": None, "ask": None, "ltp": long_close} if ltp
-                      else {"bid": long_close})
+                      else {"bid": long_close, "ask": long_close + 1})
             item = item.model_copy(update=update)
         options.append(item)
     return raw.model_copy(update={

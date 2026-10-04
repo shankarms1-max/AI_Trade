@@ -33,7 +33,7 @@ from tests.test_phase2_persistence import save
 from tests.test_phase7_risk import approved_config, persisted_context, risk_context
 
 
-def fake_steps(events, *, fail=None, ai_fail=False):
+def fake_steps(events, *, fail=None, ai_fail=False, with_alpha=False):
     def call(name, result=None):
         def inner(snapshot_id):
             events.append(name)
@@ -45,6 +45,7 @@ def fake_steps(events, *, fail=None, ai_fail=False):
     return PipelineSteps(
         shadow_update=call("shadow_update"),
         features=call("features"),
+        alpha=call("alpha") if with_alpha else None,
         regime=call("regime"),
         ai=call("ai"),
         strategy=call("strategy"),
@@ -74,6 +75,20 @@ def test_ai_failure_is_nonblocking(repository, session_factory, market_snapshot)
     assert result.status == PipelineStatus.SUCCESS
     assert result.ai_status == StepStatus.FAILED
     assert result.safe_error_message is None
+
+
+def test_phase14_alpha_runs_after_features_before_regime(
+    repository, session_factory, market_snapshot
+):
+    snapshot_id = save(repository, market_snapshot).snapshot_id
+    events = []
+    result = ResearchPipelineOrchestrator(
+        PipelineRepository(session_factory), fake_steps(events, with_alpha=True)
+    ).run(snapshot_id)
+    assert events == [
+        "shadow_update", "features", "alpha", "regime", "strategy", "risk", "shadow_entry"
+    ]
+    assert result.alpha_status == StepStatus.SUCCESS
 
 
 def test_strategy_failure_records_partial_and_skips_risk(repository, session_factory, market_snapshot):

@@ -45,10 +45,28 @@ class RegimeWeights:
     static_oi: float = 1.5
     pcr: float = 1.0
     oi_dependency_cap: float = 6.0
+    alpha_1: float = 4.0
+    alpha_2: float = 4.0
+    statistical_alpha_cap: float = 5.0
+    price_movement_cap: float = 5.0
+    basis: float = 1.0
+
+
+def evidence_mechanism(name: str) -> str:
+    if name in {"PRICE_STRUCTURE", "FUTURES", "STATISTICAL_PRICE_ALPHA",
+                "STATISTICAL_VOLUME_VOL_ALPHA"}:
+        return "PRICE_MOVEMENT"
+    if name in {"DYNAMIC_OI", "OPTION_POSITIONING", "STATIC_OI", "PCR"}:
+        return "POSITIONING"
+    if name == "BASIS":
+        return "BASIS"
+    if name in {"VOLATILITY_CONTEXT", "VOLATILITY"}:
+        return "VOLATILITY_CONTEXT"
+    return "DATA_EXECUTION_QUALITY"
 
 
 def weighted_scores(
-    groups: list[SignalGroup], weights: RegimeWeights
+    groups: list[SignalGroup], weights: RegimeWeights, *, group_caps_enabled: bool = False
 ) -> tuple[float, float, float, dict[str, float]]:
     by_name = {group.name: group for group in groups}
     weight_map = {
@@ -58,16 +76,37 @@ def weighted_scores(
         "FUTURES": weights.futures,
         "STATIC_OI": weights.static_oi,
         "PCR": weights.pcr,
+        "STATISTICAL_PRICE_ALPHA": weights.alpha_1,
+        "STATISTICAL_VOLUME_VOL_ALPHA": weights.alpha_2,
+        "BASIS": weights.basis,
     }
     contributions = {
         name: weight_map.get(name, 0) * group.score for name, group in by_name.items()
     }
-    dependent = ("DYNAMIC_OI", "OPTION_POSITIONING", "PCR")
+    dependent = (("DYNAMIC_OI", "OPTION_POSITIONING", "PCR", "STATIC_OI")
+                 if group_caps_enabled else ("DYNAMIC_OI", "OPTION_POSITIONING", "PCR"))
     dependent_total = sum(contributions.get(name, 0) for name in dependent)
     if dependent_total > weights.oi_dependency_cap and dependent_total > 0:
         scale = weights.oi_dependency_cap / dependent_total
         for name in dependent:
             contributions[name] = contributions.get(name, 0) * scale
+
+    alpha_dependent = ("STATISTICAL_PRICE_ALPHA", "STATISTICAL_VOLUME_VOL_ALPHA")
+    alpha_total = sum(contributions.get(name, 0) for name in alpha_dependent)
+    if alpha_total > weights.statistical_alpha_cap and alpha_total > 0:
+        scale = weights.statistical_alpha_cap / alpha_total
+        for name in alpha_dependent:
+            contributions[name] = contributions.get(name, 0) * scale
+
+    if group_caps_enabled:
+        # Correlated underlying-price evidence shares a single budget.
+        price_names = ("PRICE_STRUCTURE", "FUTURES", "STATISTICAL_PRICE_ALPHA",
+                       "STATISTICAL_VOLUME_VOL_ALPHA")
+        total = sum(contributions.get(name, 0) for name in price_names)
+        if total > weights.price_movement_cap and total > 0:
+            scale = weights.price_movement_cap / total
+            for name in price_names:
+                contributions[name] = contributions.get(name, 0) * scale
 
     bull = sum(
         contributions.get(group.name, 0)

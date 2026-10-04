@@ -52,10 +52,13 @@ def format_operational_alert(
     return _message(lines)
 
 
-def format_regime(regime: dict[str, Any], feature: dict[str, Any], *, changed: bool) -> str:
+def format_regime(
+    regime: dict[str, Any], feature: dict[str, Any], *, changed: bool,
+    alpha: dict[str, Any] | None = None,
+) -> str:
     support = feature.get("support_resistance", {}).get("potential_support_clusters", [])
     resistance = feature.get("support_resistance", {}).get("potential_resistance_clusters", [])
-    return _message([
+    lines = [
         "NIFTY REGIME CHANGED" if changed else "NIFTY REGIME CONFIRMED", "",
         f"Direction: {regime['regime']}", f"Confidence: {_number(regime.get('confidence'), 0)}",
         f"Evidence: {regime.get('evidence_quality', 'N/A')}",
@@ -64,7 +67,15 @@ def format_regime(regime: dict[str, Any], feature: dict[str, Any], *, changed: b
         f"Support: {_number(support[0].get('center_strike'), 0) if support else 'N/A'}",
         f"Resistance: {_number(resistance[0].get('center_strike'), 0) if resistance else 'N/A'}",
         f"Time: {_time(regime.get('timestamp'))}",
-    ])
+    ]
+    if alpha and alpha.get("confirmed"):
+        lines.extend([
+            f"Alpha1: {_number(alpha.get('alpha_1'), 2)}",
+            f"Alpha2: {_number(alpha.get('alpha_2'), 2)}",
+            f"Alpha Confirmation: {alpha.get('consecutive_confirmation_count', 0)}",
+        ])
+    lines.extend(["", "No real order has been placed."])
+    return _message(lines)
 
 
 def format_candidate(candidate: dict[str, Any]) -> str:

@@ -921,3 +921,198 @@ The dashboard is initially public and read-only. It contains market research and
 must never expose credentials; authentication can be designed separately. This
 deployment adds no order execution, broker position management, inbound Telegram
 commands, CI/CD, or automatic cloud backup.
+
+## Phase 14 — historical statistical alpha design (superseded by Phase 14.1 below)
+
+Phase 14 adds a deterministic, versioned `phase14_v1` evidence layer. It does not
+replace derivatives structure, classify the final regime by itself, select strikes,
+approve risk, or create orders. Production remains unchanged because both
+`ALPHA_ENGINE_ENABLED` and `REGIME_USE_STATISTICAL_ALPHA` default to `false`.
+
+For source `FUTURE` (default) or `SPOT`, the horizon observation is the strictly
+prior persisted snapshot closest to 300 seconds within the configured tolerance.
+There is no interpolation. With `P_t` as the selected current reference, `P_h` as
+that prior reference, and `P_open` as the first persisted reference in the current
+session:
+
+```text
+price_return_t = (P_t - P_h) / P_open
+alpha_1_t = historical_midrank(price_return_t)
+```
+
+The rank window is duration-based, not row-count based. Only values strictly before
+`t` are in the comparison population. Midrank tie handling is `(count_less +
+0.5 × count_equal) / historical_count`. Fewer than
+`ALPHA_MIN_RANK_OBSERVATIONS` returns null with `INSUFFICIENT_ALPHA_HISTORY` and
+`WARMING_UP`; lookbacks are never shortened automatically.
+
+ATM is the nearest strike to the selected reference for which both CE and PE exist
+at the snapshot expiry. An exact distance tie selects the lower strike. Interval
+volume is the current cumulative broker volume minus the previous same-contract,
+same-expiry cumulative volume. A negative difference is a reset and is invalid.
+Each leg's activity ratio divides that interval volume by its rolling mean of prior
+valid intervals; zero baselines and missing/reset observations remain null. The raw
+put/call interval ratio and signed `(CE - PE) / (CE + PE)` imbalance are stored but
+are not independently labelled bullish or bearish.
+
+`ATM_OBSERVED_PRICE_VOLATILITY` is the mean of the population standard deviations
+of observed log-price returns for the continuous ATM CE and PE contracts. It is not
+implied volatility. Missing legs, non-positive prices, inadequate returns, sparse
+sequences, or volatility at/below epsilon invalidate Alpha 2:
+
+```text
+atm_volume_activity = mean(CE interval-volume ratio, PE interval-volume ratio)
+atm_option_volatility = mean(CE observed return volatility, PE observed return volatility)
+directional_impulse_raw = price_return × atm_volume_activity / atm_option_volatility
+alpha_2 = historical_midrank(directional_impulse_raw)
+```
+
+Joint states preserve disagreement as `CONFLICT`; conflicting extremes are never
+averaged. Directional confirmation counts only consecutive same-direction joint
+states available at or before the current snapshot. Evidence quality considers rank
+depth, same-contract ATM coverage, valid interval volume, observed-return coverage,
+and timestamp continuity. High signal values with low quality stay low-quality.
+
+When both feature flags are deliberately enabled, the pipeline order becomes:
+
+```text
+shadow pre-update → Phase 3 → Phase 14 alpha → Phase 4 → optional AI
+→ candidates → risk → possible shadow entry
+```
+
+Phase 4 gives Alpha 1 and Alpha 2 initial weights of 4 each but caps their combined
+statistical-alpha contribution at 5 because both contain the same price return.
+The existing dynamic-OI/positioning/PCR cap remains separate. A directional regime
+requires confirmed same-direction alpha plus at least one non-alpha confirmation.
+Strong alpha versus strong opposite derivatives evidence produces
+`STRONG_SIGNAL_CONTRADICTION`, a confidence penalty, and `NO_TRADE`. VIX remains
+non-directional context.
+
+Phase 6 keeps OTM, beyond-structure short strikes. The optional volatility buffer
+multiplies minimum point and percentage distances by configured LOW/NORMAL/ELEVATED/
+HIGH factors; it is disabled by default. A separate configured HIGH-volatility
+policy can return no candidate. Phase 14 never changes the default to selling ATM.
+
+Apply migration and build persisted data without Kotak or OpenAI calls:
+
+```powershell
+alembic upgrade head
+python scripts/build_alpha_features.py --latest
+python scripts/build_alpha_features.py --snapshot-id 123
+python scripts/build_alpha_features.py --all
+```
+
+Read-only endpoints are `GET /api/alpha/latest`, `GET /api/alpha/{snapshot_id}`,
+`GET /api/alpha?limit=50`, and `GET /api/alpha/history?date=YYYY-MM-DD`. The dashboard
+shows the current values, confirmation, quality, warnings, and a same-day Alpha 1/
+Alpha 2 chart with 0.20/0.50/0.80 references. Shadow records preserve entry alpha
+context for descriptive—not causal—performance breakdowns.
+
+The old Phase 14 shadow-outcome filter below is deprecated; it cannot price altered
+strikes, widths, times, or exits. Phase 14.1's chronological replay is documented below.
+
+```powershell
+python scripts/run_alpha_experiments.py --split TRAIN
+python scripts/run_alpha_experiments.py --split VALIDATION
+python scripts/run_alpha_experiments.py --split FINAL_TEST --inspect-final-test
+```
+
+The current utility reconstructs alternative candidates and quote paths from stored
+observations, labels missing exact-leg quotes `NOT_EVALUABLE`, models configured costs,
+and records every attempted trial. FINAL_TEST requires explicit inspection and reports
+repeat inspection. Split-overlapping outcomes are purged.
+
+Kotak's current live option-chain endpoint does not reconstruct the project's exact
+historical three-minute snapshots, cumulative-volume sequence, or continuously
+matched ATM option prices. Existing persisted observations can be backfilled only
+for the dates already recorded. Otherwise Phase 14 must warm up prospectively; no
+synthetic history, interpolated option chain, fabricated volume, or inferred IV is
+permitted.
+
+### Monday market-hours validation sequence
+
+Keep both feature flags false during the first deployment. Back up PostgreSQL,
+deploy, and let the existing collector record the complete session unchanged:
+
+```bash
+bash scripts/backup_postgres.sh
+bash scripts/update_server.sh
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend alembic -c /app/alembic.ini current
+docker compose --env-file .env.production -f docker-compose.prod.yml logs -f collector
+```
+
+After market close, build alpha retrospectively from only the persisted Monday
+snapshots and inspect the read API:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend python /app/scripts/build_alpha_features.py --all
+curl -s "http://127.0.0.1/api/alpha/history?date=YYYY-MM-DD"
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend python /app/scripts/system_health.py
+```
+
+Confirm that ATM tokens/strikes stay on the snapshot expiry, interval volumes equal
+the differences between consecutive broker cumulative values, resets remain null,
+observed volatility is based only on positive same-contract LTPs, early rows show
+`WARMING_UP`, and ranks appear only after at least 50 historical raw values. Review
+`ALPHA_VOLUME_UNUSABLE`, `ALPHA_VOLATILITY_UNUSABLE`, sparse-sequence, and reset
+counts rather than suppressing them.
+
+Do not enable alpha on Monday. Keep `ALPHA_ENGINE_ENABLED=false` and
+`REGIME_USE_STATISTICAL_ALPHA=false` through collection, after-close calculations,
+and anomaly review. Diagnostic activation is a later explicit decision.
+
+## Phase 14.1 — corrected causal research semantics
+
+`phase14_1_v1` preserves Phase 14 rows under their original version. Alpha 1 uses
+`ln(P_t/P_(t-h))` from a strictly prior positive price of the same instrument and
+session; the reference must lie 240–420 seconds back (target 300), with actual
+horizon and error persisted. The old session-open-normalized return remains a
+comparator only. Ranks use prior valid same-reference, comparable-horizon values and
+historical midranks. An upper rank alone never means a positive return: continuation
+requires positive return plus upper rank for bullish, negative return plus lower rank
+for bearish. Reversal is a distinct, research-only hypothesis.
+
+`ALPHA_LOOKBACK_CLOCK_MODE=TRADING_MINUTES` makes 800 minutes count eligible NSE
+09:15–15:30 time across observed sessions, skipping nights, weekends, and configured
+holidays. `WALL_CLOCK` and `SESSION_ONLY` are explicit alternatives. Neither returns,
+interval volume, nor signal-persistence streaks bridge sessions. Futures require the
+same broker-provided symbol and expiry; absent identity means unavailable.
+
+CE/PE cumulative-volume deltas require exact exchange, token, expiry, strike, type,
+and session continuity; the first observation is a baseline, long gaps are diagnostic
+only, and resets never feed the activity baseline. Each leg's prior valid intervals
+use a configurable median or trimmed mean. Option-price volatility is diagnostic,
+never the Alpha 2 divisor. Default Alpha 2 ranks signed underlying horizon return
+divided by prior comparable underlying-return volatility only above a configured
+minimum; otherwise it is unavailable. Unsigned participation cannot vote direction.
+The legacy return × activity / option-volatility composite is diagnostic only.
+
+When future alpha influence is deliberately enabled, underlying-price signals share
+one score cap and one confidence evidence mechanism. Broker OI change with unclear
+baseline does not provide a fresh directional vote. Separate synchronized basis is
+unavailable until quote timestamps support it. Confidence is a deterministic evidence
+score, not a calibrated probability of profit. Signal persistence is overlapping
+observations, not independent confirmation.
+
+The optional replay requires exact stored contract quotes at the next observation,
+fresh non-crossed books, bounded leg timestamp skew, and modeled depth where known.
+Missing quotes or path marks produce `NOT_EVALUABLE`; no nearby-contract substitution
+or synthetic fill is allowed. Results include configurable brokerage, exchange charges,
+STT, GST, stamp duty, and slippage stress, sampled MAE/MFE, session count, and tiered
+sample labels. The old shadow outcomes remain descriptive, not counterfactual.
+
+After a full validation session, with all four production feature flags still false:
+
+```powershell
+python scripts/build_alpha_features.py --all
+python scripts/validate_alpha_session.py --date YYYY-MM-DD
+python scripts/validate_alpha_session.py --date YYYY-MM-DD --prefix-snapshot-id 123
+python scripts/run_alpha_experiments.py --split TRAIN
+python scripts/run_alpha_experiments.py --split VALIDATION
+```
+
+Do not inspect `FINAL_TEST` while tuning. `--inspect-final-test` is an explicit,
+audited final step. Historical computations are labeled `HISTORICAL_REPLAY`; live
+original rows are insert-once, and `RESEARCH_RECOMPUTE` stays separate. Broker source
+timestamps and depth remain nullable where Kotak does not supply them, so many
+historical alternatives can honestly remain `NOT_EVALUABLE`.

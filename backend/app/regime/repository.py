@@ -1,10 +1,11 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.db.models import MarketFeatureSnapshotRecord, MarketRegimeSnapshotRecord
+from app.db.models import AlphaFeatureSnapshotRecord, MarketFeatureSnapshotRecord, MarketRegimeSnapshotRecord
+from app.alpha.models import ALPHA_VERSION, AlphaFeatureSnapshot
 from app.features.models import MarketFeatureSnapshot
 from app.regime.models import REGIME_VERSION, RegimeResult
 
@@ -37,6 +38,15 @@ class RegimeRepository:
                 .limit(1)
             )
             return None if record is None else MarketFeatureSnapshot.model_validate(record.feature_json)
+
+    def load_alpha(self, snapshot_id: int) -> AlphaFeatureSnapshot | None:
+        with self._sessions() as session:
+            record = session.scalar(select(AlphaFeatureSnapshotRecord).where(
+                AlphaFeatureSnapshotRecord.market_snapshot_id == snapshot_id,
+                AlphaFeatureSnapshotRecord.alpha_version == ALPHA_VERSION,
+                AlphaFeatureSnapshotRecord.calculation_mode != "RESEARCH_RECOMPUTE",
+            ).order_by(case((AlphaFeatureSnapshotRecord.calculation_mode == "LIVE_ORIGINAL", 0), else_=1)))
+            return None if record is None else AlphaFeatureSnapshot.model_validate(record.result_json)
 
     def latest_feature_snapshot_id(self) -> int | None:
         with self._sessions() as session:

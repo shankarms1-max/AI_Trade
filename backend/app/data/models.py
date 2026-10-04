@@ -17,6 +17,10 @@ class OptionContractSnapshot(BaseModel):
     expiry: date
     trading_symbol: str
     instrument_token: str | None = None
+    exchange: str = "nse_fo"
+    source_market_timestamp: datetime | None = None
+    bid_quantity: int | None = None
+    ask_quantity: int | None = None
     ltp: float | None = None
     open_interest: int | None = None
     previous_open_interest: int | None = None
@@ -36,6 +40,12 @@ class MarketSnapshot(BaseModel):
     timestamp_ist: datetime
     nifty_spot: float = Field(gt=0)
     nifty_future: float | None = Field(default=None, gt=0)
+    future_instrument_id: str | None = None
+    future_expiry: date | None = None
+    source_market_timestamp: datetime | None = None
+    request_started_at: datetime | None = None
+    response_received_at: datetime | None = None
+    snapshot_persisted_at: datetime | None = None
     india_vix: float | None = Field(default=None, ge=0)
     lot_size: int | None = Field(default=None, gt=0)
     atm_strike: float = Field(gt=0)

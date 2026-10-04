@@ -14,6 +14,7 @@ from app.ai.guardrails import (
     agreement_status,
     apply_confidence_cap,
     estimate_cost_usd,
+    validate_evidence_claims,
 )
 from app.ai.input_builder import build_ai_research_input
 from app.ai.models import (
@@ -22,6 +23,11 @@ from app.ai.models import (
     MarketView,
     ProviderResult,
     ProviderUsage,
+    AI_VERSION,
+    PROMPT_VERSION,
+    AlphaAssessmentDirection,
+    AlphaDerivativesAlignment,
+    Phase14AlphaSummary,
 )
 from app.ai.prompts import SYSTEM_PROMPT
 from app.ai.openai_provider import OpenAIResearchProvider
@@ -135,6 +141,45 @@ def test_compact_input_omits_raw_chain_and_sensitive_fields(
     )
     assert value.data_quality.intraday_oi_usable is True
     assert value.snapshot.india_vix is None
+
+
+def test_phase14_ai_versions_and_prompt_safety():
+    assert AI_VERSION == "phase14_1_ai_v1"
+    assert PROMPT_VERSION == "phase14_1_prompt_v1"
+    for principle in (
+        "Do not recompute", "never invent missing alpha", "weak quality",
+        "contradiction", "select strikes", "claim profitability",
+    ):
+        assert principle.lower() in SYSTEM_PROMPT.lower()
+
+
+def test_missing_alpha_is_explicit_and_cannot_be_fabricated(
+    repository, session_factory, market_snapshot
+):
+    value = research_input(repository, session_factory, market_snapshot)
+    assert value.phase14_alpha.available is False
+    output = model_output().model_copy(update={
+        "alpha_direction": AlphaAssessmentDirection.BULLISH,
+        "key_alpha_evidence": ["Invented alpha"],
+    })
+    with pytest.raises(AIResearchSafetyError, match="invented"):
+        validate_evidence_claims(value, output)
+
+
+def test_ai_must_expose_alpha_conflict(
+    repository, session_factory, market_snapshot
+):
+    value = research_input(repository, session_factory, market_snapshot).model_copy(update={
+        "phase14_alpha": Phase14AlphaSummary(
+            available=True, alpha_1=.9, alpha_2=.1,
+            joint_alpha_direction="CONFLICT", evidence_quality="HIGH",
+        )
+    })
+    output = model_output().model_copy(update={
+        "alpha_vs_derivatives_alignment": AlphaDerivativesAlignment.AGREE,
+    })
+    with pytest.raises(AIResearchSafetyError, match="conflict"):
+        validate_evidence_claims(value, output)
 
 
 def test_structured_output_validation_rejects_malformed_and_invalid_view() -> None:

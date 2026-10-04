@@ -70,6 +70,7 @@ class KotakMarketDataAdapter(MarketDataBroker):
         self._strike_range = strike_range
         self._option_chain_diagnostics = option_chain_diagnostics
         self._cached_nifty_future: float | None = None
+        self._cached_nifty_future_identity: tuple[str | None, date | None] = (None, None)
         self._cached_nifty_lot_size: int | None = None
         self._future_from_chain_resolved = False
 
@@ -152,6 +153,7 @@ class KotakMarketDataAdapter(MarketDataBroker):
     def _cache_nifty_future(self, payload: dict[str, Any]) -> None:
         self._future_from_chain_resolved = True
         self._cached_nifty_future = None
+        self._cached_nifty_future_identity = (None, None)
         future = payload.get("future")
         if not isinstance(future, dict):
             logger.warning("NIFTY_FUTURE_UNAVAILABLE reason=missing")
@@ -170,6 +172,9 @@ class KotakMarketDataAdapter(MarketDataBroker):
             logger.warning("NIFTY_FUTURE_UNAVAILABLE reason=invalid_ltp")
             return
         self._cached_nifty_future = ltp
+        symbol = future.get("symbol")
+        if isinstance(symbol, str) and symbol.strip():
+            self._cached_nifty_future_identity = (symbol.strip(), future_expiry)
 
     def _cache_nifty_lot_size(self, payload: dict[str, Any]) -> None:
         self._cached_nifty_lot_size = None
@@ -267,6 +272,9 @@ class KotakMarketDataAdapter(MarketDataBroker):
         if not self._future_from_chain_resolved:
             logger.warning("NIFTY_FUTURE_UNAVAILABLE reason=option_chain_not_fetched")
         return self._cached_nifty_future
+
+    def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
+        return self._cached_nifty_future_identity
 
     def get_nifty_lot_size(self) -> int | None:
         return self._cached_nifty_lot_size

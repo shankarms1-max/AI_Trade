@@ -7,10 +7,14 @@ from app.features.engine import build_market_features
 from app.features.models import ContractFeature, MarketFeatureSnapshot
 from app.regime.confidence import calculate_confidence
 from app.regime.engine import RegimeConfig, classify_regime
-from app.regime.models import EvidenceQuality, SignalDirection, SignalGroup
+from app.regime.models import EvidenceQuality, Regime, SignalDirection, SignalGroup
 from app.regime.oi_signals import positioning_signal, static_oi_signal
 from app.regime.pcr_signals import pcr_signal
 from app.regime.scoring import RegimeWeights, weighted_scores
+from app.alpha.engine import AlphaConfig, build_alpha_features
+from app.alpha.models import (
+    AlphaDirection, AlphaEvidenceQuality, JointAlphaDirection,
+)
 
 
 def directional_features(
@@ -237,3 +241,52 @@ def test_vix_changes_risk_only_not_direction(market_snapshot: MarketSnapshot) ->
     assert low_result.bear_score == high_result.bear_score
     assert low_result.risk_flags == ["LOW_VOLATILITY"]
     assert high_result.risk_flags == ["HIGH_VOLATILITY"]
+
+
+def _alpha(raw, direction: str):
+    alpha = build_alpha_features(2, raw, [], [], AlphaConfig(min_rank_observations=2))
+    bullish = direction == "BULLISH"
+    return alpha.model_copy(update={
+        "alpha_1": .9 if bullish else .1,
+        "alpha_2": .9 if bullish else .1,
+        "alpha_1_direction": AlphaDirection.STRONG_BULLISH if bullish else AlphaDirection.STRONG_BEARISH,
+        "alpha_2_direction": AlphaDirection.STRONG_BULLISH if bullish else AlphaDirection.STRONG_BEARISH,
+        "joint_alpha_direction": (JointAlphaDirection.STRONG_BULLISH_CONFIRMATION
+                                  if bullish else JointAlphaDirection.STRONG_BEARISH_CONFIRMATION),
+        "consecutive_confirmation_count": 2,
+        "confirmed": True,
+        "evidence_quality": AlphaEvidenceQuality.HIGH,
+    })
+
+
+def test_confirmed_bullish_alpha_contributes_with_independent_confirmation(market_snapshot):
+    prior, current = directional_features(market_snapshot, "bull")
+    config = RegimeConfig(
+        use_statistical_alpha=True, require_alpha_for_directional=True,
+        weights=RegimeWeights(),
+    )
+    result = classify_regime(2, current, prior, config, alpha=_alpha(market_snapshot, "BULLISH"))
+    assert result.regime == Regime.BULLISH
+    assert any(group.name == "STATISTICAL_PRICE_ALPHA" for group in result.signal_groups)
+
+
+def test_alpha_unavailable_safely_blocks_direction_when_required(market_snapshot):
+    prior, current = directional_features(market_snapshot, "bull")
+    result = classify_regime(
+        2, current, prior,
+        RegimeConfig(use_statistical_alpha=True, require_alpha_for_directional=True),
+        alpha=None,
+    )
+    assert result.regime == Regime.NO_TRADE
+    assert "DIRECTION_REQUIRES_CONFIRMED_ALPHA" in result.warnings
+
+
+def test_strong_alpha_derivatives_contradiction_forces_no_trade(market_snapshot):
+    prior, current = directional_features(market_snapshot, "bull")
+    result = classify_regime(
+        2, current, prior,
+        RegimeConfig(use_statistical_alpha=True, require_alpha_for_directional=True),
+        alpha=_alpha(market_snapshot, "BEARISH"),
+    )
+    assert result.regime == Regime.NO_TRADE
+    assert "STRONG_SIGNAL_CONTRADICTION" in result.warnings

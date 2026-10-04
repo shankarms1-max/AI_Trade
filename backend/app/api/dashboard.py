@@ -19,6 +19,7 @@ from app.shadow.repository import ShadowRepository
 from app.shadow.exits import pnl_thresholds
 from app.shadow.service import config_from_settings as shadow_config
 from app.strategy.repository import StrategyRepository
+from app.alpha.repository import AlphaRepository
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 IST = ZoneInfo("Asia/Kolkata")
@@ -46,6 +47,7 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
         else latest["timestamp_ist"].astimezone(IST).date()
     )
     settings = get_settings()
+    alpha_repository = AlphaRepository(sessions)
     open_thresholds = None
     if open_trades:
         target, stop = pnl_thresholds(open_trades[-1], shadow_config(settings))
@@ -57,6 +59,8 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
     return {
         "snapshot": latest,
         "features": None if snapshot_id is None else FeatureRepository(sessions).get(snapshot_id),
+        "alpha": None if snapshot_id is None else alpha_repository.get(snapshot_id),
+        "alpha_history": alpha_repository.history(trading_date),
         "regime": None if snapshot_id is None else RegimeRepository(sessions).get(snapshot_id),
         "ai_research": None if snapshot_id is None else AIResearchRepository(sessions).get(snapshot_id),
         "candidates": None if snapshot_id is None else StrategyRepository(sessions).get(snapshot_id),

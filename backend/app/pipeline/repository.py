@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import (
     AIResearchSnapshotRecord,
+    AlphaFeatureSnapshotRecord,
     MarketFeatureSnapshotRecord,
     MarketRegimeSnapshotRecord,
     MarketSnapshotRecord,
@@ -40,7 +41,7 @@ class PipelineRepository:
 
     def save(self, run: PipelineRun) -> PipelineRun:
         values = run.model_dump(exclude={"id"})
-        for key in ("status", "feature_status", "regime_status", "ai_status",
+        for key in ("status", "feature_status", "alpha_status", "regime_status", "ai_status",
                     "strategy_status", "risk_status", "shadow_status"):
             values[key] = values[key].value
         with self._sessions.begin() as session:
@@ -63,6 +64,7 @@ class PipelineRepository:
                 return session.scalar(select(model.id).where(condition).order_by(model.id.desc()).limit(1))
             return {
                 "feature_snapshot_id": scalar(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.market_snapshot_id == snapshot_id),
+                "alpha_feature_snapshot_id": scalar(AlphaFeatureSnapshotRecord, AlphaFeatureSnapshotRecord.market_snapshot_id == snapshot_id),
                 "regime_snapshot_id": scalar(MarketRegimeSnapshotRecord, MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id),
                 "ai_research_id": scalar(AIResearchSnapshotRecord, AIResearchSnapshotRecord.market_snapshot_id == snapshot_id),
                 "strategy_candidate_set_id": scalar(StrategyCandidateSetRecord, StrategyCandidateSetRecord.market_snapshot_id == snapshot_id),

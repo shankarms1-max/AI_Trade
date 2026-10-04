@@ -14,6 +14,7 @@ from app.api.pipeline import router as pipeline_router
 from app.api.dashboard import router as dashboard_router
 from app.api.system import router as system_router
 from app.api.notifications import router as notifications_router
+from app.api.alpha import router as alpha_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -55,6 +56,7 @@ app.include_router(pipeline_router)
 app.include_router(dashboard_router)
 app.include_router(system_router)
 app.include_router(notifications_router)
+app.include_router(alpha_router)
 
 
 @app.get("/health")

@@ -52,6 +52,12 @@ def performance(trades: list[ShadowTrade]) -> dict:
         else mean(i.mfe_per_lot for i in trades if i.mfe_per_lot is not None),
         "average_mae_per_lot": None if not [i for i in trades if i.mae_per_lot is not None]
         else mean(i.mae_per_lot for i in trades if i.mae_per_lot is not None),
+        "profit_target_frequency": None if not closed else sum(
+            item.exit_reason == "PROFIT_TARGET" for item in closed
+        ) / len(closed) * 100,
+        "stop_loss_frequency": None if not closed else sum(
+            item.exit_reason == "STOP_LOSS" for item in closed
+        ) / len(closed) * 100,
     }
 
 
@@ -61,6 +67,18 @@ def _bucket_credit(value: float) -> str:
     if value < 0.10:
         return "5_TO_10_PCT"
     return "GE_10_PCT"
+
+
+def _bucket_alpha(value: float | None) -> str:
+    if value is None:
+        return "UNAVAILABLE"
+    boundaries = (0.70, 0.75, 0.80, 0.85, 0.90, 1.01)
+    if value < boundaries[0]:
+        return "LT_0.70"
+    for left, right in zip(boundaries, boundaries[1:]):
+        if left <= value < right:
+            return f"{left:.2f}_TO_{min(right, 1.0):.2f}"
+    return "UNAVAILABLE"
 
 
 def breakdown(trades: list[ShadowTrade]) -> dict:
@@ -75,6 +93,13 @@ def breakdown(trades: list[ShadowTrade]) -> dict:
         "pricing_basis": lambda item: item.entry_pricing_basis.value,
         "spread_width": lambda item: f"{item.spread_width:g}",
         "credit_to_width_bucket": lambda item: _bucket_credit(item.credit_to_width_ratio),
+        "alpha_1_bucket": lambda item: _bucket_alpha(item.entry_alpha_1),
+        "alpha_2_bucket": lambda item: _bucket_alpha(item.entry_alpha_2),
+        "joint_alpha_state": lambda item: item.entry_joint_alpha_direction or "UNAVAILABLE",
+        "alpha_evidence_quality": lambda item: item.entry_alpha_evidence_quality or "UNAVAILABLE",
+        "alpha_confirmation_count": lambda item: str(item.entry_alpha_confirmation_count),
+        "entry_window": lambda item: f"{item.entry_timestamp.hour:02d}:{(item.entry_timestamp.minute // 15) * 15:02d}",
+        "volatility_bucket": lambda item: item.entry_vix_regime or "UNAVAILABLE",
     }
     result = {}
     for name, key_fn in dimensions.items():

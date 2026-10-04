@@ -107,6 +107,43 @@ def test_quality_gates(market_snapshot, update, reason):
     assert reason in generated.reason_codes
 
 
+def test_phase14_elevated_volatility_increases_required_short_buffer(market_snapshot):
+    raw, feature, regime = phase6_context(market_snapshot)
+    elevated = feature.model_copy(update={
+        "volatility_features": feature.volatility_features.model_copy(
+            update={"vix_regime": "ELEVATED"}
+        )
+    })
+    config = StrategyConfig(
+        volatility_buffer_enabled=True,
+        vix_elevated_distance_multiplier=2.0,
+    )
+    result = generate_candidates(raw, elevated, regime, 10, config)
+    assert result.candidates
+    assert all(item.short_leg_distance_from_spot >= 200 for item in result.candidates)
+
+
+def test_phase14_high_volatility_can_veto_candidates(market_snapshot):
+    raw, feature, regime = phase6_context(market_snapshot)
+    high = feature.model_copy(update={
+        "volatility_features": feature.volatility_features.model_copy(
+            update={"vix_regime": "HIGH"}
+        )
+    })
+    result = generate_candidates(
+        raw, high, regime, 10,
+        StrategyConfig(volatility_buffer_enabled=True, no_candidate_on_high_vix=True),
+    )
+    assert not result.eligible
+    assert "VOLATILITY_POLICY_NO_CANDIDATE" in result.reason_codes
+
+
+def test_phase14_still_never_sells_atm_by_default(market_snapshot):
+    raw, feature, regime = phase6_context(market_snapshot)
+    result = generate_candidates(raw, feature, regime, 10)
+    assert all(item.short_leg.strike != raw.atm_strike for item in result.candidates)
+
+
 @pytest.mark.parametrize("direction", ["BULLISH", "BEARISH"])
 def test_defined_risk_leg_rules_and_payoff(market_snapshot, direction):
     raw, feature, regime = phase6_context(market_snapshot, direction)

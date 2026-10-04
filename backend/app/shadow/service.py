@@ -28,9 +28,13 @@ def build_shadow_entry(
             snapshot_id=snapshot_id, created=False, trade=None,
             reason_codes=["NO_APPROVED_RISK_DECISION"],
         )
-    snapshot, feature, regime, candidate_set, approved = context
+    if len(context) == 5:  # Backward-compatible repository doubles and pre-alpha contexts.
+        snapshot, feature, regime, candidate_set, approved = context
+        alpha = None
+    else:
+        snapshot, feature, regime, candidate_set, approved, alpha = context
     result = create_shadow_entry(
-        snapshot_id, snapshot, feature, regime, candidate_set, approved,
+        snapshot_id, snapshot, feature, regime, candidate_set, approved, alpha,
         trades_today=repository.count_entries_on(snapshot.timestamp_ist.date()),
         open_trade_exists=repository.has_open_trade(),
         max_new_trades_per_day=config.max_new_trades_per_day,

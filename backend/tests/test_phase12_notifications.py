@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.models import OperationalEventRecord
 from app.db.session import get_session_factory
 from app.main import app
@@ -66,8 +66,9 @@ def mock_client(handler, retries=2):
                           client=client, sleeper=lambda _: None)
 
 
-def test_config_disabled_by_default():
-    assert get_settings().telegram_enabled is False
+def test_config_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("TELEGRAM_ENABLED", raising=False)
+    assert Settings(_env_file=None, kotak_consumer_key="configured").telegram_enabled is False
 
 
 @pytest.mark.parametrize(("token", "chat"), [(None, SecretStr("1")), (SecretStr("x"), None)])

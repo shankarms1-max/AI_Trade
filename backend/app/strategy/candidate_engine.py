@@ -44,6 +44,12 @@ class StrategyConfig:
     short_delta_max_abs: float | None = None
     max_candidates: int = 5
     max_snapshot_age_seconds: int = 600
+    volatility_buffer_enabled: bool = False
+    vix_low_distance_multiplier: float = 1.0
+    vix_normal_distance_multiplier: float = 1.0
+    vix_elevated_distance_multiplier: float = 1.25
+    vix_high_distance_multiplier: float = 1.5
+    no_candidate_on_high_vix: bool = False
 
 
 def _none_result(
@@ -105,6 +111,7 @@ def _score(
     pricing_basis: PricingBasis,
     regime_confidence: float,
     config: StrategyConfig,
+    minimum_distance: float | None = None,
 ) -> float:
     structure = min(1.0, reference_gap / max(width, 1))
     credit = min(1.0, credit_ratio / max(config.min_credit_to_width_ratio * 3, 0.01))
@@ -112,7 +119,7 @@ def _score(
     liquidity = min(1.0, log1p(min(short_oi, long_oi)) / log1p(oi_target * 10))
     if pricing_basis == PricingBasis.LTP_ESTIMATE:
         liquidity *= 0.75
-    buffer = min(1.0, distance / max(config.min_short_distance_points * 3, width * 3, 1))
+    buffer = min(1.0, distance / max((minimum_distance or config.min_short_distance_points) * 3, width * 3, 1))
     regime = min(1.0, regime_confidence / 100)
     return round(100 * (
         0.30 * structure
@@ -156,6 +163,20 @@ def generate_candidates(
         return _none_result(feature.snapshot_id, regime_snapshot_id, regime_name,
                             ["OPTION_CHAIN_UNAVAILABLE"])
 
+    vix_regime = feature.volatility_features.vix_regime
+    multipliers = {
+        "LOW": config.vix_low_distance_multiplier,
+        "NORMAL": config.vix_normal_distance_multiplier,
+        "ELEVATED": config.vix_elevated_distance_multiplier,
+        "HIGH": config.vix_high_distance_multiplier,
+    }
+    distance_multiplier = multipliers.get(vix_regime or "", 1.0) if config.volatility_buffer_enabled else 1.0
+    if config.volatility_buffer_enabled and config.no_candidate_on_high_vix and vix_regime == "HIGH":
+        return _none_result(feature.snapshot_id, regime_snapshot_id, regime_name,
+                            ["VOLATILITY_POLICY_NO_CANDIDATE"])
+    required_distance_points = config.min_short_distance_points * distance_multiplier
+    required_distance_pct = config.min_short_distance_pct * distance_multiplier
+
     strategy = (StrategyType.BULL_PUT_SPREAD if regime_name == "BULLISH"
                 else StrategyType.BEAR_CALL_SPREAD)
     option_type = "PE" if regime_name == "BULLISH" else "CE"
@@ -184,7 +205,7 @@ def generate_candidates(
         else:
             otm = short.strike > snapshot.nifty_spot
             beyond = reference is None or short.strike >= reference
-        if not otm or distance < config.min_short_distance_points or distance_pct < config.min_short_distance_pct:
+        if not otm or distance < required_distance_points or distance_pct < required_distance_pct:
             rejection_codes.add("SHORT_STRIKE_NOT_OTM")
             continue
         if not beyond:
@@ -225,7 +246,7 @@ def generate_candidates(
             score = _score(
                 reference_gap, distance, payoff.width, credit_ratio,
                 short.open_interest or 0, long.open_interest or 0,
-                price.basis, regime.confidence, config,
+                price.basis, regime.confidence, config, required_distance_points,
             )
             lot = snapshot.lot_size
             candidates.append(CreditSpreadCandidate(

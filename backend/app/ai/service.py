@@ -31,7 +31,7 @@ def build_and_store_ai_research(
             f"phase3_v1 features and phase4_v1 regime for snapshot {snapshot_id} are required"
         )
     feature_id, feature, regime_id, regime = context
-    research_input = build_ai_research_input(feature, regime)
+    research_input = build_ai_research_input(feature, regime, repository.load_alpha(snapshot_id))
     repository.start(
         snapshot_id,
         feature_id,

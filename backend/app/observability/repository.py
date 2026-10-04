@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.models import (
-    AIResearchSnapshotRecord, CollectorHeartbeatRecord, CollectorRunRecord,
+    AIResearchSnapshotRecord, AlphaFeatureSnapshotRecord, CollectorHeartbeatRecord, CollectorRunRecord,
     MarketFeatureSnapshotRecord, MarketSnapshotRecord, OperationalEventRecord,
     OptionContractSnapshotRecord, PipelineRunRecord, ShadowTradeMarkRecord,
     ShadowTradeRecord,
@@ -70,6 +70,24 @@ class ObservabilityRepository:
                 PipelineRunRecord.started_at.desc(), PipelineRunRecord.id.desc()
             ).limit(1))
             return None if row is None else self._row(row)
+
+    def latest_alpha(self) -> dict[str, Any] | None:
+        with self._sessions() as session:
+            row = session.scalar(select(AlphaFeatureSnapshotRecord).order_by(
+                AlphaFeatureSnapshotRecord.timestamp.desc(), AlphaFeatureSnapshotRecord.id.desc()
+            ).limit(1))
+            if row is None:
+                return None
+            payload = row.result_json
+            return {
+                "status": payload.get("status"),
+                "timestamp": row.timestamp,
+                "history_count": session.scalar(select(func.count(AlphaFeatureSnapshotRecord.id))) or 0,
+                "alpha_1_available": row.alpha_1 is not None,
+                "alpha_2_available": row.alpha_2 is not None,
+                "evidence_quality": row.evidence_quality,
+                "warnings": row.warnings_json,
+            }
 
     def latest_snapshot_quality(self) -> dict[str, Any] | None:
         with self._sessions() as session:

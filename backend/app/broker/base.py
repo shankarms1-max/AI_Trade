@@ -38,3 +38,7 @@ class MarketDataBroker(ABC):
     def get_nifty_lot_size(self) -> int | None:
         """Return broker-confirmed option lot size when available."""
         return None
+
+    def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
+        """Optional read-only metadata; unknown identity must remain unknown."""
+        return None, None

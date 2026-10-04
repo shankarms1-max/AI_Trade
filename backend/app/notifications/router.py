@@ -31,6 +31,7 @@ from app.regime.repository import RegimeRepository
 from app.risk.repository import RiskRepository
 from app.shadow.repository import ShadowRepository
 from app.strategy.repository import StrategyRepository
+from app.alpha.repository import AlphaRepository
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -139,9 +140,10 @@ class NotificationRouter:
         sent = 0
         feature = FeatureRepository(self._sessions).get(snapshot_id)
         regime = RegimeRepository(self._sessions).get(snapshot_id)
+        alpha = AlphaRepository(self._sessions).get(snapshot_id)
         candidates = StrategyRepository(self._sessions).get(snapshot_id)
         risk = RiskRepository(self._sessions).get(snapshot_id)
-        sent += self._notify_regime(snapshot_id, feature, regime)
+        sent += self._notify_regime(snapshot_id, feature, regime, alpha)
         if candidates and candidates.get("eligible") and candidates.get("candidates"):
             top = candidates["candidates"][0]
             sent += int(self.service.notify(NotificationRequest(
@@ -157,6 +159,7 @@ class NotificationRouter:
     def _notify_regime(
         self, snapshot_id: int, feature: dict[str, Any] | None,
         regime: dict[str, Any] | None,
+        alpha: dict[str, Any] | None = None,
     ) -> int:
         if not feature or not regime or regime.get("regime") == "NO_TRADE":
             return 0
@@ -181,7 +184,7 @@ class NotificationRouter:
                 event_code=NotificationEventCode.REGIME_CHANGED,
                 dedupe_key=regime_key(snapshot_id, "RANGE"),
                 priority=NotificationPriority.INFO,
-                message=format_regime(regime, feature, changed=True),
+                message=format_regime(regime, feature, changed=True, alpha=alpha),
                 subject_ref_type="market_snapshot", subject_ref_id=str(snapshot_id),
             )))
         notify, changed = should_notify_directional(directions, regime["regime"], required)
@@ -191,7 +194,7 @@ class NotificationRouter:
         return int(self.service.notify(NotificationRequest(
             event_code=code, dedupe_key=regime_key(snapshot_id, regime["regime"]),
             priority=NotificationPriority.INFO,
-            message=format_regime(regime, feature, changed=changed),
+            message=format_regime(regime, feature, changed=changed, alpha=alpha),
             subject_ref_type="market_snapshot", subject_ref_id=str(snapshot_id),
         )))
 

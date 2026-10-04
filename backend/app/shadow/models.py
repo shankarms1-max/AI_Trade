@@ -40,6 +40,10 @@ class ShadowTrade(ShadowModel):
     entry_long_price: float
     entry_credit: float = Field(gt=0)
     entry_pricing_basis: ShadowPricingBasis
+    quote_age_seconds: float | None = None
+    leg_time_skew_seconds: float | None = None
+    depth_available: bool = False
+    fill_quality_state: str = "UNVERIFIED_QUOTE_TIME"
     spread_width: float = Field(gt=0)
     lot_size: int | None
     max_profit_per_unit: float
@@ -50,6 +54,11 @@ class ShadowTrade(ShadowModel):
     entry_regime_confidence: float
     entry_evidence_quality: str
     entry_vix_regime: str | None
+    entry_alpha_1: float | None = None
+    entry_alpha_2: float | None = None
+    entry_joint_alpha_direction: str | None = None
+    entry_alpha_evidence_quality: str | None = None
+    entry_alpha_confirmation_count: int = 0
     credit_to_width_ratio: float
     source_candidate: dict[str, Any]
     source_risk_decision: dict[str, Any]
@@ -81,6 +90,10 @@ class ShadowTradeMark(ShadowModel):
     short_price: float
     long_price: float
     valuation_basis: ShadowPricingBasis
+    quote_age_seconds: float | None = None
+    leg_time_skew_seconds: float | None = None
+    depth_available: bool = False
+    fill_quality_state: str = "UNVERIFIED_QUOTE_TIME"
     exit_debit: float
     pnl_per_unit: float
     pnl_per_lot: float | None

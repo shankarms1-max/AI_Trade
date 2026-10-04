@@ -1,17 +1,19 @@
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.ai.models import AI_VERSION, PROMPT_VERSION, AIResearchResult
 from app.db.models import (
     AIResearchSnapshotRecord,
+    AlphaFeatureSnapshotRecord,
     MarketFeatureSnapshotRecord,
     MarketRegimeSnapshotRecord,
 )
 from app.features.models import MarketFeatureSnapshot
 from app.regime.models import RegimeResult
+from app.alpha.models import ALPHA_VERSION, AlphaFeatureSnapshot
 
 
 class AIResearchRepository:
@@ -49,6 +51,15 @@ class AIResearchRepository:
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc())
                 .limit(1)
             )
+
+    def load_alpha(self, snapshot_id: int) -> AlphaFeatureSnapshot | None:
+        with self._sessions() as session:
+            record = session.scalar(select(AlphaFeatureSnapshotRecord).where(
+                AlphaFeatureSnapshotRecord.market_snapshot_id == snapshot_id,
+                AlphaFeatureSnapshotRecord.alpha_version == ALPHA_VERSION,
+                AlphaFeatureSnapshotRecord.calculation_mode != "RESEARCH_RECOMPUTE",
+            ).order_by(case((AlphaFeatureSnapshotRecord.calculation_mode == "LIVE_ORIGINAL", 0), else_=1)))
+            return None if record is None else AlphaFeatureSnapshot.model_validate(record.result_json)
 
     def existing_success(self, snapshot_id: int) -> AIResearchResult | None:
         with self._sessions() as session:

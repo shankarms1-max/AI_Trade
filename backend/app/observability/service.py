@@ -46,6 +46,7 @@ class ObservabilityService:
                 "pipeline": HealthStatus.UNKNOWN.value, "shadow": HealthStatus.UNKNOWN.value,
                 "ai": "DISABLED" if not self._settings.openai_api_key else "CONFIGURED_NOT_TESTED",
                 "notifications": telegram_status,
+                "alpha": "DISABLED" if not self._settings.alpha_engine_enabled else "UNKNOWN",
             }
             return {
                 "overall_status": HealthStatus.UNHEALTHY.value,
@@ -53,6 +54,7 @@ class ObservabilityService:
                 "components": components, "database": database,
                 "collector": None, "market_data": None, "pipeline": None,
                 "shadow": None, "ai": {"status": components["ai"]},
+                "alpha": {"status": components["alpha"]},
                 "notifications": {"telegram": {
                     "status": telegram_status,
                     "enabled": self._settings.telegram_enabled,
@@ -97,6 +99,12 @@ class ObservabilityService:
         telegram = NotificationService(
             NotificationRepository(self._sessions), self._settings
         ).health(current)
+        latest_alpha = self._repo.latest_alpha()
+        alpha_status = (
+            "DISABLED" if not self._settings.alpha_engine_enabled
+            else "WARMING_UP" if latest_alpha is None
+            else latest_alpha.get("status", "UNKNOWN")
+        )
         components = {
             "database": database["status"],
             "collector_heartbeat": collector["heartbeat"]["status"],
@@ -104,6 +112,7 @@ class ObservabilityService:
             "market_data": market["status"], "pipeline": pipeline["status"],
             "shadow": shadow["status"], "ai": ai["status"],
             "notifications": telegram["status"],
+            "alpha": alpha_status,
         }
         self._repo.record_health_transition(
             "COLLECTOR", collector["heartbeat"]["status"],
@@ -125,6 +134,7 @@ class ObservabilityService:
             "current_time_ist": current, "market_session_state": session_state.value,
             "components": components, "database": database, "collector": collector,
             "market_data": market, "pipeline": pipeline, "shadow": shadow, "ai": ai,
+            "alpha": {"status": alpha_status, **(latest_alpha or {})},
             "notifications": {"telegram": telegram},
         }
 

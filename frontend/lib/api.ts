@@ -1,4 +1,4 @@
-import type { AIResearch, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
+import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -19,6 +19,9 @@ export const api = {
   features: (id: number) => optional<MarketFeatures>(`/api/features/${id}`),
   regime: (id: number) => optional<MarketRegime>(`/api/regime/${id}`),
   ai: (id: number) => optional<AIResearch>(`/api/ai-research/${id}`),
+  alpha: (id: number) => optional<AlphaFeature>(`/api/alpha/${id}`),
+  alphaLatest: () => optional<AlphaFeature>("/api/alpha/latest"),
+  alphaHistory: (date: string) => request<AlphaFeature[]>(`/api/alpha/history?date=${date}`),
   candidates: (id: number) => optional<StrategyCandidateSet>(`/api/strategy-candidates/${id}`),
   risk: (id: number) => optional<RiskEvaluationSet>(`/api/risk/${id}`),
   pipeline: (id: number) => optional<PipelineRun>(`/api/pipeline/${id}`),

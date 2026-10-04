@@ -6,6 +6,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.ai.openai_provider import OpenAIResearchProvider
 from app.ai.repository import AIResearchRepository
 from app.ai.service import build_and_store_ai_research, config_from_settings as ai_config
+from app.alpha.engine import config_from_settings as alpha_config
+from app.alpha.models import CalculationMode
+from app.alpha.repository import AlphaRepository
+from app.alpha.service import build_and_store_alpha
 from app.features.engine import config_from_settings as feature_config
 from app.features.repository import FeatureRepository
 from app.features.service import build_and_store_features
@@ -52,6 +56,7 @@ def build_pipeline_orchestrator(
     strategy_repository = StrategyRepository(session_factory)
     risk_repository = RiskRepository(session_factory)
     shadow_repository = ShadowRepository(session_factory)
+    alpha_repository = AlphaRepository(session_factory)
 
     ai_step = None
     if enable_ai:
@@ -75,6 +80,11 @@ def build_pipeline_orchestrator(
         features=lambda snapshot_id: build_and_store_features(
             feature_repository, snapshot_id, feature_config(settings)
         ),
+        alpha=(
+            lambda snapshot_id: build_and_store_alpha(
+                alpha_repository, snapshot_id, alpha_config(settings), CalculationMode.LIVE_ORIGINAL
+            )
+        ) if settings.alpha_engine_enabled else None,
         regime=lambda snapshot_id: build_and_store_regime(
             regime_repository, snapshot_id, regime_config(settings)
         ),

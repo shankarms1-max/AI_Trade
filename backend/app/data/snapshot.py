@@ -55,6 +55,7 @@ def build_market_snapshot(
     strikes_each_side: int = 10,
 ) -> MarketSnapshot:
     try:
+        request_started_at = datetime.now(IST)
         spot = broker.get_nifty_spot()
         expiry = nearest_expiry(broker.get_nifty_expiries())
         atm = calculate_atm_strike(spot, strike_step)
@@ -62,11 +63,19 @@ def build_market_snapshot(
             broker.get_nifty_option_chain(expiry), atm, strikes_each_side
         )
         logger.info("OPTION_CHAIN_FILTERED contracts=%d", len(contracts))
+        future_id, future_expiry = broker.get_nifty_future_identity()
+        future_price = broker.get_nifty_future()
+        vix = broker.get_india_vix()
+        received_at = datetime.now(IST)
         snapshot = MarketSnapshot(
-            timestamp_ist=datetime.now(IST),
+            timestamp_ist=received_at,
             nifty_spot=spot,
-            nifty_future=broker.get_nifty_future(),
-            india_vix=broker.get_india_vix(),
+            nifty_future=future_price,
+            future_instrument_id=future_id,
+            future_expiry=future_expiry,
+            request_started_at=request_started_at,
+            response_received_at=received_at,
+            india_vix=vix,
             lot_size=broker.get_nifty_lot_size(),
             atm_strike=atm,
             expiry=expiry,

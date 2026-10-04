@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 
-from app.ai.models import AgreementStatus, AIResearchInput, AIResearchModelOutput, MarketView
+from app.ai.models import (
+    AgreementStatus, AIResearchInput, AIResearchModelOutput, MarketView,
+    AlphaAssessmentDirection, AlphaDerivativesAlignment,
+)
 
 
 class AIResearchSafetyError(ValueError):
@@ -40,6 +43,20 @@ def agreement_status(deterministic: str, ai_view: MarketView) -> AgreementStatus
 def validate_evidence_claims(
     research_input: AIResearchInput, output: AIResearchModelOutput
 ) -> None:
+    alpha = research_input.phase14_alpha
+    if not alpha.available and (
+        output.alpha_direction != AlphaAssessmentDirection.INSUFFICIENT
+        or output.key_alpha_evidence
+    ):
+        raise AIResearchSafetyError("AI output invented unavailable statistical alpha evidence")
+    if alpha.joint_alpha_direction == "CONFLICT" and (
+        output.alpha_vs_derivatives_alignment == AlphaDerivativesAlignment.AGREE
+    ):
+        raise AIResearchSafetyError("AI output concealed statistical alpha conflict")
+    if "RANK_SIGN_CONFLICT" in alpha.warnings and output.alpha_direction in {
+        AlphaAssessmentDirection.BULLISH, AlphaAssessmentDirection.BEARISH
+    }:
+        raise AIResearchSafetyError("AI output inferred direction from conflicting rank and signed return")
     if research_input.data_quality.intraday_oi_usable:
         return
     text = " ".join(

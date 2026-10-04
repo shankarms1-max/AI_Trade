@@ -42,7 +42,7 @@ def pipeline_health(
         "failed_today": len(failed), "pipeline_success_rate_today": percentage(len(success), len(runs)),
         "consecutive_failures": consecutive_failures(row["status"] for row in runs),
         "latest_stage_statuses": {} if latest is None else {
-            name: latest[f"{name}_status"] for name in ("feature", "regime", "ai", "strategy", "risk", "shadow")
+            name: latest.get(f"{name}_status", "SKIPPED") for name in ("feature", "alpha", "regime", "ai", "strategy", "risk", "shadow")
         },
         "latest_stage_timings_ms": {} if latest is None else latest.get("stage_timings_ms", {}),
         "average_total_pipeline_ms": average(totals), "p95_total_pipeline_ms": p95,
