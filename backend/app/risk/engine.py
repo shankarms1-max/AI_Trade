@@ -74,6 +74,7 @@ def _evaluate_candidate(
 
     regime_name = _value(regime.regime)
     evidence_quality = _value(regime.evidence_quality)
+    phase142 = config.credit_spread_policy.enabled and candidate.strategy_logic_version == "phase14_2_v1"
     expected = expected_strategy_for_regime(regime_name)
     # Snapshot identity is checked by the service/repository foreign-key context.
     regime_valid = expected == candidate.strategy_type and candidate_set.regime == regime_name
@@ -82,8 +83,37 @@ def _evaluate_candidate(
     if not regime_valid:
         reasons.append("REGIME_NOT_DIRECTIONAL")
 
-    confidence_ok = regime.confidence >= config.min_regime_confidence
-    _check(checks, "REGIME_CONFIDENCE", CheckStatus.PASS if confidence_ok else CheckStatus.FAIL,
+    if phase142:
+        side = "BULLISH" if candidate.strategy_type.value == "BULL_PUT_SPREAD" else "BEARISH"
+        family = candidate.strategy_family.value if candidate.strategy_family else "NO_TRADE"
+        family_eligibility = regime.strategy_family_eligibility.value if regime.strategy_family_eligibility else "NONE"
+        state_valid = (regime.strategy_logic_version == candidate_set.strategy_logic_version == "phase14_2_v1"
+                       and candidate.strategy_version == candidate_set.strategy_version == "phase14_2_v1"
+                       and regime.data_quality_state == "VALID" and regime.market_bias is not None and _value(regime.market_bias) not in {"CONFLICT", "INSUFFICIENT"})
+        if family == "DIRECTIONAL_CREDIT_SPREAD":
+            regime_valid = state_valid and side == _value(regime.market_bias) and family_eligibility in {"BOTH", "DIRECTIONAL_ONLY"}
+        elif family == "THETA_CARRY_CREDIT_SPREAD":
+            from app.strategy.economics import expected_move, expiry_context, side_safety
+            policy = config.credit_spread_policy
+            move = expected_move(snapshot, feature, expiry_context(snapshot, policy)["fractional_time_to_expiry"], policy.expected_move_source)
+            safer = side_safety(feature, move, policy)["selected_bias"] if move else None
+            chosen = _value(regime.market_bias) if _value(regime.directional_strength) in {"STRONG", "MODERATE"} else safer
+            from app.strategy.policy import STRENGTH_RANK
+            opposing = regime.statistical_alpha_bias in {"BULLISH", "BEARISH"} and regime.statistical_alpha_bias != side
+            alpha_ok = not opposing or STRENGTH_RANK.get(regime.statistical_alpha_strength or "NONE",0) <= STRENGTH_RANK[policy.theta_carry_max_opposing_alpha_strength]
+            regime_valid = state_valid and policy.theta_carry_enabled and side == chosen and alpha_ok and family_eligibility in {"BOTH", "THETA_CARRY_ONLY"}
+        else:
+            regime_valid = False
+        # Replace legacy directional mapping check, preserve all capital/data vetoes.
+        checks.pop()
+        if "REGIME_NOT_DIRECTIONAL" in reasons:
+            reasons.remove("REGIME_NOT_DIRECTIONAL")
+        _check(checks, "REGIME_STILL_ELIGIBLE", CheckStatus.PASS if regime_valid else CheckStatus.FAIL,
+               family, family_eligibility, "Current bias and deterministic family eligibility")
+        if not regime_valid:
+            reasons.append("STRATEGY_FAMILY_NO_LONGER_ELIGIBLE")
+    confidence_ok = phase142 or regime.confidence >= config.min_regime_confidence
+    _check(checks, "REGIME_CONFIDENCE", CheckStatus.NOT_AVAILABLE if phase142 else CheckStatus.PASS if confidence_ok else CheckStatus.FAIL,
            regime.confidence, config.min_regime_confidence, "Deterministic regime confidence threshold")
     if not confidence_ok:
         reasons.append("REGIME_CONFIDENCE_TOO_LOW")
@@ -96,6 +126,7 @@ def _evaluate_candidate(
     data_consistent = (
         candidate.expiry == snapshot.expiry == feature.expiry
         and candidate.market_snapshot_id == feature.snapshot_id == regime.snapshot_id
+        and (not phase142 or candidate.strategy_version == candidate_set.strategy_version)
         and candidate.regime_snapshot_id == candidate_set.regime_snapshot_id
         and candidate.strategy_type == candidate_set.strategy_type
         and bool(candidate.short_leg.trading_symbol)
@@ -306,6 +337,21 @@ def _evaluate_candidate(
     else:
         _check(checks, "EVENT_RISK", CheckStatus.PASS, [], "no blocking event", "No configured active event")
 
+    if phase142:
+        from app.strategy.liquidity import malformed_quotes
+        exact = [next((item for item in snapshot.options if leg.instrument_token and
+                  item.exchange == "nse_fo" and item.instrument_token == leg.instrument_token
+                  and item.strike == leg.strike and item.expiry == leg.expiry
+                  and item.option_type.value == leg.option_type), None)
+                 for leg in (candidate.short_leg, candidate.long_leg)]
+        quotes_ok = all(item is not None and not malformed_quotes(item) and
+                        leg.bid == item.bid and leg.ask == item.ask and leg.ltp == item.ltp and
+                        (item.source_market_timestamp is None or 0 <= (snapshot.timestamp_ist-item.source_market_timestamp).total_seconds() <= config.max_snapshot_age_seconds)
+                        for leg, item in zip((candidate.short_leg, candidate.long_leg), exact))
+        _check(checks, "EXACT_LEG_QUOTE_VALIDITY", CheckStatus.PASS if quotes_ok else CheckStatus.FAIL,
+               quotes_ok, True, "Same contract, valid book, observed quote freshness")
+        if not quotes_ok:
+            reasons.append("STALE_OR_INVALID_EXACT_LEG_QUOTE")
     required = config.required_consecutive_directional_snapshots
     sequence = [regime, *prior_regimes[:max(0, required - 1)]]
     confirmed = required <= 1 or (
@@ -313,6 +359,15 @@ def _evaluate_candidate(
         and all(_value(item.regime) == regime_name and item.confidence >= config.min_regime_confidence
                 for item in sequence[:required])
     )
+    if phase142:
+        confirmed = len(sequence) >= required and all(
+            item.strategy_logic_version == "phase14_2_v1" and item.data_quality_state == "VALID"
+            and item.market_bias == regime.market_bias and item.strategy_family_eligibility == regime.strategy_family_eligibility
+            and item.timestamp.date() == regime.timestamp.date()
+            and item.timestamp <= regime.timestamp
+            for item in sequence[:required]) and all(
+                0 < (newer.timestamp-older.timestamp).total_seconds() <= config.max_snapshot_age_seconds
+                for newer, older in zip(sequence[:required], sequence[1:required]))
     _check(checks, "CONSECUTIVE_REGIME_CONFIRMATION", CheckStatus.PASS if confirmed else CheckStatus.FAIL,
            [_value(item.regime) for item in sequence], required, "Consecutive same-direction Phase 4 snapshots")
     if not confirmed:

@@ -135,6 +135,7 @@ class AIResearchInput(StrictModel):
     data_quality: DataQualityInput
     phase3_summary: Phase3Summary
     phase4: Phase4Summary
+    phase14_2: dict[str, Any] | None = None
     phase14_alpha: Phase14AlphaSummary = Field(
         default_factory=lambda: Phase14AlphaSummary(available=False)
     )

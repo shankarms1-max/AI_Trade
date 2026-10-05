@@ -17,8 +17,12 @@ from app.alpha.models import ALPHA_VERSION, AlphaFeatureSnapshot
 
 
 class AIResearchRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version="phase4_v1", strategy_version="phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
+        self.ai_version = "phase14_2_ai_v1" if regime_version == "phase14_2_v1" else AI_VERSION
+        self.prompt_version = "phase14_2_prompt_v1" if regime_version == "phase14_2_v1" else PROMPT_VERSION
 
     def load_context(
         self, snapshot_id: int
@@ -30,7 +34,7 @@ class AIResearchRepository:
             ))
             regime = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == "phase4_v1",
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
                 MarketRegimeSnapshotRecord.result_json.is_not(None),
             ))
             if feature is None or regime is None:
@@ -47,10 +51,16 @@ class AIResearchRepository:
             return session.scalar(
                 select(MarketRegimeSnapshotRecord.market_snapshot_id)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == MarketRegimeSnapshotRecord.feature_snapshot_id)
-                .where(MarketRegimeSnapshotRecord.regime_version == "phase4_v1")
+                .where(MarketRegimeSnapshotRecord.regime_version == self.regime_version)
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc())
                 .limit(1)
             )
+
+    def load_candidates(self, snapshot_id):
+        from app.strategy.repository import StrategyRepository
+        from app.strategy.models import StrategyCandidateSet
+        payload = StrategyRepository(self._sessions, regime_version=self.regime_version, strategy_version=self.strategy_version).get(snapshot_id)
+        return None if payload is None else StrategyCandidateSet.model_validate(payload)
 
     def load_alpha(self, snapshot_id: int) -> AlphaFeatureSnapshot | None:
         with self._sessions() as session:
@@ -65,7 +75,7 @@ class AIResearchRepository:
         with self._sessions() as session:
             record = session.scalar(select(AIResearchSnapshotRecord).where(
                 AIResearchSnapshotRecord.market_snapshot_id == snapshot_id,
-                AIResearchSnapshotRecord.ai_version == AI_VERSION,
+                AIResearchSnapshotRecord.ai_version == self.ai_version,
                 AIResearchSnapshotRecord.status == "SUCCESS",
             ))
             return None if record is None else AIResearchResult.model_validate(record.result_json)
@@ -76,12 +86,12 @@ class AIResearchRepository:
         with self._sessions.begin() as session:
             record = session.scalar(select(AIResearchSnapshotRecord).where(
                 AIResearchSnapshotRecord.market_snapshot_id == snapshot_id,
-                AIResearchSnapshotRecord.ai_version == AI_VERSION,
+                AIResearchSnapshotRecord.ai_version == self.ai_version,
             ))
             values = {
                 "feature_snapshot_id": feature_id,
                 "regime_snapshot_id": regime_id,
-                "prompt_version": PROMPT_VERSION,
+                "prompt_version": self.prompt_version,
                 "provider": provider,
                 "model": model,
                 "status": "STARTED",
@@ -101,7 +111,7 @@ class AIResearchRepository:
             }
             if record is None:
                 session.add(AIResearchSnapshotRecord(
-                    market_snapshot_id=snapshot_id, ai_version=AI_VERSION, **values
+                    market_snapshot_id=snapshot_id, ai_version=self.ai_version, **values
                 ))
             else:
                 for key, value in values.items():
@@ -135,7 +145,7 @@ class AIResearchRepository:
         with self._sessions.begin() as session:
             record = session.scalar(select(AIResearchSnapshotRecord).where(
                 AIResearchSnapshotRecord.market_snapshot_id == snapshot_id,
-                AIResearchSnapshotRecord.ai_version == AI_VERSION,
+                AIResearchSnapshotRecord.ai_version == self.ai_version,
             ))
             if record is None:
                 return
@@ -159,7 +169,7 @@ class AIResearchRepository:
         with self._sessions() as session:
             record = session.scalar(select(AIResearchSnapshotRecord).where(
                 AIResearchSnapshotRecord.market_snapshot_id == snapshot_id,
-                AIResearchSnapshotRecord.ai_version == AI_VERSION,
+                AIResearchSnapshotRecord.ai_version == self.ai_version,
             ))
             return None if record is None else self._serialize(record)
 
@@ -168,7 +178,7 @@ class AIResearchRepository:
             record = session.scalar(
                 select(AIResearchSnapshotRecord)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == AIResearchSnapshotRecord.feature_snapshot_id)
-                .where(AIResearchSnapshotRecord.ai_version == AI_VERSION)
+                .where(AIResearchSnapshotRecord.ai_version == self.ai_version)
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc())
                 .limit(1)
             )
@@ -179,7 +189,7 @@ class AIResearchRepository:
             records = session.scalars(
                 select(AIResearchSnapshotRecord)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == AIResearchSnapshotRecord.feature_snapshot_id)
-                .where(AIResearchSnapshotRecord.ai_version == AI_VERSION)
+                .where(AIResearchSnapshotRecord.ai_version == self.ai_version)
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc())
                 .limit(limit)
             ).all()

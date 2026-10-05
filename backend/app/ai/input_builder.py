@@ -44,6 +44,7 @@ def _cluster(item) -> dict:
 def build_ai_research_input(
     feature: MarketFeatureSnapshot, regime: RegimeResult,
     alpha: AlphaFeatureSnapshot | None = None,
+    candidate_set=None,
 ) -> AIResearchInput:
     price = feature.price_structure_features
     positioning = Counter(
@@ -55,6 +56,16 @@ def build_ai_research_input(
         reason for group in regime.signal_groups for reason in group.reason_codes
     })
     return AIResearchInput(
+        phase14_2=None if regime.strategy_logic_version is None else {
+            "strategy_logic_version": regime.strategy_logic_version,
+            "market_bias": regime.market_bias.value,
+            "directional_strength": regime.directional_strength.value,
+            "strategy_family_eligibility": regime.strategy_family_eligibility.value,
+            "candidates": [] if candidate_set is None else [c.model_dump(mode="json") for c in candidate_set.candidates],
+            "risk_authority": "DETERMINISTIC_VETO_ONLY",
+            "candidate_authority": "DETERMINISTIC_ENGINE_ONLY",
+            "carry_is_proxy": True,
+        },
         snapshot_id=feature.snapshot_id,
         snapshot=SnapshotInput(
             timestamp=feature.timestamp,

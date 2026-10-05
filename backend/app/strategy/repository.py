@@ -16,8 +16,10 @@ from app.strategy.models import STRATEGY_VERSION, StrategyCandidateSet
 
 
 class StrategyRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version: str = "phase4_v1", strategy_version: str = "phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
 
     def load_context(self, snapshot_id: int):
         with self._sessions() as session:
@@ -32,7 +34,7 @@ class StrategyRepository:
             ))
             regime = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION,
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
             ))
             if raw is None or feature is None or regime is None:
                 return None
@@ -49,7 +51,7 @@ class StrategyRepository:
             return session.scalar(
                 select(MarketRegimeSnapshotRecord.market_snapshot_id)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == MarketRegimeSnapshotRecord.feature_snapshot_id)
-                .where(MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION)
+                .where(MarketRegimeSnapshotRecord.regime_version == self.regime_version)
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc(), MarketRegimeSnapshotRecord.id.desc())
                 .limit(1)
             )
@@ -59,12 +61,15 @@ class StrategyRepository:
             return list(session.scalars(
                 select(MarketRegimeSnapshotRecord.market_snapshot_id)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == MarketRegimeSnapshotRecord.feature_snapshot_id)
-                .where(MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION)
+                .where(MarketRegimeSnapshotRecord.regime_version == self.regime_version)
                 .order_by(MarketFeatureSnapshotRecord.timestamp, MarketRegimeSnapshotRecord.id)
             ))
 
     def upsert(self, result: StrategyCandidateSet) -> int:
         values = {
+            "strategy_logic_version": result.strategy_logic_version,
+            "strategy_family": None if result.strategy_family is None else result.strategy_family.value,
+            "strategy_context_json": None if result.strategy_logic_version is None else result.model_dump(mode="json"),
             "regime_snapshot_id": result.regime_snapshot_id,
             "regime": result.regime,
             "strategy_type": result.strategy_type.value,
@@ -106,29 +111,29 @@ class StrategyRepository:
             "created_at": record.created_at,
         }
 
-    def get(self, snapshot_id: int, version: str = STRATEGY_VERSION) -> dict[str, Any] | None:
+    def get(self, snapshot_id: int, version: str | None = None) -> dict[str, Any] | None:
         with self._sessions() as session:
             record = session.scalar(select(StrategyCandidateSetRecord).where(
                 StrategyCandidateSetRecord.market_snapshot_id == snapshot_id,
-                StrategyCandidateSetRecord.strategy_version == version,
+                StrategyCandidateSetRecord.strategy_version == (version or self.strategy_version),
             ))
             return None if record is None else self._serialize(record)
 
-    def latest(self, version: str = STRATEGY_VERSION) -> dict[str, Any] | None:
+    def latest(self, version: str | None = None) -> dict[str, Any] | None:
         with self._sessions() as session:
             record = session.scalar(
                 select(StrategyCandidateSetRecord)
-                .where(StrategyCandidateSetRecord.strategy_version == version)
+                .where(StrategyCandidateSetRecord.strategy_version == (version or self.strategy_version))
                 .order_by(StrategyCandidateSetRecord.created_at.desc(), StrategyCandidateSetRecord.id.desc())
                 .limit(1)
             )
             return None if record is None else self._serialize(record)
 
-    def list(self, limit: int, version: str = STRATEGY_VERSION) -> list[dict[str, Any]]:
+    def list(self, limit: int, version: str | None = None) -> list[dict[str, Any]]:
         with self._sessions() as session:
             records = session.scalars(
                 select(StrategyCandidateSetRecord)
-                .where(StrategyCandidateSetRecord.strategy_version == version)
+                .where(StrategyCandidateSetRecord.strategy_version == (version or self.strategy_version))
                 .order_by(StrategyCandidateSetRecord.created_at.desc(), StrategyCandidateSetRecord.id.desc())
                 .limit(limit)
             ).all()

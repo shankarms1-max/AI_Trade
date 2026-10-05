@@ -253,6 +253,11 @@ class ResearchExperimentRecord(Base):
 class MarketRegimeSnapshotRecord(Base):
     __tablename__ = "market_regime_snapshots"
 
+    strategy_logic_version: Mapped[str | None] = mapped_column(String(32), index=True)
+    strategy_context_json: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    market_bias: Mapped[str | None] = mapped_column(String(16))
+    directional_strength: Mapped[str | None] = mapped_column(String(16))
+    strategy_family_eligibility: Mapped[str | None] = mapped_column(String(24))
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     market_snapshot_id: Mapped[int] = mapped_column(
         ForeignKey("market_snapshots.id", ondelete="CASCADE"), nullable=False
@@ -339,6 +344,9 @@ class AIResearchSnapshotRecord(Base):
 class StrategyCandidateSetRecord(Base):
     __tablename__ = "strategy_candidate_sets"
 
+    strategy_logic_version: Mapped[str | None] = mapped_column(String(32), index=True)
+    strategy_context_json: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    strategy_family: Mapped[str | None] = mapped_column(String(32))
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     market_snapshot_id: Mapped[int] = mapped_column(
         ForeignKey("market_snapshots.id", ondelete="CASCADE"), nullable=False
@@ -418,6 +426,9 @@ class RiskDecisionRecord(Base):
 class ShadowTradeRecord(Base):
     __tablename__ = "shadow_trades"
 
+    strategy_logic_version: Mapped[str | None] = mapped_column(String(32), index=True)
+    strategy_context_json: Mapped[dict | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"))
+    strategy_family: Mapped[str | None] = mapped_column(String(32))
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     market_snapshot_id_entry: Mapped[int] = mapped_column(
         ForeignKey("market_snapshots.id", ondelete="CASCADE"), nullable=False

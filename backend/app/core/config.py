@@ -1,8 +1,10 @@
 from functools import lru_cache
 
 from datetime import date, time
+from math import isfinite
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
+from app.strategy.policy import CreditSpreadPolicy
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +16,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        populate_by_name=True,
         hide_input_in_errors=True,
     )
 
@@ -94,6 +97,104 @@ class Settings(BaseSettings):
     strategy_short_delta_max_abs: float | None = Field(default=None, ge=0, le=1)
     strategy_max_candidates: int = Field(default=5, ge=1, le=50)
     strategy_max_snapshot_age_seconds: int = Field(default=600, ge=1)
+
+    # Phase 14.2 research policy. Legacy selection remains the default.
+    phase14_2_strategy_logic_enabled: bool = False
+    theta_carry_enabled: bool = False
+    strategy_family_mode: str = "BOTH"
+    strategy_allowed_widths_points: str = "100,200,300,400"
+    directional_alpha_min_strength: str = 'MODERATE'
+    theta_carry_max_opposing_alpha_strength: str = 'MODERATE'
+    strong_directional_score: float = Field(default=70, ge=0)
+    moderate_directional_score: float = Field(default=40, ge=0)
+    weak_directional_score: float = Field(default=15, ge=0)
+    directional_evidence_scale: float = Field(default=5, gt=0)
+    conflict_min_score: float = Field(default=3, ge=0)
+    conflict_max_directional_score: float = Field(default=25, ge=0, le=100)
+    strong_min_survival: float = Field(default=45, ge=0)
+    moderate_min_survival: float = Field(default=60, ge=0)
+    theta_min_survival: float = Field(default=70, ge=0, le=100, validation_alias="THETA_CARRY_MIN_SURVIVAL_SCORE")
+    strong_min_carry: float = Field(default=20, ge=0)
+    moderate_min_carry: float = Field(default=30, ge=0)
+    theta_min_carry: float = Field(default=40, ge=0, le=100, validation_alias="THETA_CARRY_MIN_CARRY_SCORE")
+    strong_buffer_multiplier: float = Field(default=1, ge=0)
+    moderate_buffer_multiplier: float = Field(default=1.5, ge=0)
+    theta_buffer_multiplier: float = Field(default=2, ge=0)
+    high_vol_buffer_multiplier: float = Field(default=1.5, ge=0)
+    elevated_vol_buffer_multiplier: float = Field(default=1.25, ge=0)
+    low_dte_buffer_multiplier: float = Field(default=1.5, ge=0)
+    expected_move_source: str = 'AUTO'
+    expected_move_min_distance_units: float | None = None
+    dte_buckets: tuple[float, ...] = Field(default=(0, 1, 3, 7), validation_alias="GAMMA_RISK_DTE_BUCKETS")
+    gamma_extreme_dte: float = Field(default=0.25, ge=0)
+    gamma_high_dte: float = Field(default=1, ge=0)
+    gamma_moderate_dte: float = Field(default=3, ge=0)
+    gamma_extreme_distance_units: float = Field(default=0.5, ge=0)
+    gamma_high_distance_units: float = Field(default=1, ge=0)
+    side_safety_min_score: float = Field(default=55, ge=0)
+    side_safety_min_margin: float = Field(default=10, ge=0)
+    movement_stress_points: float = Field(default=100, ge=0)
+    survival_weights: dict[str, float] = Field(validation_alias="SURVIVAL_SCORE_WEIGHTS", default_factory=lambda: CreditSpreadPolicy().survival_weights)
+    carry_weights: dict[str, float] = Field(validation_alias="CARRY_SCORE_WEIGHTS", default_factory=lambda: CreditSpreadPolicy().carry_weights)
+    ranking_weights: dict[str, float] = Field(default_factory=lambda: CreditSpreadPolicy().ranking_weights)
+    gamma_penalty: float = Field(default=20, ge=0)
+    volatility_penalty: float = Field(default=10, ge=0)
+    max_loss_penalty: float = Field(default=10, ge=0)
+    cost_penalty: float = Field(default=10, ge=0)
+    expected_move_penalty: float = Field(default=10, ge=0)
+    max_loss_scale_per_lot: float = Field(default=20000, ge=0)
+    carry_credit_width_target: float = Field(default=0.15, ge=0)
+    carry_credit_loss_target: float = Field(default=0.2, ge=0)
+    carry_credit_per_day_target: float = Field(default=20, ge=0)
+    carry_premium_retention_target: float = Field(default=0.5, ge=0)
+    brokerage_per_order: float = Field(default=0, ge=0)
+    exchange_rate: float = Field(default=0, ge=0)
+    stt_rate: float = Field(default=0, ge=0)
+    gst_rate: float = Field(default=0, ge=0)
+    stamp_rate: float = Field(default=0, ge=0)
+    slippage_points_per_leg: float = Field(default=0, ge=0)
+    costs_complete: bool = False
+
+    @model_validator(mode="after")
+    def validate_credit_spread_policy(self):
+        from app.strategy.policy import STRENGTH_RANK
+        if self.strategy_family_mode not in {"BOTH", "DIRECTIONAL_ONLY", "THETA_CARRY_ONLY"}:
+            raise ValueError("invalid STRATEGY_FAMILY_MODE")
+        for value in (self.directional_alpha_min_strength, self.theta_carry_max_opposing_alpha_strength):
+            if value not in STRENGTH_RANK:
+                raise ValueError("invalid alpha strength policy")
+        if self.expected_move_source not in {"AUTO", "VIX", "ATM_STRADDLE"}:
+            raise ValueError("invalid EXPECTED_MOVE_SOURCE")
+        for name in ("survival_weights", "carry_weights", "ranking_weights"):
+            values = getattr(self, name)
+            from app.strategy.policy import CreditSpreadPolicy
+            if set(values) != set(getattr(CreditSpreadPolicy(), name)) or any(not isfinite(v) or v < 0 for v in values.values()) or sum(values.values()) <= 0:
+                raise ValueError(f"invalid {name}")
+        if not 0 <= self.weak_directional_score <= self.moderate_directional_score <= self.strong_directional_score <= 100:
+            raise ValueError("directional score thresholds must be ordered within 0..100")
+        if not self.dte_buckets or any(not isfinite(v) for v in self.dte_buckets) or tuple(sorted(set(self.dte_buckets))) != self.dte_buckets or self.dte_buckets[0] < 0:
+            raise ValueError("DTE buckets must be nonnegative and strictly increasing")
+        if not 0 <= self.gamma_extreme_dte <= self.gamma_high_dte <= self.gamma_moderate_dte:
+            raise ValueError("gamma DTE thresholds must be ordered")
+        if self.expected_move_min_distance_units is not None and self.expected_move_min_distance_units < 0:
+            raise ValueError("expected move minimum must be nonnegative")
+        for name in ("max_loss_scale_per_lot", "carry_credit_width_target", "carry_credit_loss_target", "carry_credit_per_day_target", "carry_premium_retention_target", "movement_stress_points"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
+        for name in ("strong_buffer_multiplier", "moderate_buffer_multiplier", "theta_buffer_multiplier", "high_vol_buffer_multiplier", "elevated_vol_buffer_multiplier", "low_dte_buffer_multiplier"):
+            if getattr(self, name) <= 0:
+                raise ValueError(f"{name} must be positive")
+        if not self.strong_buffer_multiplier <= self.moderate_buffer_multiplier <= self.theta_buffer_multiplier:
+            raise ValueError("strike distance multipliers must increase with safety requirements")
+        return self
+
+    @property
+    def active_regime_version(self):
+        return "phase14_2_v1" if self.phase14_2_strategy_logic_enabled else "phase4_v1"
+
+    @property
+    def active_strategy_version(self):
+        return "phase14_2_v1" if self.phase14_2_strategy_logic_enabled else "phase6_v1"
 
     risk_max_loss_per_trade: float | None = Field(default=None, gt=0)
     risk_max_capital_per_trade: float | None = Field(default=None, gt=0)
@@ -295,8 +396,9 @@ class Settings(BaseSettings):
 
     @property
     def configured_strategy_widths(self) -> tuple[float, ...]:
-        widths = tuple(float(part.strip()) for part in self.strategy_allowed_spread_widths.split(",") if part.strip())
-        if not widths or any(width <= 0 for width in widths):
+        source = self.strategy_allowed_widths_points if self.phase14_2_strategy_logic_enabled else self.strategy_allowed_spread_widths
+        widths = tuple(float(part.strip()) for part in source.split(",") if part.strip())
+        if not widths or any(not isfinite(width) or width <= 0 for width in widths):
             raise ValueError("STRATEGY_ALLOWED_SPREAD_WIDTHS must contain positive numbers")
         return tuple(sorted(set(widths)))
 

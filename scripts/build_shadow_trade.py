@@ -22,7 +22,7 @@ def main() -> int:
     if not settings.database_url:
         print("Configuration error: DATABASE_URL is required", file=sys.stderr)
         return 2
-    repository = ShadowRepository(build_session_factory(build_engine(settings.database_url.get_secret_value())))
+    repository = ShadowRepository(build_session_factory(build_engine(settings.database_url.get_secret_value())), regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     snapshot_id = args.snapshot_id
     if args.latest:
         snapshot_id = repository.latest_risk_snapshot_id()

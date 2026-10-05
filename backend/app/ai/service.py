@@ -20,6 +20,7 @@ def build_and_store_ai_research(
     config: AIResearchConfig,
     *,
     force: bool = False,
+    candidate_set=None,
 ) -> AIResearchBuildResult:
     if not force:
         existing = repository.existing_success(snapshot_id)
@@ -31,7 +32,7 @@ def build_and_store_ai_research(
             f"phase3_v1 features and phase4_v1 regime for snapshot {snapshot_id} are required"
         )
     feature_id, feature, regime_id, regime = context
-    research_input = build_ai_research_input(feature, regime, repository.load_alpha(snapshot_id))
+    research_input = build_ai_research_input(feature, regime, repository.load_alpha(snapshot_id), candidate_set if candidate_set is not None else getattr(repository, "load_candidates", lambda _: None)(snapshot_id))
     repository.start(
         snapshot_id,
         feature_id,
@@ -41,6 +42,7 @@ def build_and_store_ai_research(
     )
     try:
         result = generate_research(research_input, provider, config)
+        result = result.model_copy(update={"ai_version": getattr(repository, "ai_version", result.ai_version), "prompt_version": getattr(repository, "prompt_version", result.prompt_version)})
         repository.complete(result)
         return AIResearchBuildResult(result, False)
     except Exception as exc:

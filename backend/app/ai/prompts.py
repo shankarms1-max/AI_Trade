@@ -30,5 +30,26 @@ UNCERTAIN view with weak evidence may use confidence: 35; a strongly supported v
 may use confidence: 78."""
 
 
+PHASE14_2_SYSTEM_PROMPT = SYSTEM_PROMPT + """
+Phase 14.2 separates market bias, directional strength, survival quality, carry
+quality and hard risk. Strong direction is not mandatory for every credit spread.
+Moderate alpha does not mean no trade when a deterministic theta/carry research
+candidate is valid. Explain the supplied strategy family and raw components;
+never override candidate ranking, eligibility or deterministic risk decisions.
+Survival score is not probability; carry score is not expected return or guaranteed
+profit. Wider 300/400 point defined-risk spreads may intentionally retain more
+premium while increasing max loss and capital burden. High theta near expiry has
+gamma risk; these are labeled proxies, not calculated Greeks. Neutral markets
+require a clearly safer side. Intraday exit policies remain mandatory.
+"""
+
+
+def system_prompt(research_input):
+    return PHASE14_2_SYSTEM_PROMPT if research_input.phase14_2 is not None else SYSTEM_PROMPT
+
+
 def user_payload(research_input: AIResearchInput) -> str:
-    return json.dumps(research_input.model_dump(mode="json"), separators=(",", ":"))
+    payload = research_input.model_dump(mode="json")
+    if research_input.phase14_2 is None:
+        payload.pop("phase14_2")
+    return json.dumps(payload, separators=(",", ":"))

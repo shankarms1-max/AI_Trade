@@ -18,6 +18,7 @@ from app.pipeline.repository import PipelineRepository
 from app.regime.engine import config_from_settings as regime_config
 from app.regime.repository import RegimeRepository
 from app.regime.service import build_and_store_regime
+from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.risk.models import EvaluationContext
 from app.risk.repository import RiskRepository
 from app.risk.service import build_and_store_risk, config_from_settings as risk_config
@@ -52,10 +53,10 @@ def build_pipeline_orchestrator(
     session_factory: sessionmaker[Session], settings: Any, *, enable_ai: bool = False
 ) -> ResearchPipelineOrchestrator:
     feature_repository = FeatureRepository(session_factory)
-    regime_repository = RegimeRepository(session_factory)
-    strategy_repository = StrategyRepository(session_factory)
-    risk_repository = RiskRepository(session_factory)
-    shadow_repository = ShadowRepository(session_factory)
+    regime_repository = RegimeRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
+    strategy_repository = StrategyRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
+    risk_repository = RiskRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
+    shadow_repository = ShadowRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     alpha_repository = AlphaRepository(session_factory)
 
     ai_step = None
@@ -68,8 +69,15 @@ def build_pipeline_orchestrator(
                 settings.ai_research_model,
                 settings.ai_max_retries,
             )
+            candidates = None
+            if settings.phase14_2_strategy_logic_enabled:
+                from app.strategy.candidate_engine import generate_candidates
+                raw, _, feature, regime_id, regime = strategy_repository.load_context(snapshot_id)
+                candidates = generate_candidates(raw, feature, regime, regime_id, strategy_config(settings))
             return build_and_store_ai_research(
-                AIResearchRepository(session_factory), snapshot_id, provider, ai_config(settings)
+                AIResearchRepository(session_factory, regime_version=settings.active_regime_version,
+                                     strategy_version=settings.active_strategy_version),
+                snapshot_id, provider, ai_config(settings), candidate_set=candidates
             )
         ai_step = run_ai
 
@@ -98,13 +106,14 @@ def build_pipeline_orchestrator(
             shadow_risk_config_from_settings(settings),
             EvaluationContext.SHADOW,
             state_provider=ShadowRiskStateProvider(session_factory),
+            event_provider=ConfiguredMarketEventProvider.from_json(settings.risk_market_events_json) if settings.phase14_2_strategy_logic_enabled else None,
         ),
         shadow_entry=lambda snapshot_id: build_shadow_entry(
             shadow_repository, snapshot_id, shadow_config(settings)
         ),
     )
     return ResearchPipelineOrchestrator(
-        PipelineRepository(session_factory), steps,
+        PipelineRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version), steps,
         ObservabilityRepository(session_factory),
     )
 

@@ -14,6 +14,28 @@ class Regime(str, Enum):
     NO_TRADE = "NO_TRADE"
 
 
+class MarketBias(str, Enum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
+    CONFLICT = "CONFLICT"
+    INSUFFICIENT = "INSUFFICIENT"
+
+
+class DirectionalStrength(str, Enum):
+    STRONG = "STRONG"
+    MODERATE = "MODERATE"
+    WEAK = "WEAK"
+    NONE = "NONE"
+
+
+class StrategyFamilyEligibility(str, Enum):
+    DIRECTIONAL_ONLY = "DIRECTIONAL_ONLY"
+    THETA_CARRY_ONLY = "THETA_CARRY_ONLY"
+    BOTH = "BOTH"
+    NONE = "NONE"
+
+
 class SignalDirection(str, Enum):
     BULLISH = "BULLISH"
     BEARISH = "BEARISH"
@@ -59,3 +81,16 @@ class RegimeResult(BaseModel):
     missing_inputs: list[str]
     risk_flags: list[str]
     regime_version: str = REGIME_VERSION
+    strategy_logic_version: str | None = None
+    market_bias: MarketBias | None = None
+    directional_strength: DirectionalStrength | None = None
+    directional_score: float | None = None
+    statistical_alpha_state: str | None = None
+    statistical_alpha_bias: str | None = None
+    statistical_alpha_strength: str | None = None
+    positioning_state: str | None = None
+    price_structure_state: str | None = None
+    basis_state: str | None = None
+    volatility_state: str | None = None
+    data_quality_state: str | None = None
+    strategy_family_eligibility: StrategyFamilyEligibility | None = None

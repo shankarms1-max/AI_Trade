@@ -24,8 +24,10 @@ def _decimal(value: float | None) -> Decimal | None:
 
 
 class RiskRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version: str = "phase4_v1", strategy_version: str = "phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
 
     def load_context(self, snapshot_id: int):
         with self._sessions() as session:
@@ -40,11 +42,11 @@ class RiskRepository:
             ))
             regime = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION,
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
             ))
             candidates = session.scalar(select(StrategyCandidateSetRecord).where(
                 StrategyCandidateSetRecord.market_snapshot_id == snapshot_id,
-                StrategyCandidateSetRecord.strategy_version == STRATEGY_VERSION,
+                StrategyCandidateSetRecord.strategy_version == self.strategy_version,
             ))
             if raw is None or feature is None or regime is None or candidates is None:
                 return None
@@ -62,7 +64,7 @@ class RiskRepository:
             return session.scalar(
                 select(StrategyCandidateSetRecord.market_snapshot_id)
                 .join(MarketSnapshotRecord, MarketSnapshotRecord.id == StrategyCandidateSetRecord.market_snapshot_id)
-                .where(StrategyCandidateSetRecord.strategy_version == STRATEGY_VERSION)
+                .where(StrategyCandidateSetRecord.strategy_version == self.strategy_version)
                 .order_by(MarketSnapshotRecord.timestamp_ist.desc(), StrategyCandidateSetRecord.id.desc())
                 .limit(1)
             )
@@ -72,7 +74,7 @@ class RiskRepository:
             return list(session.scalars(
                 select(StrategyCandidateSetRecord.market_snapshot_id)
                 .join(MarketSnapshotRecord, MarketSnapshotRecord.id == StrategyCandidateSetRecord.market_snapshot_id)
-                .where(StrategyCandidateSetRecord.strategy_version == STRATEGY_VERSION)
+                .where(StrategyCandidateSetRecord.strategy_version == self.strategy_version)
                 .order_by(MarketSnapshotRecord.timestamp_ist, StrategyCandidateSetRecord.id)
             ))
 
@@ -84,7 +86,7 @@ class RiskRepository:
                 select(MarketRegimeSnapshotRecord)
                 .join(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.id == MarketRegimeSnapshotRecord.feature_snapshot_id)
                 .where(
-                    MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION,
+                    MarketRegimeSnapshotRecord.regime_version == self.regime_version,
                     MarketFeatureSnapshotRecord.timestamp < timestamp,
                 )
                 .order_by(MarketFeatureSnapshotRecord.timestamp.desc(), MarketRegimeSnapshotRecord.id.desc())
@@ -100,7 +102,7 @@ class RiskRepository:
                 select(StrategyCandidateSetRecord, MarketSnapshotRecord.timestamp_ist)
                 .join(MarketSnapshotRecord, MarketSnapshotRecord.id == StrategyCandidateSetRecord.market_snapshot_id)
                 .where(
-                    StrategyCandidateSetRecord.strategy_version == STRATEGY_VERSION,
+                    StrategyCandidateSetRecord.strategy_version == self.strategy_version,
                     MarketSnapshotRecord.timestamp_ist < timestamp,
                 )
                 .order_by(MarketSnapshotRecord.timestamp_ist.desc(), StrategyCandidateSetRecord.id.desc())
@@ -189,6 +191,7 @@ class RiskRepository:
             records = session.scalars(select(RiskDecisionRecord).where(
                 RiskDecisionRecord.market_snapshot_id == snapshot_id,
                 RiskDecisionRecord.risk_version == RISK_VERSION,
+                RiskDecisionRecord.strategy_version == self.strategy_version,
             ).order_by(RiskDecisionRecord.id)).all()
             return self._evaluation(list(records))
 

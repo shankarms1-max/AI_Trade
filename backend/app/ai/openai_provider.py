@@ -8,7 +8,7 @@ from app.ai.models import (
     ProviderResult,
     ProviderUsage,
 )
-from app.ai.prompts import SYSTEM_PROMPT, user_payload
+from app.ai.prompts import system_prompt, user_payload
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -42,7 +42,7 @@ class OpenAIResearchProvider:
                 response = self._client.responses.parse(
                     model=self._model,
                     input=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "system", "content": system_prompt(research_input)},
                         {"role": "user", "content": user_payload(research_input)},
                     ],
                     text_format=AIResearchModelOutput,

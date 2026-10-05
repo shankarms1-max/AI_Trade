@@ -43,7 +43,8 @@ def main() -> int:
         print("Configuration error: DATABASE_URL is required", file=sys.stderr)
         return 2
     repository = RegimeRepository(
-        build_session_factory(build_engine(settings.database_url.get_secret_value()))
+        build_session_factory(build_engine(settings.database_url.get_secret_value())),
+        regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version
     )
     config = config_from_settings(settings)
     try:

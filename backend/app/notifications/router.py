@@ -139,10 +139,10 @@ class NotificationRouter:
             return 0
         sent = 0
         feature = FeatureRepository(self._sessions).get(snapshot_id)
-        regime = RegimeRepository(self._sessions).get(snapshot_id)
+        regime = RegimeRepository(self._sessions, regime_version=self.settings.active_regime_version, strategy_version=self.settings.active_strategy_version).get(snapshot_id)
         alpha = AlphaRepository(self._sessions).get(snapshot_id)
-        candidates = StrategyRepository(self._sessions).get(snapshot_id)
-        risk = RiskRepository(self._sessions).get(snapshot_id)
+        candidates = StrategyRepository(self._sessions, regime_version=self.settings.active_regime_version, strategy_version=self.settings.active_strategy_version).get(snapshot_id)
+        risk = RiskRepository(self._sessions, regime_version=self.settings.active_regime_version, strategy_version=self.settings.active_strategy_version).get(snapshot_id)
         sent += self._notify_regime(snapshot_id, feature, regime, alpha)
         if candidates and candidates.get("eligible") and candidates.get("candidates"):
             top = candidates["candidates"][0]
@@ -260,7 +260,7 @@ class NotificationRouter:
         target = day or now.date()
         if target.weekday() >= 5 or target in self.settings.configured_holidays:
             return False
-        research = PipelineRepository(self._sessions).daily_summary(target)
+        research = PipelineRepository(self._sessions, regime_version=self.settings.active_regime_version, strategy_version=self.settings.active_strategy_version).daily_summary(target)
         operations = get_daily_operations_summary(self._sessions, self.settings, target)
         return self.service.notify(NotificationRequest(
             event_code=NotificationEventCode.DAILY_RESEARCH_SUMMARY,

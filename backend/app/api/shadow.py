@@ -1,3 +1,4 @@
+from app.core.config import get_settings
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/api/shadow", tags=["shadow"])
 
 
 def get_shadow_repository() -> ShadowRepository:
-    return ShadowRepository(get_session_factory())
+    return ShadowRepository(get_session_factory(), regime_version=get_settings().active_regime_version, strategy_version=get_settings().active_strategy_version)
 
 
 RepositoryDependency = Annotated[ShadowRepository, Depends(get_shadow_repository)]

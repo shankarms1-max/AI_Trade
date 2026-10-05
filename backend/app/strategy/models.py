@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.strategy.economics_models import CreditSpreadEconomics, StrategyFamily
+
 STRATEGY_VERSION = "phase6_v1"
 
 
@@ -47,7 +49,7 @@ class LiquidityMetrics(StrategyModel):
     volume_usable: bool
 
 
-class CreditSpreadCandidate(StrategyModel):
+class CreditSpreadCandidate(CreditSpreadEconomics):
     candidate_id: str
     market_snapshot_id: int
     regime_snapshot_id: int
@@ -94,6 +96,9 @@ class CreditSpreadCandidate(StrategyModel):
 
 
 class StrategyCandidateSet(StrategyModel):
+    strategy_logic_version: str | None = None
+    strategy_family: StrategyFamily | None = None
+    side_safety: dict = Field(default_factory=dict)
     snapshot_id: int
     regime_snapshot_id: int
     regime: str

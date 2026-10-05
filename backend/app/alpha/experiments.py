@@ -24,6 +24,11 @@ class ExperimentParameters:
     profit_target_credit_capture_pct: float | None = None
     stop_loss_credit_multiple: float | None = None
     force_exit_time: time | None = None
+    expected_move_min_distance_units: float | None = None
+    minimum_carry_score: float | None = None
+    directional_min_strength: str | None = None
+    strategy_family_mode: str | None = None
+    dte_bucket: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,11 +52,16 @@ def bounded_parameter_grid(
     profit_targets: Sequence[float | None] = (None,),
     stop_multiples: Sequence[float | None] = (None,),
     force_exit_times: Sequence[time | None] = (None,),
+    expected_move_minimums: Sequence[float | None] = (None,),
+    carry_thresholds: Sequence[float | None] = (None,),
+    directional_strengths: Sequence[str | None] = (None,),
+    strategy_family_modes: Sequence[str | None] = (None,),
+    dte_buckets: Sequence[str | None] = (None,),
 ) -> list[ExperimentParameters]:
     axes = (sorted(set(thresholds)), sorted(set(confirmations)), windows,
             spread_width_sets, short_strike_buffers, minimum_credit_to_widths,
             volatility_distance_multipliers, profit_targets, stop_multiples,
-            force_exit_times)
+            force_exit_times, expected_move_minimums, carry_thresholds, directional_strengths, strategy_family_modes, dte_buckets)
     size = 1
     for axis in axes:
         size *= len(axis)
@@ -67,15 +77,21 @@ def bounded_parameter_grid(
             or any(value <= 0 for value in minimum_credit_to_widths)
             or any(value < 1 for value in volatility_distance_multipliers)
             or any(value is not None and value <= 0 for value in profit_targets)
-            or any(value is not None and value <= 0 for value in stop_multiples)):
+            or any(value is not None and value <= 0 for value in stop_multiples)
+            or any(value is not None and value < 0 for value in expected_move_minimums)
+            or any(value is not None and not 0 <= value <= 100 for value in carry_thresholds)
+            or any(value not in {None, "MODERATE", "STRONG"} for value in directional_strengths)
+            or any(value not in {None, "BOTH", "DIRECTIONAL_ONLY", "THETA_CARRY_ONLY"} for value in strategy_family_modes)):
         raise ValueError("experiment parameters are invalid")
     combinations = [
         ExperimentParameters(
             threshold, confirmation, start, end, spread_widths=tuple(widths),
             short_strike_buffer=buffer, minimum_credit_to_width=credit,
             volatility_distance_multiplier=volatility, profit_target_credit_capture_pct=target,
-            stop_loss_credit_multiple=stop, force_exit_time=force_exit)
-        for threshold, confirmation, (start, end), widths, buffer, credit, volatility, target, stop, force_exit
+            stop_loss_credit_multiple=stop, force_exit_time=force_exit,
+            expected_move_min_distance_units=move_min, minimum_carry_score=carry_min,
+            directional_min_strength=strength, strategy_family_mode=family, dte_bucket=dte)
+        for threshold, confirmation, (start, end), widths, buffer, credit, volatility, target, stop, force_exit, move_min, carry_min, strength, family, dte
         in product(*axes)
     ]
     return combinations
@@ -154,6 +170,11 @@ def evaluate_parameters(
             "profit_target_credit_capture_pct": parameters.profit_target_credit_capture_pct,
             "stop_loss_credit_multiple": parameters.stop_loss_credit_multiple,
             "force_exit_time": parameters.force_exit_time,
+            "expected_move_min_distance_units": parameters.expected_move_min_distance_units,
+            "minimum_carry_score": parameters.minimum_carry_score,
+            "directional_min_strength": parameters.directional_min_strength,
+            "strategy_family_mode": parameters.strategy_family_mode,
+            "dte_bucket": parameters.dte_bucket,
         },
         "status": "NOT_EVALUABLE",
         "reason": "RECORDED_SHADOW_OUTCOMES_CANNOT_PRICE_ALTERNATIVE_TRADES",
@@ -200,7 +221,8 @@ def adjacent_robustness(results: list[dict]) -> list[dict]:
         return tuple(str(params.get(key)) for key in (
             "spread_widths", "short_strike_buffer", "minimum_credit_to_width",
             "volatility_distance_multiplier", "profit_target_credit_capture_pct",
-            "stop_loss_credit_multiple", "force_exit_time"))
+            "stop_loss_credit_multiple", "force_exit_time", "expected_move_min_distance_units",
+            "minimum_carry_score", "directional_min_strength", "strategy_family_mode", "dte_bucket"))
     ordered = sorted(results, key=lambda item: (
         item["parameters"]["confirmations"], item["parameters"]["entry_window"],
         policy(item), item["parameters"]["alpha_threshold"],

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from app.strategy.policy import CreditSpreadPolicy
 from datetime import datetime
 from math import log1p
 from zoneinfo import ZoneInfo
@@ -25,6 +26,7 @@ QUALITY_RANK = {"INSUFFICIENT": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
 
 @dataclass(frozen=True)
 class StrategyConfig:
+    credit_spread_policy: CreditSpreadPolicy = CreditSpreadPolicy()
     min_regime_confidence: float = 60
     min_evidence_quality: str = "MEDIUM"
     require_structure_reference: bool = True
@@ -140,6 +142,9 @@ def generate_candidates(
     enforce_freshness: bool = False,
     now: datetime | None = None,
 ) -> StrategyCandidateSet:
+    if config.credit_spread_policy.enabled:
+        from app.strategy.credit_spread_engine import generate_credit_spread_candidates
+        return generate_credit_spread_candidates(snapshot, feature, regime, regime_snapshot_id, config, enforce_freshness=enforce_freshness, now=now)
     regime_name = regime.regime.value
     if regime_name not in {"BULLISH", "BEARISH"}:
         return _none_result(snapshot_id=feature.snapshot_id, regime_id=regime_snapshot_id,

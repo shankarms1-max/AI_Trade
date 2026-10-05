@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from app.strategy.policy import CreditSpreadPolicy
 from datetime import time
 
 
 @dataclass(frozen=True)
 class RiskConfig:
+    credit_spread_policy: CreditSpreadPolicy = CreditSpreadPolicy()
     capital_base: float | None = None
     max_loss_per_trade: float | None = None
     max_capital_per_trade: float | None = None

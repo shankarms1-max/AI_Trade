@@ -97,7 +97,13 @@ def create_shadow_entry(
         "SAME_OBSERVATION_SIMULATION")
     if fill_state in {"UNVERIFIED_QUOTE_TIME", "STALE_OR_SKEWED_QUOTE"}:
         warnings.append(fill_state)
+    from app.strategy.economics_models import CreditSpreadEconomics
+    context = {key: getattr(candidate,key) for key in CreditSpreadEconomics.model_fields
+               if key != "max_loss_per_unit"}
+    if candidate.strategy_logic_version is not None:
+        context["risk_state"] = "APPROVED"
     trade = ShadowTrade(
+        **context,
         market_snapshot_id_entry=snapshot_id,
         risk_decision_id=risk_id,
         candidate_fingerprint=decision.candidate_fingerprint or candidate.candidate_id,

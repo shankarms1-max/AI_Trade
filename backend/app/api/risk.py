@@ -1,3 +1,4 @@
+from app.core.config import get_settings
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api/risk", tags=["risk"])
 
 
 def get_risk_repository() -> RiskRepository:
-    return RiskRepository(get_session_factory())
+    return RiskRepository(get_session_factory(), regime_version=get_settings().active_regime_version, strategy_version=get_settings().active_strategy_version)
 
 
 RepositoryDependency = Annotated[RiskRepository, Depends(get_risk_repository)]

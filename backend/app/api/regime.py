@@ -1,3 +1,4 @@
+from app.core.config import get_settings
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api/regime", tags=["regime"])
 
 
 def get_regime_repository() -> RegimeRepository:
-    return RegimeRepository(get_session_factory())
+    return RegimeRepository(get_session_factory(), regime_version=get_settings().active_regime_version, strategy_version=get_settings().active_strategy_version)
 
 
 RepositoryDependency = Annotated[RegimeRepository, Depends(get_regime_repository)]

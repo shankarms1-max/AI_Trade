@@ -53,7 +53,7 @@ def main() -> int:
         return 2
     repository = AIResearchRepository(build_session_factory(
         build_engine(settings.database_url.get_secret_value())
-    ))
+    ), regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     snapshot_id = args.snapshot_id
     if args.latest:
         snapshot_id = repository.latest_context_snapshot_id()

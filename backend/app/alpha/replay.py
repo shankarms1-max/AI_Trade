@@ -25,7 +25,7 @@ from app.risk.limits import RiskConfig
 from app.risk.models import EvaluationContext, RiskDecisionType
 from app.shadow.exits import ShadowConfig
 from app.strategy.candidate_engine import StrategyConfig, generate_candidates
-from app.strategy.models import CreditSpreadCandidate
+from app.strategy.models import CreditSpreadCandidate, StrategyType
 
 
 @dataclass(frozen=True)
@@ -46,14 +46,14 @@ class ReplayCosts:
     stamp_rate: float = 0
     slippage_points_per_leg: float = 0
 
-    def per_unit(self, lot_size: int, entry_turnover: float, exit_turnover: float) -> float:
+    def per_unit(self, lot_size: int, entry_turnover: float, exit_turnover: float, *, sold_turnover: float | None = None, bought_turnover: float | None = None) -> float:
         if lot_size <= 0:
             raise ValueError("lot size is required for per-unit costs")
         turnover = (entry_turnover + exit_turnover) * lot_size
         brokerage = 4 * self.brokerage_per_order
         exchange = turnover * self.exchange_rate
-        stt = exit_turnover * lot_size * self.stt_rate
-        stamp = entry_turnover * lot_size * self.stamp_rate
+        stt = (exit_turnover if sold_turnover is None else sold_turnover) * lot_size * self.stt_rate
+        stamp = (entry_turnover if bought_turnover is None else bought_turnover) * lot_size * self.stamp_rate
         gst = (brokerage + exchange) * self.gst_rate
         return (brokerage + exchange + stt + stamp + gst) / lot_size + 4 * self.slippage_points_per_leg
 
@@ -195,7 +195,8 @@ def _metrics(closed: list[dict], counts: dict[str, int], observation_count: int)
         "rejection_rate": counts["rejected"] / observation_count if observation_count else None,
         "missing_data_rate": counts["missing"] / observation_count if observation_count else None,
         "no_fill_rate": counts["no_fill"] / counts["approved"] if counts["approved"] else None,
-        "performance_by_dte": grouped("dte"), "performance_by_direction": grouped("direction"),
+        "performance_by_family": grouped("strategy_family"), "performance_by_width": grouped("spread_width"),
+        "performance_by_dte_bucket": grouped("dte_bucket"), "performance_by_dte": grouped("dte"), "performance_by_direction": grouped("direction"),
         "performance_by_volatility_state": grouped("volatility_state"),
         "performance_by_entry_window": grouped("entry_window"),
         "parameter_neighborhood_stability": None,
@@ -212,7 +213,7 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                       regime_config: RegimeConfig, shadow_config: ShadowConfig,
                       costs: ReplayCosts = ReplayCosts(), quantity: int = 1,
                       entry_period: tuple[datetime, datetime] | None = None,
-                      purge_unclosed_at_boundary: bool = False) -> dict:
+                      purge_unclosed_at_boundary: bool = False, event_provider=None) -> dict:
     if quantity <= 0:
         raise ValueError("quantity must be positive")
     rows = sorted(rows, key=lambda item: (item.snapshot.timestamp_ist, item.snapshot_id))
@@ -220,6 +221,25 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                               min_short_distance_points=parameters.short_strike_buffer,
                               min_credit_to_width_ratio=parameters.minimum_credit_to_width,
                               vix_elevated_distance_multiplier=parameters.volatility_distance_multiplier)
+    policy = strategy_config.credit_spread_policy
+    if any(value is not None for value in (parameters.expected_move_min_distance_units, parameters.minimum_carry_score,
+                                           parameters.directional_min_strength, parameters.strategy_family_mode, parameters.dte_bucket)) and not policy.enabled:
+        raise ValueError("Phase 14.2 experiment parameters require the Phase 14.2 research flag")
+    if policy.enabled:
+        policy = replace(policy,
+            expected_move_min_distance_units=parameters.expected_move_min_distance_units if parameters.expected_move_min_distance_units is not None else policy.expected_move_min_distance_units,
+            theta_min_carry=parameters.minimum_carry_score if parameters.minimum_carry_score is not None else policy.theta_min_carry,
+            moderate_min_carry=parameters.minimum_carry_score if parameters.minimum_carry_score is not None else policy.moderate_min_carry,
+            strong_min_carry=parameters.minimum_carry_score if parameters.minimum_carry_score is not None else policy.strong_min_carry,
+            directional_alpha_min_strength=parameters.directional_min_strength or policy.directional_alpha_min_strength,
+            family_mode=parameters.strategy_family_mode or policy.family_mode,
+            brokerage_per_order=costs.brokerage_per_order, exchange_rate=costs.exchange_rate, stt_rate=costs.stt_rate,
+            gst_rate=costs.gst_rate, stamp_rate=costs.stamp_rate, slippage_points_per_leg=costs.slippage_points_per_leg)
+        strategy_config = replace(strategy_config, credit_spread_policy=policy)
+        regime_config = replace(regime_config, credit_spread_policy=policy)
+        risk_config = replace(risk_config, credit_spread_policy=policy,
+            max_loss_per_trade=None if risk_config.max_loss_per_trade is None else risk_config.max_loss_per_trade/quantity,
+            max_capital_per_trade=None if risk_config.max_capital_per_trade is None else risk_config.max_capital_per_trade/quantity)
     risk_config = replace(risk_config, entry_start_time=parameters.entry_start,
                           entry_end_time=parameters.entry_end)
     shadow_config = replace(
@@ -232,7 +252,7 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                                    shadow_config.stop_loss_credit_multiple),
         force_exit_time=parameters.force_exit_time or shadow_config.force_exit_time,
     )
-    regime_config = replace(regime_config, use_statistical_alpha=True)
+    regime_config = replace(regime_config, use_statistical_alpha=True) if not policy.enabled else regime_config
     previous_feature = None
     previous_regimes: list[RegimeResult] = []
     previous_keys: list[set[str]] = []
@@ -253,9 +273,14 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
         previous_feature = row.feature
         candidate_set = generate_candidates(snapshot, row.feature, regime, row.snapshot_id,
                                              strategy_config, enforce_freshness=False)
+        if policy.enabled and parameters.dte_bucket is not None:
+            # Applied to newly constructed candidates in every chronological observation.
+            selected = [c for c in candidate_set.candidates if c.dte_bucket == parameters.dte_bucket]
+            candidate_set = candidate_set.model_copy(update={"candidates": selected, "candidate_count": len(selected),
+                "eligible": bool(selected), "strategy_type": selected[0].strategy_type if selected else StrategyType.NONE})
         evaluated = evaluate_risk(candidate_set, None, snapshot, row.feature, regime, risk_config,
                                   EvaluationContext.HISTORICAL, state_provider,
-                                  ConfiguredMarketEventProvider(), prior_regimes=previous_regimes,
+                                  event_provider or ConfiguredMarketEventProvider(), prior_regimes=previous_regimes,
                                   prior_candidate_keys=previous_keys,
                                   evaluated_at=snapshot.timestamp_ist)
         previous_regimes.insert(0, regime)
@@ -272,7 +297,15 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                 quote, reason = quote_pair(snapshot, candidate, entry=True, quantity=quantity)
                 if quote is None:
                     counts["missing" if reason.startswith("MISSING") else "no_fill"] += 1
-                elif quote.short <= quote.long or snapshot.lot_size is None:
+                elif quote.short <= quote.long or snapshot.lot_size is None or (policy.enabled and quote.short-quote.long >= candidate.spread_width):
+                    counts["no_fill"] += 1
+                elif policy.enabled and (not parameters.entry_start <= snapshot.timestamp_ist.time().replace(tzinfo=None) <= parameters.entry_end
+                    or not any(c.short_leg.instrument_token == candidate.short_leg.instrument_token
+                               and c.long_leg.instrument_token == candidate.long_leg.instrument_token
+                               and c.strategy_family == candidate.strategy_family
+                               and any(d.candidate_reference == c.candidate_id and d.decision == RiskDecisionType.APPROVED for d in evaluated.decisions)
+                               for c in candidate_set.candidates)):
+                    # Reconstruct and recheck eligibility and monetary risk on the actual fill observation.
                     counts["no_fill"] += 1
                 else:
                     entries_by_day[snapshot.timestamp_ist.date()] += 1
@@ -311,12 +344,17 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                             or shadow_config.exit_on_opposite_regime and opposite
                             or shadow_config.exit_on_structural_breach and breached)
                 if exit_now:
-                    cost = costs.per_unit(item["lot_size"], item["entry_turnover"], quote.short + quote.long)
+                    cost = costs.per_unit(item["lot_size"], item["entry_turnover"], quote.short + quote.long,
+                        sold_turnover=item["entry_quote"].short+quote.long if policy.enabled else None,
+                        bought_turnover=item["entry_quote"].long+quote.short if policy.enabled else None)
                     entry_at = item["entry_at"]
                     outcome = {"entry_at": entry_at, "exit_at": snapshot.timestamp_ist,
                                    "net_pnl_per_unit": pnl - cost, "gross_pnl_per_unit": pnl,
                                    "sampled_MAE": min(item["marks"]), "sampled_MFE": max(item["marks"]),
                                    "marks": len(item["marks"]), "expected_marks": item["expected_marks"],
+                                   "strategy_family": getattr(getattr(item["candidate"], "strategy_family", None), "value", "LEGACY"),
+                                   "spread_width": getattr(item["candidate"], "spread_width", abs(item["candidate"].short_leg.strike-item["candidate"].long_leg.strike)),
+                                   "dte_bucket": getattr(item["candidate"], "dte_bucket", None) or "UNAVAILABLE",
                                    "dte": (item["candidate"].expiry - entry_at.date()).days,
                                    "direction": item["candidate"].strategy_type.value,
                                    "volatility_state": item["vix"] or "UNAVAILABLE",
@@ -342,7 +380,7 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
             continue
         if entries_by_day[snapshot.timestamp_ist.date()] >= shadow_config.max_new_trades_per_day:
             continue
-        if alpha is None or not alpha.confirmed or alpha.validity_state != AlphaValidity.VALID:
+        if not policy.enabled and (alpha is None or not alpha.confirmed or alpha.validity_state != AlphaValidity.VALID):
             continue
         approved = [decision for decision in evaluated.decisions
                     if decision.decision == RiskDecisionType.APPROVED and decision.candidate_reference]

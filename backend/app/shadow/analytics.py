@@ -81,8 +81,23 @@ def _bucket_alpha(value: float | None) -> str:
     return "UNAVAILABLE"
 
 
+def _score_bucket(value):
+    if value is None:
+        return "UNAVAILABLE"
+    return f"{int(value // 20)*20}_TO_{min(100, int(value // 20)*20+20)}"
+
+
 def breakdown(trades: list[ShadowTrade]) -> dict:
     dimensions: dict[str, Callable[[ShadowTrade], str]] = {
+        "strategy_logic_version": lambda item: item.strategy_logic_version or "LEGACY",
+        "strategy_family": lambda item: item.strategy_family.value if item.strategy_family else "LEGACY_UNCLASSIFIED",
+        "directional_strength": lambda item: item.directional_strength or "UNAVAILABLE",
+        "survival_bucket": lambda item: _score_bucket(item.survival_score),
+        "carry_bucket": lambda item: _score_bucket(item.carry_score),
+        "dte_bucket": lambda item: item.dte_bucket or "UNAVAILABLE",
+        "expected_move_distance": lambda item: "UNAVAILABLE" if item.distance_in_expected_move_units is None else f"{int(item.distance_in_expected_move_units*2)/2:g}_TO_{int(item.distance_in_expected_move_units*2)/2+.5:g}",
+        "gamma_risk_state": lambda item: item.gamma_risk_state or "UNAVAILABLE",
+        "theta_gamma_state": lambda item: item.theta_gamma_balance_state or "UNAVAILABLE",
         "strategy_type": lambda item: item.strategy_type,
         "entry_hour": lambda item: str(item.entry_timestamp.hour),
         "day_of_week": lambda item: item.entry_timestamp.strftime("%A"),

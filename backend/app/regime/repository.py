@@ -11,8 +11,10 @@ from app.regime.models import REGIME_VERSION, RegimeResult
 
 
 class RegimeRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version: str = "phase4_v1", strategy_version: str = "phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
 
     def load_feature(self, snapshot_id: int) -> tuple[int, MarketFeatureSnapshot] | None:
         with self._sessions() as session:
@@ -75,6 +77,11 @@ class RegimeRepository:
                 )
             )
             values = {
+                "strategy_logic_version": result.strategy_logic_version,
+                "strategy_context_json": None if result.strategy_logic_version is None else payload,
+                "market_bias": None if result.market_bias is None else result.market_bias.value,
+                "directional_strength": None if result.directional_strength is None else result.directional_strength.value,
+                "strategy_family_eligibility": None if result.strategy_family_eligibility is None else result.strategy_family_eligibility.value,
                 "feature_snapshot_id": result.feature_snapshot_id,
                 "regime": result.regime.value,
                 "confidence": Decimal(str(result.confidence)),
@@ -97,15 +104,15 @@ class RegimeRepository:
             session.flush()
             return record.id
 
-    def get(self, snapshot_id: int, version: str = REGIME_VERSION) -> dict[str, Any] | None:
+    def get(self, snapshot_id: int, version: str | None = None) -> dict[str, Any] | None:
         with self._sessions() as session:
             record = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == version,
+                MarketRegimeSnapshotRecord.regime_version == (version or self.regime_version),
             ))
             return None if record is None else record.result_json
 
-    def latest(self, version: str = REGIME_VERSION) -> dict[str, Any] | None:
+    def latest(self, version: str | None = None) -> dict[str, Any] | None:
         with self._sessions() as session:
             record = session.scalar(
                 select(MarketRegimeSnapshotRecord)
@@ -114,7 +121,7 @@ class RegimeRepository:
                     MarketFeatureSnapshotRecord.id
                     == MarketRegimeSnapshotRecord.feature_snapshot_id,
                 )
-                .where(MarketRegimeSnapshotRecord.regime_version == version)
+                .where(MarketRegimeSnapshotRecord.regime_version == (version or self.regime_version))
                 .order_by(
                     MarketFeatureSnapshotRecord.timestamp.desc(),
                     MarketRegimeSnapshotRecord.id.desc(),
@@ -123,7 +130,7 @@ class RegimeRepository:
             )
             return None if record is None else record.result_json
 
-    def list(self, limit: int, version: str = REGIME_VERSION) -> list[dict[str, Any]]:
+    def list(self, limit: int, version: str | None = None) -> list[dict[str, Any]]:
         with self._sessions() as session:
             records = session.scalars(
                 select(MarketRegimeSnapshotRecord)
@@ -132,7 +139,7 @@ class RegimeRepository:
                     MarketFeatureSnapshotRecord.id
                     == MarketRegimeSnapshotRecord.feature_snapshot_id,
                 )
-                .where(MarketRegimeSnapshotRecord.regime_version == version)
+                .where(MarketRegimeSnapshotRecord.regime_version == (version or self.regime_version))
                 .order_by(
                     MarketFeatureSnapshotRecord.timestamp.desc(),
                     MarketRegimeSnapshotRecord.id.desc(),

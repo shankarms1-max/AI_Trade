@@ -20,8 +20,10 @@ from app.pipeline.models import PIPELINE_VERSION, PipelineRun
 
 
 class PipelineRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version="phase4_v1", strategy_version="phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
 
     def raw_exists(self, snapshot_id: int) -> bool:
         with self._sessions() as session:
@@ -61,7 +63,12 @@ class PipelineRepository:
     def related_ids(self, snapshot_id: int) -> dict[str, int | None]:
         with self._sessions() as session:
             def scalar(model, condition):
-                return session.scalar(select(model.id).where(condition).order_by(model.id.desc()).limit(1))
+                query = select(model.id).where(condition)
+                if model is MarketRegimeSnapshotRecord:
+                    query = query.where(model.regime_version == self.regime_version)
+                elif model is StrategyCandidateSetRecord:
+                    query = query.where(model.strategy_version == self.strategy_version)
+                return session.scalar(query.order_by(model.id.desc()).limit(1))
             return {
                 "feature_snapshot_id": scalar(MarketFeatureSnapshotRecord, MarketFeatureSnapshotRecord.market_snapshot_id == snapshot_id),
                 "alpha_feature_snapshot_id": scalar(AlphaFeatureSnapshotRecord, AlphaFeatureSnapshotRecord.market_snapshot_id == snapshot_id),
@@ -111,12 +118,14 @@ class PipelineRepository:
                 MarketFeatureSnapshotRecord.market_snapshot_id.in_(snapshot_ids)
             )).all()
             regimes = session.scalars(select(MarketRegimeSnapshotRecord).where(
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
                 MarketRegimeSnapshotRecord.market_snapshot_id.in_(snapshot_ids)
             )).all()
             regime_counts = {name: 0 for name in ("BULLISH", "BEARISH", "RANGE", "NO_TRADE")}
             for item in regimes:
                 regime_counts[item.regime] += 1
             risk_rows = session.scalars(select(RiskDecisionRecord).where(
+                RiskDecisionRecord.strategy_version == self.strategy_version,
                 RiskDecisionRecord.market_snapshot_id.in_(snapshot_ids)
             )).all()
             entries = session.scalars(select(ShadowTradeRecord).where(
@@ -139,6 +148,7 @@ class PipelineRepository:
                 ),
                 "regime_counts": regime_counts,
                 "candidate_sets_created": session.scalar(select(func.count(StrategyCandidateSetRecord.id)).where(
+                    StrategyCandidateSetRecord.strategy_version == self.strategy_version,
                     StrategyCandidateSetRecord.market_snapshot_id.in_(snapshot_ids)
                 )) or 0,
                 "approved_risk_decisions": sum(item.decision == "APPROVED" for item in risk_rows),

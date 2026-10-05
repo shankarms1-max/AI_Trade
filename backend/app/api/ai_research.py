@@ -3,13 +3,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.ai.repository import AIResearchRepository
+from app.core.config import get_settings
 from app.db.session import get_session_factory
 
 router = APIRouter(prefix="/api/ai-research", tags=["ai-research"])
 
 
 def get_ai_research_repository() -> AIResearchRepository:
-    return AIResearchRepository(get_session_factory())
+    return AIResearchRepository(get_session_factory(), regime_version=get_settings().active_regime_version, strategy_version=get_settings().active_strategy_version)
 
 
 RepositoryDependency = Annotated[

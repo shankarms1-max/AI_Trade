@@ -24,6 +24,7 @@ from app.db.session import build_engine, build_session_factory  # noqa: E402
 from app.features.models import FEATURE_VERSION, MarketFeatureSnapshot  # noqa: E402
 from app.features.repository import raw_record_to_model  # noqa: E402
 from app.regime.engine import config_from_settings as regime_config  # noqa: E402
+from app.risk.event_checks import ConfiguredMarketEventProvider  # noqa: E402
 from app.risk.service import config_from_settings as risk_config  # noqa: E402
 from app.shadow.service import config_from_settings as shadow_config  # noqa: E402
 from app.strategy.service import config_from_settings as strategy_config  # noqa: E402
@@ -78,6 +79,11 @@ def main() -> int:
     parser.add_argument("--profit-targets", default="", help="Credit capture percentages; empty uses configured rule")
     parser.add_argument("--stop-multiples", default="", help="Credit multiples; empty uses configured rule")
     parser.add_argument("--force-exit-times", default="", help="HH:MM values; empty uses configured rule")
+    parser.add_argument("--expected-move-minimums", default="")
+    parser.add_argument("--carry-thresholds", default="")
+    parser.add_argument("--directional-strengths", default="")
+    parser.add_argument("--strategy-family-modes", default="")
+    parser.add_argument("--dte-buckets", default="")
     parser.add_argument("--split", choices=("TRAIN", "VALIDATION", "FINAL_TEST"), default="TRAIN")
     parser.add_argument("--inspect-final-test", action="store_true")
     parser.add_argument("--brokerage-per-order", type=float, default=0)
@@ -108,6 +114,11 @@ def main() -> int:
         [float(x) for x in args.thresholds.split(",")],
         [int(x) for x in args.confirmations.split(",")], WINDOWS,
         settings.research_max_experiment_combinations,
+        expected_move_minimums=[float(x) for x in args.expected_move_minimums.split(",")] if args.expected_move_minimums else [None],
+        carry_thresholds=[float(x) for x in args.carry_thresholds.split(",")] if args.carry_thresholds else [None],
+        directional_strengths=args.directional_strengths.split(",") if args.directional_strengths else [None],
+        strategy_family_modes=args.strategy_family_modes.split(",") if args.strategy_family_modes else [None],
+        dte_buckets=args.dte_buckets.split(",") if args.dte_buckets else [None],
         spread_width_sets=[tuple(float(value) for value in group.split(","))
                            for group in args.spread_width_sets.split(";")],
         short_strike_buffers=[float(x) for x in args.short_strike_buffers.split(",")],
@@ -144,6 +155,11 @@ def main() -> int:
                           "stop_loss_credit_multiple": parameters.stop_loss_credit_multiple,
                           "force_exit_time": None if parameters.force_exit_time is None else
                           parameters.force_exit_time.isoformat(),
+                          "expected_move_min_distance_units": parameters.expected_move_min_distance_units,
+                          "minimum_carry_score": parameters.minimum_carry_score,
+                          "directional_min_strength": parameters.directional_min_strength,
+                          "strategy_family_mode": parameters.strategy_family_mode,
+                          "dte_bucket": parameters.dte_bucket,
                           "costs": costs.__dict__}
         parameter_json["runtime_config"] = runtime_config
         config_hash = hashlib.sha256(json.dumps(parameter_json, sort_keys=True, default=str).encode()).hexdigest()
@@ -164,7 +180,8 @@ def main() -> int:
             metrics = replay_parameters(rows, parameters, strategy_config(settings), risk_config(settings),
                                         regime_config(settings), shadow_config(settings), costs,
                                         entry_period=period,
-                                        purge_unclosed_at_boundary=args.split != "FINAL_TEST")
+                                        purge_unclosed_at_boundary=args.split != "FINAL_TEST",
+                                        event_provider=ConfiguredMarketEventProvider.from_json(settings.risk_market_events_json))
         except Exception as exc:
             metrics = {"status": "NOT_EVALUABLE", "reason": type(exc).__name__,
                        "sample_tier": "INSUFFICIENT", "net_pnl": None}

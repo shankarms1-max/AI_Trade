@@ -1,10 +1,12 @@
 from app.strategy.candidate_engine import StrategyConfig, generate_candidates
+from app.strategy.policy import policy_from_settings
 from app.strategy.models import StrategyCandidateSet
 from app.strategy.repository import StrategyRepository
 
 
 def config_from_settings(settings) -> StrategyConfig:
     return StrategyConfig(
+        credit_spread_policy=policy_from_settings(settings),
         min_regime_confidence=settings.strategy_min_regime_confidence,
         min_evidence_quality=settings.strategy_min_evidence_quality,
         require_structure_reference=settings.strategy_require_structure_reference,

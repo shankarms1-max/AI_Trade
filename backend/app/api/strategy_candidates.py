@@ -1,3 +1,4 @@
+from app.core.config import get_settings
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api/strategy-candidates", tags=["strategy-candidates
 
 
 def get_strategy_repository() -> StrategyRepository:
-    return StrategyRepository(get_session_factory())
+    return StrategyRepository(get_session_factory(), regime_version=get_settings().active_regime_version, strategy_version=get_settings().active_strategy_version)
 
 
 RepositoryDependency = Annotated[StrategyRepository, Depends(get_strategy_repository)]

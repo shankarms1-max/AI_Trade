@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from app.strategy.policy import CreditSpreadPolicy, policy_from_settings
+from app.regime.market_state import market_state
 
 from app.features.models import MarketFeatureSnapshot
 from app.regime.confidence import calculate_confidence
@@ -16,6 +18,7 @@ from app.regime.alpha_signals import statistical_alpha_signals
 
 @dataclass(frozen=True)
 class RegimeConfig:
+    credit_spread_policy: CreditSpreadPolicy = CreditSpreadPolicy()
     minimum_confidence: float = 60
     minimum_directional_margin: float = 2
     minimum_contracts: int = 10
@@ -43,12 +46,12 @@ def classify_regime(
         price_structure_signal(feature, config.small_move_pct),
         dynamic_oi_signal(feature),
         static_oi_signal(feature),
-        futures_signal(feature, prior, include_basis=not config.use_statistical_alpha),
+        futures_signal(feature, prior, include_basis=not (config.use_statistical_alpha or config.credit_spread_policy.enabled)),
         pcr_signal(feature, config.pcr_low, config.pcr_high),
         positioning_signal(feature),
         volatility,
     ]
-    if config.use_statistical_alpha and alpha is not None:
+    if config.credit_spread_policy.enabled or (config.use_statistical_alpha and alpha is not None):
         # Broker-reported OI change has an unknown baseline. Keep these groups
         # as context until same-contract local OI and price changes are audited.
         groups = [SignalGroup(name=item.name, direction=SignalDirection.UNAVAILABLE,
@@ -57,14 +60,15 @@ def classify_regime(
                               details={"evidence_group": "POSITIONING"})
                   if item.name in {"DYNAMIC_OI", "OPTION_POSITIONING"} else item
                   for item in groups]
-        groups.extend(statistical_alpha_signals(alpha))
-    if config.use_statistical_alpha:
+        if config.use_statistical_alpha and alpha is not None:
+            groups.extend(statistical_alpha_signals(alpha))
+    if config.use_statistical_alpha or config.credit_spread_policy.enabled:
         groups.append(basis_signal(feature, prior, synchronized=False))
         groups = [item.model_copy(update={"details": {**item.details,
                                                       "evidence_group": evidence_mechanism(item.name)}})
                   for item in groups]
     bull, bear, range_score, contributions = weighted_scores(
-        groups, config.weights, group_caps_enabled=config.use_statistical_alpha)
+        groups, config.weights, group_caps_enabled=config.use_statistical_alpha or config.credit_spread_policy.enabled)
     scores = {Regime.BULLISH: bull, Regime.BEARISH: bear, Regime.RANGE: range_score}
     ordered = sorted(scores.items(), key=lambda item: (-item[1], item[0].value))
     winner, winning_score = ordered[0]
@@ -163,7 +167,7 @@ def classify_regime(
         warnings.append("DIRECTION_REQUIRES_HISTORY")
     elif config.use_statistical_alpha and winner in {Regime.BULLISH, Regime.BEARISH} and (
         alpha is None or not alpha.confirmed or alpha_direction != winner
-    ) and config.require_alpha_for_directional:
+    ) and config.require_alpha_for_directional and not config.credit_spread_policy.enabled:
         final = Regime.NO_TRADE
         warnings.append("DIRECTION_REQUIRES_CONFIRMED_ALPHA")
     elif config.use_statistical_alpha and winner in {Regime.BULLISH, Regime.BEARISH} and not independent_confirmation:
@@ -183,7 +187,7 @@ def classify_regime(
             for reason in group.reason_codes
         })
 
-    return RegimeResult(
+    result = RegimeResult(
         snapshot_id=feature.snapshot_id,
         feature_snapshot_id=feature_snapshot_id,
         timestamp=feature.timestamp,
@@ -202,9 +206,20 @@ def classify_regime(
         risk_flags=risk_flags,
     )
 
+    if config.credit_spread_policy.enabled:
+        state = market_state(result, feature, prior, config.credit_spread_policy, alpha, config.use_statistical_alpha)
+        # Retain compatibility labels, without hiding weak directional or neutral bias.
+        bias = state["market_bias"].value
+        state["warnings"] = [warning for warning in result.warnings if warning not in {
+            "CONFIDENCE_BELOW_THRESHOLD", "REGIME_MARGIN_TOO_SMALL", "DIRECTION_REQUIRES_CONFIRMED_ALPHA"}]
+        state["regime"] = Regime.RANGE if bias == "NEUTRAL" else Regime(bias) if bias in {"BULLISH", "BEARISH"} else Regime.NO_TRADE
+        result = result.model_copy(update=state)
+    return result
+
 
 def config_from_settings(settings) -> RegimeConfig:
     return RegimeConfig(
+        credit_spread_policy=policy_from_settings(settings),
         minimum_confidence=settings.regime_min_confidence,
         minimum_directional_margin=settings.regime_min_directional_margin,
         minimum_contracts=settings.regime_min_contracts,

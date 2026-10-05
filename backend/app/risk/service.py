@@ -2,12 +2,14 @@ from app.risk.engine import evaluate_risk
 from app.risk.event_checks import ConfiguredMarketEventProvider, MarketEventProvider
 from app.risk.exposure import ResearchRiskStateProvider, RiskStateProvider
 from app.risk.limits import RiskConfig
+from app.strategy.policy import policy_from_settings
 from app.risk.models import EvaluationContext, RiskEvaluationSet
 from app.risk.repository import RiskRepository
 
 
 def config_from_settings(settings) -> RiskConfig:
     return RiskConfig(
+        credit_spread_policy=policy_from_settings(settings),
         max_loss_per_trade=settings.risk_max_loss_per_trade,
         max_capital_per_trade=settings.risk_max_capital_per_trade,
         max_trades_per_day=settings.risk_max_trades_per_day,

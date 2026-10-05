@@ -31,22 +31,22 @@ SessionFactoryDependency = Annotated[sessionmaker[Session], Depends(get_session_
 @router.get("/latest")
 def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
     """Compose existing read models; no research or trading logic runs here."""
+    settings = get_settings()
     snapshots = SnapshotRepository(sessions)
     latest = snapshots.latest()
     snapshot_id = None if latest is None else latest["id"]
-    shadow_repository = ShadowRepository(sessions)
+    shadow_repository = ShadowRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     all_trades = shadow_repository.all_trades()
     open_trades = [item for item in all_trades if item.status.value == "OPEN"]
     open_trade = open_trades[-1].model_dump(mode="json") if open_trades else None
     open_marks = [] if open_trade is None else shadow_repository.marks(open_trade["id"])
-    pipeline_repository = PipelineRepository(sessions)
+    pipeline_repository = PipelineRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     pipeline_runs = pipeline_repository.list(500)
     trading_date = (
         datetime.now(IST).date()
         if latest is None
         else latest["timestamp_ist"].astimezone(IST).date()
     )
-    settings = get_settings()
     alpha_repository = AlphaRepository(sessions)
     open_thresholds = None
     if open_trades:
@@ -61,10 +61,10 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
         "features": None if snapshot_id is None else FeatureRepository(sessions).get(snapshot_id),
         "alpha": None if snapshot_id is None else alpha_repository.get(snapshot_id),
         "alpha_history": alpha_repository.history(trading_date),
-        "regime": None if snapshot_id is None else RegimeRepository(sessions).get(snapshot_id),
-        "ai_research": None if snapshot_id is None else AIResearchRepository(sessions).get(snapshot_id),
-        "candidates": None if snapshot_id is None else StrategyRepository(sessions).get(snapshot_id),
-        "risk": None if snapshot_id is None else RiskRepository(sessions).get(snapshot_id),
+        "regime": None if snapshot_id is None else RegimeRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version).get(snapshot_id),
+        "ai_research": None if snapshot_id is None else AIResearchRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version).get(snapshot_id),
+        "candidates": None if snapshot_id is None else StrategyRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version).get(snapshot_id),
+        "risk": None if snapshot_id is None else RiskRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version).get(snapshot_id),
         "open_shadow_trade": open_trade,
         "open_shadow_marks": open_marks,
         "open_shadow_thresholds": open_thresholds,
@@ -77,7 +77,7 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
         },
         "daily_summary": pipeline_repository.daily_summary(trading_date),
         "regime_history": [
-            item for item in RegimeRepository(sessions).list(200)
+            item for item in RegimeRepository(sessions, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version).list(200)
             if datetime.fromisoformat(item["timestamp"]).astimezone(IST).date() == trading_date
         ],
         "shadow_performance": performance(all_trades),

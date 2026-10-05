@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.strategy.models import CandidateLeg
+from app.strategy.economics_models import CreditSpreadEconomics
 
 SHADOW_VERSION = "phase8_v1"
 
@@ -24,7 +25,7 @@ class ShadowPricingBasis(str, Enum):
     LTP_ESTIMATE = "LTP_ESTIMATE"
 
 
-class ShadowTrade(ShadowModel):
+class ShadowTrade(CreditSpreadEconomics):
     id: int | None = None
     market_snapshot_id_entry: int
     risk_decision_id: int

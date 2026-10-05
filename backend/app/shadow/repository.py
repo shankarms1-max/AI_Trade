@@ -15,6 +15,7 @@ from app.db.models import (
     ShadowTradeRecord,
     StrategyCandidateSetRecord,
 )
+from app.strategy.economics_models import CreditSpreadEconomics
 from app.features.models import FEATURE_VERSION, MarketFeatureSnapshot
 from app.features.repository import raw_record_to_model
 from app.regime.models import REGIME_VERSION, RegimeResult
@@ -29,8 +30,10 @@ def _decimal(value: float | None) -> Decimal | None:
 
 
 class ShadowRepository:
-    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, regime_version: str = "phase4_v1", strategy_version: str = "phase6_v1") -> None:
         self._sessions = session_factory
+        self.regime_version = regime_version
+        self.strategy_version = strategy_version
 
     def load_entry_context(self, snapshot_id: int):
         with self._sessions() as session:
@@ -43,15 +46,16 @@ class ShadowRepository:
             ))
             regime = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION,
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
             ))
             candidates = session.scalar(select(StrategyCandidateSetRecord).where(
                 StrategyCandidateSetRecord.market_snapshot_id == snapshot_id,
-                StrategyCandidateSetRecord.strategy_version == STRATEGY_VERSION,
+                StrategyCandidateSetRecord.strategy_version == self.strategy_version,
             ))
             risks = session.scalars(select(RiskDecisionRecord).where(
                 RiskDecisionRecord.market_snapshot_id == snapshot_id,
                 RiskDecisionRecord.risk_version == RISK_VERSION,
+                RiskDecisionRecord.strategy_version == self.strategy_version,
                 RiskDecisionRecord.decision == "APPROVED",
             )).all()
             alpha = session.scalar(select(AlphaFeatureSnapshotRecord).where(
@@ -116,6 +120,10 @@ class ShadowRepository:
             if existing is not None:
                 return ShadowTrade.model_validate(existing.result_json)
             record = ShadowTradeRecord(
+                strategy_logic_version=trade.strategy_logic_version,
+                strategy_family=None if trade.strategy_family is None else trade.strategy_family.value,
+                strategy_context_json=None if trade.strategy_logic_version is None else {
+                    key: trade.model_dump(mode="json")[key] for key in CreditSpreadEconomics.model_fields},
                 market_snapshot_id_entry=trade.market_snapshot_id_entry,
                 risk_decision_id=trade.risk_decision_id,
                 candidate_fingerprint=trade.candidate_fingerprint,
@@ -202,7 +210,7 @@ class ShadowRepository:
             ).where(MarketSnapshotRecord.id == snapshot_id))
             regime = session.scalar(select(MarketRegimeSnapshotRecord).where(
                 MarketRegimeSnapshotRecord.market_snapshot_id == snapshot_id,
-                MarketRegimeSnapshotRecord.regime_version == REGIME_VERSION,
+                MarketRegimeSnapshotRecord.regime_version == self.regime_version,
             ))
             if raw is None:
                 return None
