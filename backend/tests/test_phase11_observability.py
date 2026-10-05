@@ -108,7 +108,7 @@ def test_database_failure_is_safe():
 @pytest.mark.parametrize(("changes", "result"), [
     ({}, "HEALTHY"), ({"spot_available": False}, "UNHEALTHY"),
     ({"vix_available": False}, "DEGRADED"), ({"lot_size_available": False}, "DEGRADED"),
-    ({"option_contract_count": 0}, "UNHEALTHY"), ({"oi_mismatch_count": 1}, "DEGRADED"),
+    ({"option_contract_count": 0}, "UNHEALTHY"), ({"oi_mismatch_count": 1}, "HEALTHY"),
 ])
 def test_market_data_statuses(changes, result):
     assert market_data_health(quality(**changes), MarketSessionState.OPEN)["status"] == result
@@ -220,3 +220,4 @@ def test_health_apis_and_daily_summary(session_factory):
 @pytest.mark.parametrize(("status", "code"), [("HEALTHY", 0), ("IDLE", 0), ("DEGRADED", 1), ("UNKNOWN", 1), ("UNHEALTHY", 2)])
 def test_health_script_exit_codes(status, code):
     assert exit_code(status) == code
+

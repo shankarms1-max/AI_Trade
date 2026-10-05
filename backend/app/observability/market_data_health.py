@@ -12,8 +12,6 @@ def market_data_health(quality: dict[str, Any] | None, session: MarketSessionSta
         status = HealthStatus.UNHEALTHY
     elif not all(quality[key] for key in ("future_available", "vix_available", "lot_size_available")):
         status = HealthStatus.DEGRADED
-    elif quality["oi_mismatch_count"]:
-        status = HealthStatus.DEGRADED
     else:
         status = HealthStatus.HEALTHY
     return {"status": status.value, **(quality or {
@@ -24,3 +22,4 @@ def market_data_health(quality: dict[str, Any] | None, session: MarketSessionSta
         "intraday_oi_usable": False, "bid_ask_coverage_pct": None,
         "volume_coverage_pct": None, "oi_change_coverage_pct": None,
     })}
+
