@@ -2,10 +2,12 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 import json
 from math import ceil
+from time import monotonic, sleep
 from typing import Any
 
 from app.broker.base import BrokerSessionError, MarketDataBroker, MarketDataError
 from app.broker.kotak.client import KotakSDKClient
+from app.broker.kotak.depth import index_quotes, quote_identity, quote_updates
 from app.broker.kotak.instruments import (
     NIFTY_INDEX_IDENTIFIER,
     NIFTY_UNDERLYING,
@@ -272,6 +274,47 @@ class KotakMarketDataAdapter(MarketDataBroker):
         if not self._future_from_chain_resolved:
             logger.warning("NIFTY_FUTURE_UNAVAILABLE reason=option_chain_not_fetched")
         return self._cached_nifty_future
+
+    def enrich_option_quotes(
+        self, contracts: list[OptionContractSnapshot]
+    ) -> list[OptionContractSnapshot]:
+        # 42 filtered ATM +/-10 contracts fit in one broker-supported batch.
+        identities = list(dict.fromkeys(key for item in contracts
+                                        if (key := quote_identity(item)) is not None))
+        rows = {}
+        started = monotonic()
+        for offset in range(0, len(identities), 50):
+            if offset:
+                if monotonic() - started >= 10:
+                    logger.warning("OPTION_QUOTES_INCOMPLETE reason=batch_budget")
+                    break
+                sleep(0.04)  # Official ceiling: 25 requests/second.
+            batch = identities[offset:offset + 50]
+            try:
+                response = self._sdk_call(
+                    "option depth quotes", self._client.quotes,
+                    instrument_tokens=[{"exchange_segment": exchange, "instrument_token": token}
+                                       for exchange, token in batch],
+                    quote_type="all",
+                )
+                self._raise_for_error(response, "option depth quotes")
+            except MarketDataError:
+                # Quote failure must not discard the successfully fetched chain.
+                logger.warning("OPTION_QUOTES_UNAVAILABLE reason=request_failed")
+                break
+            rows.update(index_quotes(response, set(batch)))
+        enriched = [item.model_copy(update=quote_updates(rows[key]))
+                    if (key := quote_identity(item)) in rows else item for item in contracts]
+        logger.info(
+            "OPTION_QUOTES_CAPTURED requested=%d matched=%d bid_ask=%d quantities=%d "
+            "source_timestamps=%d depth_unit=UNKNOWN tick_size=unavailable elapsed_ms=%d",
+            len(identities), len(rows),
+            sum(item.bid is not None and item.ask is not None for item in enriched),
+            sum(item.bid_quantity is not None and item.ask_quantity is not None for item in enriched),
+            sum(item.source_market_timestamp is not None for item in enriched),
+            int((monotonic() - started) * 1000),
+        )
+        return enriched
 
     def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
         return self._cached_nifty_future_identity

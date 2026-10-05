@@ -63,6 +63,7 @@ def build_market_snapshot(
             broker.get_nifty_option_chain(expiry), atm, strikes_each_side
         )
         logger.info("OPTION_CHAIN_FILTERED contracts=%d", len(contracts))
+        contracts = broker.enrich_option_quotes(contracts)
         future_id, future_expiry = broker.get_nifty_future_identity()
         future_price = broker.get_nifty_future()
         vix = broker.get_india_vix()

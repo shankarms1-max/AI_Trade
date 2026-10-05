@@ -11,7 +11,7 @@ from apscheduler.events import EVENT_JOB_MAX_INSTANCES  # noqa: E402
 from apscheduler.schedulers.blocking import BlockingScheduler  # noqa: E402
 
 from app.collector.factory import make_live_snapshot_builder  # noqa: E402
-from app.collector.service import CollectorService, IST, TradingCalendar  # noqa: E402
+from app.collector.service import CollectorService, IST, TradingCalendar, collection_trigger  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.logging import configure_logging, get_logger  # noqa: E402
 from app.db.repositories import SnapshotRepository  # noqa: E402
@@ -81,8 +81,7 @@ def main() -> int:
     scheduler = BlockingScheduler(timezone=IST)
     scheduler.add_job(
         service.run_scheduled,
-        "interval",
-        minutes=settings.collector_interval_minutes,
+        collection_trigger(settings.collector_interval_minutes),
         id="nifty_snapshot_collector",
         max_instances=1,
         coalesce=True,
