@@ -98,7 +98,9 @@ def export_dataset(session, start_date: date, end_date: date, output: str | Path
     omitted_option_fields = optional_option_fields - stored_option_columns
     option_loader = selectinload(MarketSnapshotRecord.options)
     for name in sorted(omitted_option_fields):
-        option_loader = option_loader.defer(getattr(OptionContractSnapshotRecord, name))
+        orm_field = getattr(OptionContractSnapshotRecord, name, None)
+        if orm_field is not None:
+            option_loader = option_loader.defer(orm_field)
     counts = {"snapshots_exported": 0, "snapshots_with_features": 0,
               "snapshots_missing_features": 0, "snapshots_with_alpha": 0,
               "snapshots_missing_alpha": 0}
