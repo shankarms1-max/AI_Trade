@@ -74,7 +74,15 @@ def _evaluate_candidate(
 
     regime_name = _value(regime.regime)
     evidence_quality = _value(regime.evidence_quality)
-    phase142 = config.credit_spread_policy.enabled and candidate.strategy_logic_version == "phase14_2_v1"
+    phase142 = config.credit_spread_policy.enabled
+    repriced = None
+    if phase142:
+        from app.risk.repricing import independent_reprice
+        repriced = independent_reprice(candidate, candidate_set, snapshot, regime, config, evaluated_at)
+        _check(checks, "INDEPENDENT_EXECUTABLE_REPRICE", CheckStatus.PASS if repriced.valid else CheckStatus.FAIL,
+               {"credit": repriced.credit, "width": repriced.width, "gross_max_loss": repriced.gross_max_loss},
+               "authoritative exact quotes; absolute tolerance 1e-6", "Independent raw-contract payoff reconstruction")
+        reasons.extend(repriced.reasons)
     expected = expected_strategy_for_regime(regime_name)
     # Snapshot identity is checked by the service/repository foreign-key context.
     regime_valid = expected == candidate.strategy_type and candidate_set.regime == regime_name
@@ -95,7 +103,8 @@ def _evaluate_candidate(
         elif family == "THETA_CARRY_CREDIT_SPREAD":
             from app.strategy.economics import expected_move, expiry_context, side_safety
             policy = config.credit_spread_policy
-            move = expected_move(snapshot, feature, expiry_context(snapshot, policy)["fractional_time_to_expiry"], policy.expected_move_source)
+            move = expected_move(snapshot, feature, expiry_context(snapshot, policy)["fractional_time_to_expiry"], policy.expected_move_source,
+                                 quality_policy=policy if policy.replay_integrity_enabled else None)
             safer = side_safety(feature, move, policy)["selected_bias"] if move else None
             chosen = _value(regime.market_bias) if _value(regime.directional_strength) in {"STRONG", "MODERATE"} else safer
             from app.strategy.policy import STRENGTH_RANK
@@ -136,9 +145,11 @@ def _evaluate_candidate(
            data_consistent, True, "Snapshot, regime, expiry, and legs must be internally consistent")
     if not data_consistent:
         reasons.append("CRITICAL_DATA_QUALITY_FAILURE")
-    oi_ok = feature.data_quality.intraday_oi_usable or not config.require_intraday_oi
+    from app.research.oi import static_oi_usable
+    oi_usable = static_oi_usable(feature) if phase142 else feature.data_quality.intraday_oi_usable
+    oi_ok = oi_usable or not config.require_intraday_oi
     _check(checks, "INTRADAY_OI", CheckStatus.PASS if oi_ok else CheckStatus.FAIL,
-           feature.data_quality.intraday_oi_usable, config.require_intraday_oi,
+           oi_usable, config.require_intraday_oi,
            "Directional approval can require usable intraday OI")
     if not oi_ok:
         reasons.append("INTRADAY_OI_UNUSABLE")
@@ -231,7 +242,8 @@ def _evaluate_candidate(
            candidate.spread_width, config.max_spread_width, "Maximum allowed defined-risk width")
     if not width_ok:
         reasons.append("MAX_SPREAD_WIDTH_EXCEEDED")
-    calculated_loss = candidate.spread_width - candidate.net_credit
+    calculated_loss = (repriced.gross_max_loss if repriced and repriced.gross_max_loss is not None
+                       else candidate.spread_width - candidate.net_credit)
     payoff_ok = (
         candidate.net_credit > 0 and calculated_loss > 0
         and abs(calculated_loss - candidate.max_loss) < 1e-6
@@ -241,7 +253,8 @@ def _evaluate_candidate(
            calculated_loss, candidate.max_loss, "Theoretical defined-risk payoff must reconcile")
     if not payoff_ok:
         reasons.append("INVALID_MAX_LOSS")
-    reward_to_risk = None if calculated_loss <= 0 else candidate.net_credit / calculated_loss
+    reward_to_risk = (None if calculated_loss <= 0 else
+                      (repriced.credit if repriced and repriced.credit is not None else candidate.net_credit) / calculated_loss)
     ratio_valid = reward_to_risk is not None and reward_to_risk > 0
     _check(checks, "REWARD_TO_RISK_VALID", CheckStatus.PASS if ratio_valid else CheckStatus.FAIL,
            reward_to_risk, ">0", "Reward-to-risk is max profit divided by max loss")
@@ -254,7 +267,8 @@ def _evaluate_candidate(
            lot_size, "broker-confirmed positive integer", "Lot-level approval never guesses lot size")
     if not lot_ok:
         reasons.append("LOT_SIZE_UNAVAILABLE")
-    max_profit_lot = candidate.net_credit * lot_size if lot_ok else None
+    executable_credit = repriced.credit if repriced and repriced.credit is not None else candidate.net_credit
+    max_profit_lot = executable_credit * lot_size if lot_ok else None
     max_loss_lot = calculated_loss * lot_size if lot_ok else None
     capital_required = max_loss_lot
     capital_basis = "DEFINED_RISK_MAX_LOSS_PROXY" if capital_required is not None else None
@@ -301,6 +315,11 @@ def _evaluate_candidate(
            state.provider_kind, context.value, "State authority must match evaluation context")
     if not state_usable:
         reasons.append("RISK_STATE_UNAVAILABLE")
+    if config.credit_spread_policy.replay_integrity_enabled:
+        _check(checks, "MONETARY_RISK_STATE_COMPLETE", CheckStatus.PASS if state.monetary_pnl_complete else CheckStatus.FAIL,
+               state.monetary_pnl_complete, True, "Unresolved exposure / incomplete costs block subsequent monetary decisions")
+        if not state.monetary_pnl_complete:
+            reasons.append("INCOMPLETE_MONETARY_RISK_STATE")
     trades_ok = state.trades_today < config.max_trades_per_day
     _check(checks, "MAX_TRADES_PER_DAY", CheckStatus.PASS if trades_ok else CheckStatus.FAIL,
            state.trades_today, config.max_trades_per_day, "Committed strategy count hook")
@@ -338,16 +357,7 @@ def _evaluate_candidate(
         _check(checks, "EVENT_RISK", CheckStatus.PASS, [], "no blocking event", "No configured active event")
 
     if phase142:
-        from app.strategy.liquidity import malformed_quotes
-        exact = [next((item for item in snapshot.options if leg.instrument_token and
-                  item.exchange == "nse_fo" and item.instrument_token == leg.instrument_token
-                  and item.strike == leg.strike and item.expiry == leg.expiry
-                  and item.option_type.value == leg.option_type), None)
-                 for leg in (candidate.short_leg, candidate.long_leg)]
-        quotes_ok = all(item is not None and not malformed_quotes(item) and
-                        leg.bid == item.bid and leg.ask == item.ask and leg.ltp == item.ltp and
-                        (item.source_market_timestamp is None or 0 <= (snapshot.timestamp_ist-item.source_market_timestamp).total_seconds() <= config.max_snapshot_age_seconds)
-                        for leg, item in zip((candidate.short_leg, candidate.long_leg), exact))
+        quotes_ok = repriced.valid
         _check(checks, "EXACT_LEG_QUOTE_VALIDITY", CheckStatus.PASS if quotes_ok else CheckStatus.FAIL,
                quotes_ok, True, "Same contract, valid book, observed quote freshness")
         if not quotes_ok:
@@ -365,6 +375,8 @@ def _evaluate_candidate(
             and item.market_bias == regime.market_bias and item.strategy_family_eligibility == regime.strategy_family_eligibility
             and item.timestamp.date() == regime.timestamp.date()
             and item.timestamp <= regime.timestamp
+            and (not config.credit_spread_policy.replay_integrity_enabled or
+                 item.persistence_identity == regime.persistence_identity)
             for item in sequence[:required]) and all(
                 0 < (newer.timestamp-older.timestamp).total_seconds() <= config.max_snapshot_age_seconds
                 for newer, older in zip(sequence[:required], sequence[1:required]))
@@ -393,7 +405,24 @@ def _evaluate_candidate(
     decision = RiskDecisionType.REJECTED if failed else RiskDecisionType.APPROVED
     if decision == RiskDecisionType.APPROVED:
         reasons.append("RISK_APPROVED")
+    including_costs = None
+    cost_basis = None
+    if config.credit_spread_policy.replay_integrity_enabled:
+        complete_cost = repriced.cost_estimate_complete and repriced.estimated_cost_points_per_unit is not None
+        cost_basis = "ESTIMATED" if complete_cost else "GROSS_ONLY"
+        if complete_cost and max_loss_lot is not None:
+            including_costs = max_loss_lot + repriced.estimated_cost_points_per_unit * lot_size
     return RiskDecision(
+        research_run_id=config.credit_spread_policy.research_run_id,
+        policy_hash=config.credit_spread_policy.policy_hash,
+        execution_mode=config.credit_spread_policy.execution_mode,
+        independent_reprice=None if repriced is None else {"valid": repriced.valid,
+            "gross_credit_points_per_unit": repriced.credit, "width_points": repriced.width,
+            "gross_max_loss_points_per_unit": repriced.gross_max_loss,
+            "gross_max_loss_rupees_per_lot": repriced.gross_loss_per_lot,
+            "credit_to_width": repriced.credit_to_width, "credit_to_max_loss": repriced.credit_to_max_loss},
+        max_loss_including_estimated_costs_per_lot=including_costs,
+        estimated_cost_basis=cost_basis,
         market_snapshot_id=candidate.market_snapshot_id,
         regime_snapshot_id=candidate.regime_snapshot_id,
         strategy_candidate_set_id=candidate_set_id,
@@ -402,7 +431,7 @@ def _evaluate_candidate(
         strategy_version=candidate.strategy_version,
         decision=decision,
         candidate_strategy=candidate.strategy_type.value,
-        max_profit_per_unit=candidate.net_credit,
+        max_profit_per_unit=executable_credit,
         max_loss_per_unit=calculated_loss,
         lot_size=lot_size,
         max_profit_per_lot=max_profit_lot,
@@ -439,6 +468,9 @@ def evaluate_risk(
     now = evaluated_at or datetime.now(IST)
     if not candidate_set.eligible or not candidate_set.candidates:
         decision = RiskDecision(
+            research_run_id=config.credit_spread_policy.research_run_id,
+            policy_hash=config.credit_spread_policy.policy_hash,
+            execution_mode=config.credit_spread_policy.execution_mode,
             market_snapshot_id=candidate_set.snapshot_id,
             regime_snapshot_id=candidate_set.regime_snapshot_id,
             strategy_candidate_set_id=candidate_set_id,
@@ -465,6 +497,9 @@ def evaluate_risk(
             created_at=now,
         )
         return RiskEvaluationSet(
+            research_run_id=config.credit_spread_policy.research_run_id,
+            policy_hash=config.credit_spread_policy.policy_hash,
+            execution_mode=config.credit_spread_policy.execution_mode,
             snapshot_id=candidate_set.snapshot_id,
             strategy_version=candidate_set.strategy_version,
             candidate_count=0,
@@ -486,6 +521,9 @@ def evaluate_risk(
     approved = [item for item in decisions if item.decision == RiskDecisionType.APPROVED]
     best = max(approved, key=lambda item: item.selection_score or 0).candidate_reference if approved else None
     return RiskEvaluationSet(
+        research_run_id=config.credit_spread_policy.research_run_id,
+        policy_hash=config.credit_spread_policy.policy_hash,
+        execution_mode=config.credit_spread_policy.execution_mode,
         snapshot_id=candidate_set.snapshot_id,
         strategy_version=candidate_set.strategy_version,
         candidate_count=len(candidate_set.candidates),

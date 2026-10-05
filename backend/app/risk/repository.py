@@ -118,6 +118,10 @@ class RiskRepository:
             return values
 
     def upsert(self, result: RiskEvaluationSet, candidate_set_id: int) -> None:
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(result)
+        for decision in result.decisions:
+            reject_shared_research_write(decision)
         fingerprints = {
             item.candidate_fingerprint or "NO_CANDIDATE" for item in result.decisions
         }

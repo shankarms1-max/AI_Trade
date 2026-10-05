@@ -11,6 +11,12 @@ class FeatureModel(BaseModel):
 
 
 class FeatureDataQuality(FeatureModel):
+    static_oi_usable: bool | None = None
+    static_oi_coverage: float | None = None
+    broker_oi_change_available: bool | None = None
+    broker_oi_change_nonzero: bool | None = None
+    local_delta_oi_usable: bool | None = None
+    local_delta_oi_reason: str | None = None
     contracts_total: int
     calls_total: int
     puts_total: int

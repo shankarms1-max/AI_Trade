@@ -25,6 +25,9 @@ class PipelineRun(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: int | None = None
+    research_run_id: str | None = None
+    policy_hash: str | None = None
+    execution_mode: str | None = None
     market_snapshot_id: int
     pipeline_version: str = PIPELINE_VERSION
     started_at: datetime

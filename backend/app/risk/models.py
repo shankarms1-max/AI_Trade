@@ -39,6 +39,12 @@ class RiskCheck(RiskModel):
 
 
 class RiskDecision(RiskModel):
+    research_run_id: str | None = None
+    policy_hash: str | None = None
+    execution_mode: str | None = None
+    independent_reprice: dict[str, Any] | None = None
+    max_loss_including_estimated_costs_per_lot: float | None = None
+    estimated_cost_basis: str | None = None
     market_snapshot_id: int
     regime_snapshot_id: int
     strategy_candidate_set_id: int | None
@@ -67,6 +73,9 @@ class RiskDecision(RiskModel):
 
 
 class RiskEvaluationSet(RiskModel):
+    research_run_id: str | None = None
+    policy_hash: str | None = None
+    execution_mode: str | None = None
     snapshot_id: int
     strategy_version: str
     risk_version: str = RISK_VERSION

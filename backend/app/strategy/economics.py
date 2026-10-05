@@ -47,7 +47,10 @@ def expiry_context(snapshot, policy):
     )
 
 
-def expected_move(snapshot, feature, fractional_days, source="AUTO", max_quote_age=600):
+def expected_move(snapshot, feature, fractional_days, source="AUTO", max_quote_age=600, *, quality_policy=None):
+    if quality_policy is not None:
+        from app.research.moves import fixed_expected_move
+        return fixed_expected_move(snapshot, feature, fractional_days, source, quality_policy)
     if fractional_days <= 0 or not isfinite(fractional_days):
         return None
     if source in {"AUTO", "ATM_STRADDLE"}:
@@ -338,6 +341,13 @@ def candidate_economics(
     cost, cost_parts = cost_estimate(
         price.short_price, price.long_price, snapshot.lot_size, p
     )
+    integrity_complete = None
+    if p.replay_integrity_enabled:
+        from app.research.costs import CostSchedule, estimated_cost
+        cost_parts = estimated_cost(p.cost_schedule or CostSchedule(), snapshot, price.short_price, price.long_price, lots=p.requested_lots)
+        integrity_complete = cost_parts["cost_completeness"] == "NET_COMPLETE"
+        cost = ((cost_parts["total_cost_rupees"] / (snapshot.lot_size*p.requested_lots))
+                if integrity_complete else 0)
     after = price.net_credit - cost
     loss_ratio = after / payoff.max_loss
     width_ratio = after / payoff.width
@@ -410,6 +420,10 @@ def candidate_economics(
     )
     return dict(
         strategy_logic_version="phase14_2_v1",
+        policy_hash=p.policy_hash,
+        research_run_id=p.research_run_id,
+        execution_mode=p.execution_mode,
+        economics_basis=("NET_ESTIMATED" if integrity_complete else "GROSS_ONLY") if p.replay_integrity_enabled else None,
         strategy_family=family,
         market_bias=regime.market_bias.value,
         directional_strength=regime.directional_strength.value,
@@ -439,10 +453,10 @@ def candidate_economics(
         net_credit_per_unit=price.net_credit,
         max_loss_per_unit=payoff.max_loss,
         gross_credit=price.net_credit,
-        estimated_cost=cost,
-        net_credit_after_cost=after,
+        estimated_cost=None if p.replay_integrity_enabled and not integrity_complete else cost,
+        net_credit_after_cost=None if p.replay_integrity_enabled and not integrity_complete else after,
         cost_components=cost_parts,
-        cost_estimate_complete=p.costs_complete and snapshot.lot_size is not None,
+        cost_estimate_complete=integrity_complete if p.replay_integrity_enabled else p.costs_complete and snapshot.lot_size is not None,
         credit_to_max_loss=price.net_credit / payoff.max_loss,
         credit_to_expected_move=price.net_credit / move["expected_move_points"],
         credit_per_dte=price.net_credit / expiry["fractional_time_to_expiry"],

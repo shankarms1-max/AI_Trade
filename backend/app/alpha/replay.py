@@ -32,8 +32,8 @@ from app.strategy.models import CreditSpreadCandidate, StrategyType
 class ReplayRow:
     snapshot_id: int
     snapshot: MarketSnapshot
-    feature: MarketFeatureSnapshot
-    feature_id: int
+    feature: MarketFeatureSnapshot | None
+    feature_id: int | None
     alpha: AlphaFeatureSnapshot | None
 
 
@@ -213,7 +213,15 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
                       regime_config: RegimeConfig, shadow_config: ShadowConfig,
                       costs: ReplayCosts = ReplayCosts(), quantity: int = 1,
                       entry_period: tuple[datetime, datetime] | None = None,
-                      purge_unclosed_at_boundary: bool = False, event_provider=None) -> dict:
+                      purge_unclosed_at_boundary: bool = False, event_provider=None,
+                      integrity_config=None, manifest=None, ledger=None, cost_schedule=None, split="TRAIN") -> dict:
+    if integrity_config is not None:
+        from app.research.replay import replay_integrity
+        if manifest is None or ledger is None or cost_schedule is None:
+            raise ValueError("integrity replay requires frozen manifest, isolated ledger and cost schedule")
+        return replay_integrity(rows, parameters, strategy_config, risk_config, regime_config, shadow_config,
+                                integrity=integrity_config, manifest=manifest, ledger=ledger,
+                                cost_schedule=cost_schedule, split=split, quantity=quantity)
     if quantity <= 0:
         raise ValueError("quantity must be positive")
     rows = sorted(rows, key=lambda item: (item.snapshot.timestamp_ist, item.snapshot_id))
@@ -234,7 +242,8 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
             directional_alpha_min_strength=parameters.directional_min_strength or policy.directional_alpha_min_strength,
             family_mode=parameters.strategy_family_mode or policy.family_mode,
             brokerage_per_order=costs.brokerage_per_order, exchange_rate=costs.exchange_rate, stt_rate=costs.stt_rate,
-            gst_rate=costs.gst_rate, stamp_rate=costs.stamp_rate, slippage_points_per_leg=costs.slippage_points_per_leg)
+            gst_rate=costs.gst_rate, stamp_rate=costs.stamp_rate, slippage_points_per_leg=costs.slippage_points_per_leg,
+            costs_complete=False)
         strategy_config = replace(strategy_config, credit_spread_policy=policy)
         regime_config = replace(regime_config, credit_spread_policy=policy)
         risk_config = replace(risk_config, credit_spread_policy=policy,
@@ -398,4 +407,7 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
         counts["split_overlap_purged" if purge_unclosed_at_boundary and entry_period else "missing"] += 1
     observed = len(rows) if entry_period is None else sum(
         entry_period[0] <= row.snapshot.timestamp_ist <= entry_period[1] for row in rows)
-    return _metrics(closed, counts, observed)
+    result = _metrics(closed, counts, observed)
+    result["evidence_eligible"] = False
+    result["evidence_engine"] = "LEGACY_DIAGNOSTIC_REPLAY"
+    return result

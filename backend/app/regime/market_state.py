@@ -13,7 +13,8 @@ def market_state(result, feature, prior, policy, alpha=None, use_alpha=False):
         and prior.expiry == feature.expiry
         and (feature.timestamp - prior.timestamp).total_seconds() <= 600
     )
-    usable = quality_ok and continuity and feature.data_quality.intraday_oi_usable
+    from app.research.oi import static_oi_usable
+    usable = quality_ok and continuity and static_oi_usable(feature)
     alpha_state, alpha_bias, alpha_strength = "DISABLED", "NEUTRAL", "NONE"
     if use_alpha:
         alpha_state = "UNAVAILABLE" if alpha is None else alpha.validity_state.value

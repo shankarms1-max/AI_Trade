@@ -210,7 +210,7 @@ def test_insufficient_continuity_is_never_relaxed(context, mutation):
         f = f.model_copy(
             update={
                 "data_quality": f.data_quality.model_copy(
-                    update={"intraday_oi_usable": False}
+                    update={"static_oi_usable": False}
                 )
             }
         )
@@ -1113,11 +1113,19 @@ def test_additive_migration_preserves_rows(tmp_path, monkeypatch, context):
     engine = create_engine(url)
     sessions = sessionmaker(bind=engine)
     raw, f, _, _ = context
-    raw_repo = SnapshotRepository(sessions)
-    run_id = raw_repo.create_collector_run(raw.timestamp_ist)
-    stored = raw_repo.save_market_snapshot(
-        raw, collection_bucket(raw.timestamp_ist, 3), run_id
-    )
+    # Seed the old schema through reflected Core tables; today's ORM includes
+    # later additive fields which did not exist at revision 0012.
+    with engine.begin() as connection:
+        table = Table("market_snapshots", MetaData(), autoload_with=connection)
+        values = raw.model_dump(mode="python")
+        values["collection_bucket_ist"] = collection_bucket(raw.timestamp_ist, 3)
+        result = connection.execute(table.insert().values(**{key: value for key, value in values.items() if key in table.c}))
+        stored = SimpleNamespace(snapshot_id=result.inserted_primary_key[0])
+        options = Table("option_contract_snapshots", MetaData(), autoload_with=connection)
+        for contract in raw.options:
+            values = contract.model_dump(mode="python")
+            values.update(market_snapshot_id=stored.snapshot_id, option_type=contract.option_type.value)
+            connection.execute(options.insert().values(**{key: value for key, value in values.items() if key in options.c}))
     f = f.model_copy(update=dict(snapshot_id=stored.snapshot_id))
     fid = FeatureRepository(sessions).upsert(f)
     old_result = phase6_context(raw)[2].model_dump(mode="json", exclude_none=True)

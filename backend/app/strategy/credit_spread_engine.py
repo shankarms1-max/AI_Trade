@@ -46,6 +46,9 @@ def generate_credit_spread_candidates(
                 strategy_version=LOGIC_VERSION,
                 strategy_logic_version=LOGIC_VERSION,
                 strategy_family=StrategyFamily.NO_TRADE,
+                policy_hash=p.policy_hash,
+                research_run_id=p.research_run_id,
+                execution_mode=p.execution_mode,
                 side_safety=safety,
                 created_at=snapshot.timestamp_ist,
             )
@@ -63,8 +66,9 @@ def generate_credit_spread_candidates(
         < QUALITY_RANK[config.min_evidence_quality]
     ):
         return none("EVIDENCE_QUALITY_TOO_LOW")
-    if not feature.data_quality.intraday_oi_usable:
-        return none("INTRADAY_OI_UNUSABLE")
+    from app.research.oi import static_oi_usable
+    if not static_oi_usable(feature):
+        return none("STATIC_OI_UNUSABLE")
     if (
         snapshot.expiry != feature.expiry
         or snapshot.nifty_spot != feature.spot
@@ -98,6 +102,7 @@ def generate_credit_spread_candidates(
         expiry["fractional_time_to_expiry"],
         p.expected_move_source,
         config.max_snapshot_age_seconds,
+        quality_policy=p if p.replay_integrity_enabled else None,
     )
     if move is None:
         return none("EXPECTED_MOVE_UNAVAILABLE")
@@ -204,6 +209,16 @@ def generate_credit_spread_candidates(
                     rejections.add("NO_VALID_LONG_HEDGE")
                     continue
                 # Same contract and observed quote freshness; timestamps missing stay explicitly estimated.
+                if p.replay_integrity_enabled:
+                    from app.research.quotes import information_time, policy_quote_contract, validate_book
+                    quote_policy = policy_quote_contract(p, max_spread_percent=config.max_bid_ask_spread_pct)
+                    qualities = [validate_book(c, snapshot.timestamp_ist, quote_policy, evaluated_at=information_time(snapshot)) for c in (short, long)]
+                    if not all(item.valid for item in qualities):
+                        rejections.update(item.reason for item in qualities if not item.valid)
+                        continue
+                    if abs((short.source_market_timestamp-long.source_market_timestamp).total_seconds()) > p.quote_max_leg_skew_seconds:
+                        rejections.add("LEG_TIME_SKEW")
+                        continue
                 if any(
                     c.source_market_timestamp is not None
                     and not 0
@@ -276,7 +291,7 @@ def generate_credit_spread_candidates(
                 if (
                     economics["survival_score"] < min_survival
                     or economics["carry_score"] < min_carry
-                    or economics["net_credit_after_cost"] <= 0
+                    or (economics["net_credit_after_cost"] is not None and economics["net_credit_after_cost"] <= 0)
                     or economics["gamma_risk_state"] == "EXTREME"
                 ):
                     rejections.add("SURVIVAL_CARRY_OR_GAMMA_POLICY")
@@ -355,6 +370,9 @@ def generate_credit_spread_candidates(
     if not candidates:
         return none(*sorted(rejections), "NO_ELIGIBLE_CANDIDATES")
     return StrategyCandidateSet(
+        policy_hash=p.policy_hash,
+        research_run_id=p.research_run_id,
+        execution_mode=p.execution_mode,
         snapshot_id=feature.snapshot_id,
         regime_snapshot_id=regime_id,
         regime=regime.regime.value,

@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -21,6 +22,8 @@ class OptionContractSnapshot(BaseModel):
     source_market_timestamp: datetime | None = None
     bid_quantity: int | None = None
     ask_quantity: int | None = None
+    depth_unit: Literal["UNKNOWN", "UNITS", "LOTS"] = "UNKNOWN"
+    tick_size: float | None = None
     ltp: float | None = None
     open_interest: int | None = None
     previous_open_interest: int | None = None

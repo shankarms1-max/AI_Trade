@@ -25,6 +25,7 @@ class PricingBasis(str, Enum):
 
 
 class CandidateLeg(StrategyModel):
+    exchange: str = "nse_fo"
     action: Literal["SELL", "BUY"]
     option_type: Literal["CE", "PE"]
     strike: float = Field(gt=0)
@@ -96,6 +97,9 @@ class CreditSpreadCandidate(CreditSpreadEconomics):
 
 
 class StrategyCandidateSet(StrategyModel):
+    policy_hash: str | None = None
+    research_run_id: str | None = None
+    execution_mode: str | None = None
     strategy_logic_version: str | None = None
     strategy_family: StrategyFamily | None = None
     side_safety: dict = Field(default_factory=dict)

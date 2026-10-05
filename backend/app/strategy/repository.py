@@ -66,6 +66,10 @@ class StrategyRepository:
             ))
 
     def upsert(self, result: StrategyCandidateSet) -> int:
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(result)
+        for candidate in result.candidates:
+            reject_shared_research_write(candidate)
         values = {
             "strategy_logic_version": result.strategy_logic_version,
             "strategy_family": None if result.strategy_family is None else result.strategy_family.value,

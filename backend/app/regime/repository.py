@@ -68,6 +68,8 @@ class RegimeRepository:
             ))
 
     def upsert(self, result: RegimeResult) -> int:
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(result)
         payload = result.model_dump(mode="json")
         with self._sessions.begin() as session:
             record = session.scalar(

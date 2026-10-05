@@ -8,6 +8,18 @@ STRENGTH_RANK = {"NONE": 0, "WEAK": 1, "MODERATE": 2, "STRONG": 3}
 
 @dataclass(frozen=True)
 class CreditSpreadPolicy:
+    replay_integrity_enabled: bool = False
+    policy_hash: str | None = None
+    research_run_id: str | None = None
+    execution_mode: str | None = None
+    cost_schedule: object | None = None
+    research_quote_policy: object | None = None
+    requested_lots: int = 1
+    source_quote_max_age_seconds: float = 30
+    quote_max_leg_skew_seconds: float = 10
+    atm_tolerance_points: float = 25
+    atm_max_spread_absolute: float = 10
+    atm_max_spread_percent: float = 20
     enabled: bool = False
     theta_carry_enabled: bool = False
     family_mode: str = "BOTH"
@@ -97,7 +109,11 @@ def policy_from_settings(settings) -> CreditSpreadPolicy:
         **{
             name: getattr(settings, name)
             for name in CreditSpreadPolicy.__dataclass_fields__
-            if name not in {"enabled", "theta_carry_enabled", "family_mode"}
+            if name not in {"enabled", "theta_carry_enabled", "family_mode",
+                            "replay_integrity_enabled", "policy_hash", "research_run_id",
+                            "execution_mode", "cost_schedule", "research_quote_policy", "requested_lots", "source_quote_max_age_seconds",
+                            "quote_max_leg_skew_seconds", "atm_tolerance_points",
+                            "atm_max_spread_absolute", "atm_max_spread_percent"}
         },
         enabled=settings.phase14_2_strategy_logic_enabled,
         theta_carry_enabled=settings.theta_carry_enabled,

@@ -14,6 +14,10 @@ class CreditSpreadEconomics(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     strategy_logic_version: str | None = None
+    policy_hash: str | None = None
+    research_run_id: str | None = None
+    execution_mode: str | None = None
+    economics_basis: str | None = None
     strategy_family: StrategyFamily | None = None
     market_bias: str | None = None
     directional_strength: str | None = None

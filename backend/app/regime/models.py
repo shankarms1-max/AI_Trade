@@ -82,6 +82,10 @@ class RegimeResult(BaseModel):
     risk_flags: list[str]
     regime_version: str = REGIME_VERSION
     strategy_logic_version: str | None = None
+    policy_hash: str | None = None
+    research_run_id: str | None = None
+    execution_mode: str | None = None
+    persistence_identity: dict[str, Any] = Field(default_factory=dict)
     market_bias: MarketBias | None = None
     directional_strength: DirectionalStrength | None = None
     directional_score: float | None = None

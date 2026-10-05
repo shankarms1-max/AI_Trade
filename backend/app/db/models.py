@@ -75,6 +75,8 @@ class OptionContractSnapshotRecord(Base):
     source_market_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     bid_quantity: Mapped[int | None] = mapped_column(BigInteger)
     ask_quantity: Mapped[int | None] = mapped_column(BigInteger)
+    depth_unit: Mapped[str] = mapped_column(String(12), nullable=False, default="UNKNOWN", server_default="UNKNOWN")
+    tick_size: Mapped[Decimal | None] = mapped_column(PRICE)
     ltp: Mapped[Decimal | None] = mapped_column(PRICE)
     open_interest: Mapped[int | None] = mapped_column(BigInteger)
     previous_open_interest: Mapped[int | None] = mapped_column(BigInteger)

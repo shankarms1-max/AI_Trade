@@ -112,6 +112,8 @@ class ShadowRepository:
             )) is not None
 
     def create_trade(self, trade: ShadowTrade) -> ShadowTrade:
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(trade)
         with self._sessions.begin() as session:
             existing = session.scalar(select(ShadowTradeRecord).where(
                 ShadowTradeRecord.candidate_fingerprint == trade.candidate_fingerprint,
@@ -156,6 +158,8 @@ class ShadowRepository:
             return stored
 
     def save_update(self, trade: ShadowTrade, mark: ShadowTradeMark | None) -> None:
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(trade)
         if trade.id is None:
             raise ValueError("shadow trade must be persisted before update")
         with self._sessions.begin() as session:

@@ -33,7 +33,7 @@ WINDOWS = ((time(9, 35), time(13, 30)), (time(9, 45), time(13, 45)),
            (time(10, 0), time(14, 0)), (time(10, 15), time(14, 15)))
 
 
-def load_rows(session) -> list[ReplayRow]:
+def load_rows(session, *, preserve_missing=False) -> list[ReplayRow]:
     raw = session.scalars(select(MarketSnapshotRecord).options(selectinload(MarketSnapshotRecord.options))
                           .order_by(MarketSnapshotRecord.timestamp_ist, MarketSnapshotRecord.id)).all()
     features = {item.market_snapshot_id: item for item in session.scalars(
@@ -44,12 +44,12 @@ def load_rows(session) -> list[ReplayRow]:
     alpha_by_id = {}
     for item in sorted(alpha_records, key=lambda x: x.calculation_mode != "LIVE_ORIGINAL"):
         alpha_by_id.setdefault(item.market_snapshot_id, item)
-    return [ReplayRow(item.id, raw_record_to_model(item),
-                      MarketFeatureSnapshot.model_validate(features[item.id].feature_json),
-                      features[item.id].id,
+    return [ReplayRow(item.id, raw_record_to_model(item, normalize_research_timestamps=preserve_missing),
+                      None if item.id not in features else MarketFeatureSnapshot.model_validate(features[item.id].feature_json),
+                      None if item.id not in features else features[item.id].id,
                       None if item.id not in alpha_by_id else
                       AlphaFeatureSnapshot.model_validate(alpha_by_id[item.id].result_json))
-            for item in raw if item.id in features]
+            for item in raw if preserve_missing or item.id in features]
 
 
 def split_periods(rows: list[ReplayRow]):
@@ -100,6 +100,8 @@ def main() -> int:
     if any(value < 0 for value in costs.__dict__.values()):
         raise SystemExit("cost inputs must be nonnegative")
     settings = get_settings()
+    if settings.phase14_2_strategy_logic_enabled:
+        raise SystemExit("Phase14.2 evidence requires a frozen isolated run: use scripts/run_integrity_replay.py; legacy experiment axes are not authoritative")
     if not settings.database_url:
         raise SystemExit("DATABASE_URL is required")
     sessions = build_session_factory(build_engine(settings.database_url.get_secret_value()))

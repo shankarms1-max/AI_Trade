@@ -289,6 +289,13 @@ class Settings(BaseSettings):
 
     research_min_trades_for_evaluation: int = Field(default=30, ge=1)
     research_max_experiment_combinations: int = Field(default=100, ge=1, le=1000)
+    phase14_2_1_replay_integrity_enabled: bool = False
+    replay_allow_unknown_depth: bool = False
+    replay_allow_0dte: bool = False
+    replay_expected_interval_seconds: int = Field(default=180, gt=0)
+    replay_interval_tolerance_seconds: int = Field(default=30, ge=0)
+    replay_max_fill_delay_seconds: int = Field(default=240, gt=0)
+    replay_max_path_gap_seconds: int = Field(default=240, gt=0)
 
     obs_collector_worker_id: str = "collector-main"
     obs_collector_heartbeat_seconds: int = Field(default=60, ge=10, le=3600)

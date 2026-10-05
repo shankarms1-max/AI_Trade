@@ -77,6 +77,7 @@ def _none_result(
 
 def _leg(contract: OptionContractSnapshot, action: str) -> CandidateLeg:
     return CandidateLeg(
+        exchange=contract.exchange,
         action=action,
         option_type=contract.option_type.value,
         strike=contract.strike,

@@ -42,7 +42,9 @@ class PipelineRepository:
             ).limit(1))
 
     def save(self, run: PipelineRun) -> PipelineRun:
-        values = run.model_dump(exclude={"id"})
+        from app.research.isolation import reject_shared_research_write
+        reject_shared_research_write(run)
+        values = run.model_dump(exclude={"id", "research_run_id", "policy_hash", "execution_mode"})
         for key in ("status", "feature_status", "alpha_status", "regime_status", "ai_status",
                     "strategy_status", "risk_status", "shadow_status"):
             values[key] = values[key].value

@@ -40,7 +40,7 @@ def classify_regime(
     config: RegimeConfig = RegimeConfig(),
     alpha: AlphaFeatureSnapshot | None = None,
 ) -> RegimeResult:
-    quality = evidence_quality(feature, config.minimum_contracts)
+    quality = evidence_quality(feature, config.minimum_contracts, static_oi_policy=config.credit_spread_policy.enabled)
     volatility, risk_flags = volatility_context(feature)
     groups = [
         price_structure_signal(feature, config.small_move_pct),

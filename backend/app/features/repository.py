@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -17,7 +17,13 @@ def _float(value) -> float | None:
     return None if value is None else float(value)
 
 
-def raw_record_to_model(record: MarketSnapshotRecord) -> MarketSnapshot:
+def raw_record_to_model(record: MarketSnapshotRecord, *, normalize_research_timestamps=False) -> MarketSnapshot:
+    def persisted_time(value):
+        # SQLite loses tzinfo while preserving the collector's IST wall time.
+        # PostgreSQL timestamptz values retain their offsets.
+        if not normalize_research_timestamps:
+            return value
+        return value.replace(tzinfo=IST) if value is not None and value.tzinfo is None else value
     timestamp = record.timestamp_ist
     if timestamp.tzinfo is None:
         timestamp = timestamp.replace(tzinfo=IST)
@@ -27,10 +33,11 @@ def raw_record_to_model(record: MarketSnapshotRecord) -> MarketSnapshot:
         nifty_future=_float(record.nifty_future),
         future_instrument_id=record.future_instrument_id,
         future_expiry=record.future_expiry,
-        source_market_timestamp=record.source_market_timestamp,
-        request_started_at=record.request_started_at,
-        response_received_at=record.response_received_at,
-        snapshot_persisted_at=record.created_at,
+        source_market_timestamp=persisted_time(record.source_market_timestamp),
+        request_started_at=persisted_time(record.request_started_at),
+        response_received_at=persisted_time(record.response_received_at),
+        snapshot_persisted_at=(record.created_at.replace(tzinfo=timezone.utc)
+                               if normalize_research_timestamps and record.created_at.tzinfo is None else record.created_at),
         india_vix=_float(record.india_vix),
         lot_size=record.lot_size,
         atm_strike=float(record.atm_strike),
@@ -44,9 +51,11 @@ def raw_record_to_model(record: MarketSnapshotRecord) -> MarketSnapshot:
                 trading_symbol=item.trading_symbol,
                 instrument_token=item.instrument_token,
                 exchange=item.exchange,
-                source_market_timestamp=item.source_market_timestamp,
+                source_market_timestamp=persisted_time(item.source_market_timestamp),
                 bid_quantity=item.bid_quantity,
                 ask_quantity=item.ask_quantity,
+                depth_unit=item.depth_unit,
+                tick_size=_float(item.tick_size),
                 ltp=_float(item.ltp),
                 open_interest=item.open_interest,
                 previous_open_interest=item.previous_open_interest,

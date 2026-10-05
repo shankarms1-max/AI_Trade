@@ -16,4 +16,5 @@ frontend/coverage/
 frontend/.env.local
 backups/*.dump
 backups/*.tmp
+research-output/
 
