@@ -23,6 +23,7 @@ from app.risk.models import EvaluationContext
 from app.risk.repository import RiskRepository
 from app.risk.service import build_and_store_risk, config_from_settings as risk_config
 from app.shadow.repository import ShadowRepository
+from app.shadow.models import ShadowEntryResult
 from app.shadow.risk_state import ShadowRiskStateProvider
 from app.shadow.service import (
     build_shadow_entry,
@@ -52,12 +53,25 @@ def shadow_risk_config_from_settings(settings):
 def build_pipeline_orchestrator(
     session_factory: sessionmaker[Session], settings: Any, *, enable_ai: bool = False
 ) -> ResearchPipelineOrchestrator:
+    if settings.phase14_2_1_replay_integrity_enabled:
+        raise ValueError("INTEGRITY_REPLAY_IS_OFFLINE_ONLY: use run_integrity_replay.py")
     feature_repository = FeatureRepository(session_factory)
     regime_repository = RegimeRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     strategy_repository = StrategyRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     risk_repository = RiskRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     shadow_repository = ShadowRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     alpha_repository = AlphaRepository(session_factory)
+
+    def decision_only_update(snapshot_id):
+        # Do not silently strand existing exposure by switching its manager off.
+        if shadow_repository.has_open_trade():
+            raise ValueError("DECISION_ONLY_REQUIRES_NO_OPEN_SHADOW_TRADES")
+        return 0
+
+    def decision_only_entry(snapshot_id):
+        logger.info("SHADOW_ENTRY_SKIPPED_DECISION_ONLY snapshot_id=%d", snapshot_id)
+        return ShadowEntryResult(snapshot_id=snapshot_id, created=False, trade=None,
+                                 reason_codes=["DECISION_ONLY_NO_EXECUTION"])
 
     ai_step = None
     if enable_ai:
@@ -82,7 +96,7 @@ def build_pipeline_orchestrator(
         ai_step = run_ai
 
     steps = PipelineSteps(
-        shadow_update=lambda snapshot_id: update_open_trades(
+        shadow_update=decision_only_update if settings.pipeline_decision_only else lambda snapshot_id: update_open_trades(
             shadow_repository, snapshot_id, shadow_config(settings)
         ),
         features=lambda snapshot_id: build_and_store_features(
@@ -108,7 +122,7 @@ def build_pipeline_orchestrator(
             state_provider=ShadowRiskStateProvider(session_factory),
             event_provider=ConfiguredMarketEventProvider.from_json(settings.risk_market_events_json) if settings.phase14_2_strategy_logic_enabled else None,
         ),
-        shadow_entry=lambda snapshot_id: build_shadow_entry(
+        shadow_entry=decision_only_entry if settings.pipeline_decision_only else lambda snapshot_id: build_shadow_entry(
             shadow_repository, snapshot_id, shadow_config(settings)
         ),
     )

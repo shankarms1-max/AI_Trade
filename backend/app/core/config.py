@@ -239,6 +239,9 @@ class Settings(BaseSettings):
 
     pipeline_after_snapshot: bool = False
     pipeline_run_ai_research: bool = False
+    # Explicit forward research rehearsal: persist decisions, never create/mark fills.
+    # This does not enable the separate authoritative offline replay engine.
+    pipeline_decision_only: bool = False
 
     # Phase 14 is deliberately disabled until live interval-volume validation.
     alpha_engine_enabled: bool = False
