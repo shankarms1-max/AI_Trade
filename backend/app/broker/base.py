@@ -39,6 +39,12 @@ class MarketDataBroker(ABC):
         """Return broker-confirmed option lot size when available."""
         return None
 
+    def enrich_option_quotes(
+        self, contracts: list[OptionContractSnapshot]
+    ) -> list[OptionContractSnapshot]:
+        """Optional read-only quote capture for the already-filtered contracts."""
+        return contracts
+
     def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
         """Optional read-only metadata; unknown identity must remain unknown."""
         return None, None

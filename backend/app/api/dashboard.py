@@ -20,6 +20,7 @@ from app.shadow.exits import pnl_thresholds
 from app.shadow.service import config_from_settings as shadow_config
 from app.strategy.repository import StrategyRepository
 from app.alpha.repository import AlphaRepository
+from app.paper.service import execution_mode, paper_summary
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 IST = ZoneInfo("Asia/Kolkata")
@@ -57,6 +58,8 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
             "force_exit_time": settings.shadow_force_exit_time.isoformat(),
         }
     return {
+        "execution_mode": execution_mode(settings),
+        "forward_paper": paper_summary(sessions),
         "snapshot": latest,
         "features": None if snapshot_id is None else FeatureRepository(sessions).get(snapshot_id),
         "alpha": None if snapshot_id is None else alpha_repository.get(snapshot_id),

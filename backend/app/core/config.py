@@ -242,6 +242,26 @@ class Settings(BaseSettings):
     # Explicit forward research rehearsal: persist decisions, never create/mark fills.
     # This does not enable the separate authoritative offline replay engine.
     pipeline_decision_only: bool = False
+    forward_paper_enabled: bool = False
+
+    @model_validator(mode="after")
+    def validate_forward_paper_mode(self):
+        if self.forward_paper_enabled:
+            if not self.pipeline_after_snapshot:
+                raise ValueError("FORWARD_PAPER_REQUIRES_AFTER_SNAPSHOT_PIPELINE")
+            if self.pipeline_decision_only or self.phase14_2_1_replay_integrity_enabled:
+                raise ValueError("FORWARD_PAPER_INCOMPATIBLE_MODE")
+            if self.pipeline_run_ai_research:
+                raise ValueError("FORWARD_PAPER_REQUIRES_AI_OFF")
+            if self.telegram_enabled:
+                raise ValueError("FORWARD_PAPER_REQUIRES_NOTIFICATION_NETWORK_OFF")
+            if self.shadow_allow_multiple_open_trades:
+                raise ValueError("FORWARD_PAPER_REQUIRES_SINGLE_EXPOSURE")
+            if self.replay_allow_unknown_depth or self.replay_allow_0dte:
+                raise ValueError("FORWARD_PAPER_REQUIRES_CONFIRMED_DEPTH_AND_NON_0DTE")
+            if self.collector_interval_minutes != 3:
+                raise ValueError("FORWARD_PAPER_REQUIRES_THREE_MINUTE_CADENCE")
+        return self
 
     # Phase 14 is deliberately disabled until live interval-volume validation.
     alpha_engine_enabled: bool = False

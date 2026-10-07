@@ -14,7 +14,7 @@ export const api = {
   snapshot: (id: number) => optional<MarketSnapshot>(`/api/snapshots/${id}`),
   regimes: (limit = 50) => request<MarketRegime[]>(`/api/regime?limit=${limit}`),
   pipelines: (limit = 50) => request<PipelineRun[]>(`/api/pipeline?limit=${limit}`),
-  candidatesList: (limit = 50) => request<Array<Pick<StrategyCandidateSet, "snapshot_id" | "candidate_count">>>(`/api/strategy-candidates?limit=${limit}`),
+  candidatesList: (limit = 50) => request<Array<Pick<StrategyCandidateSet, "snapshot_id" | "candidate_count" | "eligible" | "strategy_type" | "strategy_version" | "created_at">>>(`/api/strategy-candidates?limit=${limit}`),
   riskList: (limit = 50) => request<RiskEvaluationSet[]>(`/api/risk?limit=${limit}`),
   features: (id: number) => optional<MarketFeatures>(`/api/features/${id}`),
   regime: (id: number) => optional<MarketRegime>(`/api/regime/${id}`),

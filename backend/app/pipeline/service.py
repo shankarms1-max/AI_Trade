@@ -55,6 +55,12 @@ def build_pipeline_orchestrator(
 ) -> ResearchPipelineOrchestrator:
     if settings.phase14_2_1_replay_integrity_enabled:
         raise ValueError("INTEGRITY_REPLAY_IS_OFFLINE_ONLY: use run_integrity_replay.py")
+    from app.paper.service import PaperEngine, assert_no_paper_exposure
+    paper = None
+    if settings.forward_paper_enabled:
+        if enable_ai:
+            raise ValueError("FORWARD_PAPER_REQUIRES_AI_OFF")
+        paper = PaperEngine(session_factory, settings)
     feature_repository = FeatureRepository(session_factory)
     regime_repository = RegimeRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     strategy_repository = StrategyRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
@@ -68,10 +74,26 @@ def build_pipeline_orchestrator(
             raise ValueError("DECISION_ONLY_REQUIRES_NO_OPEN_SHADOW_TRADES")
         return 0
 
+    def pre_observation(snapshot_id):
+        if paper is not None:
+            return paper.observe(snapshot_id)
+        # A mode change cannot silently strand durable forward-paper exposure.
+        assert_no_paper_exposure(session_factory)
+        if settings.pipeline_decision_only:
+            return decision_only_update(snapshot_id)
+        return update_open_trades(shadow_repository, snapshot_id, shadow_config(settings))
+
     def decision_only_entry(snapshot_id):
         logger.info("SHADOW_ENTRY_SKIPPED_DECISION_ONLY snapshot_id=%d", snapshot_id)
         return ShadowEntryResult(snapshot_id=snapshot_id, created=False, trade=None,
                                  reason_codes=["DECISION_ONLY_NO_EXECUTION"])
+
+    def post_risk_entry(snapshot_id):
+        if paper is not None:
+            return paper.enqueue(snapshot_id)
+        if settings.pipeline_decision_only:
+            return decision_only_entry(snapshot_id)
+        return build_shadow_entry(shadow_repository, snapshot_id, shadow_config(settings))
 
     ai_step = None
     if enable_ai:
@@ -96,9 +118,7 @@ def build_pipeline_orchestrator(
         ai_step = run_ai
 
     steps = PipelineSteps(
-        shadow_update=decision_only_update if settings.pipeline_decision_only else lambda snapshot_id: update_open_trades(
-            shadow_repository, snapshot_id, shadow_config(settings)
-        ),
+        shadow_update=pre_observation,
         features=lambda snapshot_id: build_and_store_features(
             feature_repository, snapshot_id, feature_config(settings)
         ),
@@ -119,12 +139,10 @@ def build_pipeline_orchestrator(
             snapshot_id,
             shadow_risk_config_from_settings(settings),
             EvaluationContext.SHADOW,
-            state_provider=ShadowRiskStateProvider(session_factory),
+            state_provider=paper if paper is not None else ShadowRiskStateProvider(session_factory),
             event_provider=ConfiguredMarketEventProvider.from_json(settings.risk_market_events_json) if settings.phase14_2_strategy_logic_enabled else None,
         ),
-        shadow_entry=decision_only_entry if settings.pipeline_decision_only else lambda snapshot_id: build_shadow_entry(
-            shadow_repository, snapshot_id, shadow_config(settings)
-        ),
+        shadow_entry=post_risk_entry,
     )
     return ResearchPipelineOrchestrator(
         PipelineRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version), steps,
@@ -142,7 +160,10 @@ def make_after_snapshot_callback(session_factory, settings, notification_router=
     orchestrator = build_pipeline_orchestrator(
         session_factory, settings, enable_ai=settings.pipeline_run_ai_research
     )
-    if notification_router is None and settings.telegram_enabled:
+    if settings.forward_paper_enabled:
+        # The forward paper pipeline is SQL-only, including its post-step hooks.
+        notification_router = None
+    if notification_router is None and settings.telegram_enabled and not settings.forward_paper_enabled:
         from app.notifications.router import NotificationRouter
         notification_router = NotificationRouter(session_factory, settings)
 

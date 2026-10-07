@@ -647,3 +647,7 @@ class NotificationDeliveryRecord(Base):
         Index("ix_notification_deliveries_event_code", "event_code"),
         Index("ix_notification_deliveries_dedupe_key", "dedupe_key"),
     )
+
+
+# Register isolated paper tables for Alembic metadata and offline create_all tests.
+from app.paper.models import PaperCursor, PaperEvent, PaperTrade  # noqa: F401, E402

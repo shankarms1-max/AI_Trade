@@ -6,6 +6,7 @@ import { ageLabel, ageSeconds, integer, money, number, percent, pretty, timeIST 
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
 import { AlphaHistoryChart, BreakdownChart, EquityChart, OIChart, PnlChart } from "@/components/charts";
+import { SessionOverview } from "@/components/session-overview";
 import type { AlphaFeature, DashboardData, RiskDecision } from "@/types";
 
 function freshness(data: DashboardData) {
@@ -59,6 +60,7 @@ export function Dashboard() {
   return <main>
     <div className="page-head"><div><h1>Market Research Dashboard</h1><p>Deterministic NIFTY options research · Asia/Kolkata</p></div>{error && <Badge value="FAILED"/>}</div>
     {!data ? <><SectionError>MARKET DATA UNAVAILABLE</SectionError><div className="grid grid-2" style={{marginTop:12}}><Panel title="Pipeline health"><SectionError>PIPELINE DATA UNAVAILABLE</SectionError></Panel><Panel title="Shadow research"><SectionError>SHADOW DATA UNAVAILABLE</SectionError></Panel></div></> : <>
+      <SessionOverview data={data}/>
       <section className="metric-strip" aria-label="Current market status">
         <Metric label="NIFTY Spot" value={number(data.snapshot?.nifty_spot)} detail={data.features?.price_structure_features.spot_change_pct_from_previous_snapshot == null ? "Change N/A" : percent(data.features.price_structure_features.spot_change_pct_from_previous_snapshot)} />
         <Metric label="NIFTY Future" value={number(data.snapshot?.nifty_future)} detail={`Basis ${number(data.features?.futures_features.futures_basis)}`} />

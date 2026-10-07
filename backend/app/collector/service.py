@@ -4,6 +4,8 @@ from datetime import date, datetime, time
 import threading
 from zoneinfo import ZoneInfo
 
+from apscheduler.triggers.cron import CronTrigger
+
 from app.core.logging import get_logger
 from app.data.models import MarketSnapshot
 from app.db.repositories import SaveResult, SnapshotRepository
@@ -26,9 +28,18 @@ class TradingCalendar:
             return "HOLIDAY"
         if local.time().replace(tzinfo=None) < self.start_time:
             return "OUTSIDE_MARKET"
-        if local.time().replace(tzinfo=None) > self.end_time:
+        # The configured end is an inclusive observation minute. Scheduler
+        # dispatch (even a clock-aligned job) occurs slightly after second zero.
+        if local.time().replace(tzinfo=None, second=0, microsecond=0) > self.end_time:
             return "OUTSIDE_MARKET"
         return "OPEN"
+
+
+def collection_trigger(interval_minutes: int) -> CronTrigger:
+    """Align collection to IST wall-clock buckets, independent of startup time."""
+    if not 1 <= interval_minutes <= 60:
+        raise ValueError("interval_minutes must be between 1 and 60")
+    return CronTrigger(minute=f"*/{interval_minutes}", second=0, timezone=IST)
 
 
 def collection_bucket(timestamp: datetime, interval_minutes: int) -> datetime:
