@@ -307,7 +307,7 @@ class KotakMarketDataAdapter(MarketDataBroker):
                     if (key := quote_identity(item)) in rows else item for item in contracts]
         logger.info(
             "OPTION_QUOTES_CAPTURED requested=%d matched=%d bid_ask=%d quantities=%d "
-            "source_timestamps=%d depth_unit=UNKNOWN tick_size=unavailable elapsed_ms=%d",
+            "source_timestamps=%d depth_unit=UNITS tick_size=unavailable elapsed_ms=%d",
             len(identities), len(rows),
             sum(item.bid is not None and item.ask is not None for item in enriched),
             sum(item.bid_quantity is not None and item.ask_quantity is not None for item in enriched),

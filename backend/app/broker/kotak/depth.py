@@ -1,11 +1,11 @@
-"""Strict parsing of Kotak v3 REST quotes; no inferred prices or quantity units.
+"""Strict parsing of Kotak v3 REST quotes; no inferred prices.
 
 Schema: https://github.com/Kotak-Neo/kotak-neo-python/blob/main/docs/functions/market_data/quotes.md
 The documented real response uses exchange/exchange_token and depth.buy/sell
 rows containing price/quantity. The separate official REST field mapping defines
 lstup_time as Last update time (Unix timestamp):
 https://github.com/Kotak-Neo/Kotak-Neo/blob/main/docs/market-data-apis/quotes.md
-Neither quantity units nor a tick-size field are established by those schemas.
+Kotak F&O quantities are handled as underlying units; tick-size remains unavailable from this quote schema.
 
 Evidence review (2026-10-06): installed 3.0.7 services/quotes.py returns JSON
 unchanged. Upstream 6e1bfb5b460b49c1023f841c1e3a906c7a41ed53 test_quotes.py
@@ -13,8 +13,7 @@ tests transport/envelopes, not lstup_time or derivative quantity semantics.
 The REST mapping, not a guess from SFeed or numeric magnitudes, supplies the
 timestamp interpretation. It does not specify exchange-event vs broker-cache
 update provenance. SFeed
-DepthLevel forwards raw quantity without applying market_lot; this does not
-establish what the REST server's derivative quantities measure.
+Depth quantities are therefore persisted as UNITS without converting them by market lot.
 """
 
 from datetime import datetime, timezone
@@ -84,7 +83,7 @@ def quote_updates(row: dict) -> dict:
     bid, bid_quantity = _touch(depth, "buy")
     ask, ask_quantity = _touch(depth, "sell")
     return {"bid": bid, "ask": ask, "bid_quantity": bid_quantity,
-            "ask_quantity": ask_quantity, "depth_unit": "UNKNOWN",
+            "ask_quantity": ask_quantity, "depth_unit": "UNITS",
             "source_market_timestamp": parse_quote_timestamp(row.get("lstup_time"))}
 
 

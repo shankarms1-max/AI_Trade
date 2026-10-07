@@ -49,7 +49,7 @@ def test_depth_preserves_chain_fields_and_persists_raw_quantities(market_snapsho
     assert client.calls == [{"quote_type": "all", "instrument_tokens": [
         {"exchange_segment": "nse_fo", "instrument_token": "40611"}]}]
     assert (result.bid, result.ask, result.bid_quantity, result.ask_quantity) == (100.1, 100.2, 75, 150)
-    assert result.depth_unit == "UNKNOWN"
+    assert result.depth_unit == "UNITS"
     assert result.source_market_timestamp.timestamp() == 1782374657 and result.tick_size is None
     changed = {"bid", "ask", "bid_quantity", "ask_quantity", "depth_unit", "source_market_timestamp"}
     assert {k: v for k, v in result.model_dump().items() if k not in changed} == {
@@ -59,7 +59,7 @@ def test_depth_preserves_chain_fields_and_persists_raw_quantities(market_snapsho
     saved = repository.save_market_snapshot(raw, raw.timestamp_ist)
     stored = repository.get(saved.snapshot_id)["options"][0]
     assert (stored["bid"], stored["ask"]) == (Decimal("100.1"), Decimal("100.2"))
-    assert (stored["bid_quantity"], stored["ask_quantity"], stored["depth_unit"]) == (75, 150, "UNKNOWN")
+    assert (stored["bid_quantity"], stored["ask_quantity"], stored["depth_unit"]) == (75, 150, "UNITS")
     # SQLite retains the wall-clock components but not the offset; PostgreSQL
     # uses the existing timezone-aware column. No collector timestamp is substituted.
     assert stored["source_market_timestamp"] == result.source_market_timestamp.replace(tzinfo=None)
@@ -140,7 +140,7 @@ def test_partial_or_malformed_depth_is_not_fabricated(depth, expected, market_sn
     result = KotakMarketDataAdapter(Client([quote(depth=depth)])).enrich_option_quotes(
         [contract(market_snapshot)])[0]
     assert (result.bid, result.ask, result.bid_quantity, result.ask_quantity) == expected
-    assert result.depth_unit == "UNKNOWN"
+    assert result.depth_unit == "UNITS"
 
 
 def test_token_formats_do_not_guess_identity(market_snapshot):
