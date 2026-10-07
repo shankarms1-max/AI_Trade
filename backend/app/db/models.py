@@ -651,3 +651,7 @@ class NotificationDeliveryRecord(Base):
 
 # Register isolated paper tables for Alembic metadata and offline create_all tests.
 from app.paper.models import PaperCursor, PaperEvent, PaperTrade  # noqa: F401, E402
+from app.scalper.models import (  # noqa: F401, E402
+    ScalperCursor, ScalperEvent, ScalperMarketSnapshotRecord,
+    ScalperOptionQuoteRecord, ScalperTrade,
+)

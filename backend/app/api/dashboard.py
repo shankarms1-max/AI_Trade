@@ -21,6 +21,7 @@ from app.shadow.service import config_from_settings as shadow_config
 from app.strategy.repository import StrategyRepository
 from app.alpha.repository import AlphaRepository
 from app.paper.service import execution_mode, paper_summary
+from app.scalper.repository import scalper_summary
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 IST = ZoneInfo("Asia/Kolkata")
@@ -60,6 +61,7 @@ def latest_dashboard(sessions: SessionFactoryDependency) -> dict[str, Any]:
     return {
         "execution_mode": execution_mode(settings),
         "forward_paper": paper_summary(sessions),
+        "scalper": scalper_summary(sessions, settings, datetime.now(IST).date()),
         "snapshot": latest,
         "features": None if snapshot_id is None else FeatureRepository(sessions).get(snapshot_id),
         "alpha": None if snapshot_id is None else alpha_repository.get(snapshot_id),

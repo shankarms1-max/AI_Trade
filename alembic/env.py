@@ -7,6 +7,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.db.base import Base
 from app.db import models  # noqa: F401
+from app.db.alembic_bootstrap import ensure_postgresql_alembic_version_capacity
 
 config = context.config
 if config.config_file_name is not None:
@@ -41,6 +42,8 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
+        with connection.begin():
+            ensure_postgresql_alembic_version_capacity(connection)
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()

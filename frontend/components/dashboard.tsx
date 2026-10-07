@@ -9,6 +9,33 @@ import { AlphaHistoryChart, BreakdownChart, EquityChart, OIChart, PnlChart } fro
 import { SessionOverview } from "@/components/session-overview";
 import type { AlphaFeature, DashboardData, RiskDecision } from "@/types";
 
+function ScalperSection({ data }: { data: DashboardData }) {
+  const scalper=data.scalper;
+  if (!scalper) return <section className="scalper-section"><div className="scalper-head"><div><span>SCALPER</span><strong>Intraday credit-spread paper engine</strong></div><Badge value="UNAVAILABLE"/></div><Empty>SCALPER SCHEMA OR STATUS UNAVAILABLE</Empty></section>;
+  const latest=scalper.latest_snapshot;
+  const signal=latest?.signal;
+  const position=scalper.current_position;
+  const rejectionReasons=(scalper.timeline??[]).filter(item=>item.event_type==="SCALPER_ENTRY_REJECTED"&&item.reason).slice(-5).reverse();
+  const holding=position?.holding_seconds==null ? "N/A" : `${number(position.holding_seconds/60,1)}m`;
+  return <section className="scalper-section" aria-label="Scalper intraday paper engine">
+    <div className="scalper-head"><div><span>SCALPER · ISOLATED</span><strong>Intraday credit-spread paper engine</strong><small>Observed bid/ask simulation · no broker orders · net P&amp;L unavailable</small></div><div className="scalper-badges"><Badge value={scalper.enabled?"ENABLED":"DISABLED"}/><Badge value="PAPER"/>{scalper.kill_switch&&<Badge value="KILL SWITCH"/>}</div></div>
+    <div className="scalper-metrics">
+      <Metric label="Last update" value={timeIST(latest?.timestamp)} detail={latest?`Snapshot ${latest.id} · ${scalper.interval_seconds}s cadence`:`${scalper.interval_seconds}s cadence`} />
+      <Metric label="NIFTY spot" value={number(latest?.spot)} />
+      <Metric label="Signal" value={signal?.direction??"NO DATA"} detail={`${signal?.strength??"NONE"} · ${signal?.confirmation_count??0}/${scalper.minimum_confirmations}`} />
+      <Metric label="Score" value={number(signal?.score,1)} detail={`Entry ≥ ${number(scalper.score_threshold,0)}`} />
+      <Metric label="Position" value={position?.state??(position?"ACTIVE":"FLAT")} detail={position?.candidate.strategy_type?pretty(position.candidate.strategy_type):undefined} />
+      <Metric label="Gross mark" value={money(position?.gross_mark_rupees)} detail="GROSS ONLY" tone={(position?.gross_mark_rupees??0)>=0?"positive":"negative"} />
+    </div>
+    <div className="grid grid-3 scalper-grid">
+      <Panel title="Signal components">{signal?<>{Object.entries(signal.components).map(([label,value])=><div className="score-row" key={label}><span>{pretty(label)}</span><div className="track"><div className="fill" style={{width:`${Math.min(100,Math.abs(value)*4)}%`}}/></div><span>{number(value,1)}</span></div>)}<p className="metric-detail">Contradiction deduction: {number(signal.contradiction_penalty,1)} · Books: {percent((latest?.features.executable_book_coverage??0)*100)}</p>{signal.reasons.length>0&&<ul className="reason-list">{signal.reasons.slice(0,5).map(reason=><li key={reason}>{pretty(reason)}</li>)}</ul>}</>:<Empty>NO SCALPER SIGNAL</Empty>}</Panel>
+      <Panel title="Current paper position">{position?<dl className="kv-grid"><div className="kv"><dt>State</dt><dd><Badge value={position.state??"PENDING"}/></dd></div><div className="kv"><dt>Legs</dt><dd>{number(position.candidate.short_leg.strike,0)} {position.candidate.short_leg.option_type} / {number(position.candidate.long_leg.strike,0)} {position.candidate.long_leg.option_type}</dd></div><div className="kv"><dt>Credit / debit</dt><dd>{number(position.entry_credit)} / {number(position.current_debit)}</dd></div><div className="kv"><dt>Defined max loss</dt><dd>{money(position.candidate.defined_max_loss_per_lot)}</dd></div><div className="kv"><dt>Broker margin</dt><dd>N/A</dd></div><div className="kv"><dt>Holding</dt><dd>{holding}</dd></div><div className="kv"><dt>Exit trigger</dt><dd>{pretty(position.exit_reason??position.rejection_reason??"NONE")}</dd></div><div className="kv"><dt>Accounting</dt><dd>{position.cost_completeness}</dd></div></dl>:<Empty>NO ACTIVE SCALPER POSITION</Empty>}</Panel>
+      <Panel title="Today · scalper only">{scalper.today?<><dl className="kv-grid"><div className="kv"><dt>Trades</dt><dd>{scalper.today.trades}</dd></div><div className="kv"><dt>Wins / losses</dt><dd>{scalper.today.wins} / {scalper.today.losses}</dd></div><div className="kv"><dt>Gross P&amp;L</dt><dd>{money(scalper.today.gross_pnl)}</dd></div><div className="kv"><dt>Net P&amp;L</dt><dd>N/A</dd></div><div className="kv"><dt>Entry rejections</dt><dd>{scalper.today.rejections}</dd></div><div className="kv"><dt>Profitability claim</dt><dd>NO</dd></div></dl>{rejectionReasons.length>0&&<ul className="reason-list">{rejectionReasons.map((item,index)=><li key={`${item.market_timestamp}-${index}`}>{timeIST(item.market_timestamp)} · {pretty(item.reason??"UNKNOWN")}</li>)}</ul>}</>:<Empty>NO SCALPER SESSION DATA</Empty>}</Panel>
+    </div>
+    <div className="scalper-timeline" aria-label="Scalper event timeline">{scalper.timeline?.length?scalper.timeline.slice(-24).map((item,index)=><div key={`${item.event_type}-${item.market_timestamp}-${index}`} title={`${timeIST(item.market_timestamp)} · ${pretty(item.event_type)}${item.trigger?` · ${pretty(item.trigger)}`:""}`}><i/><span>{timeIST(item.market_timestamp).slice(0,5)}</span><b>{pretty(item.event_type.replace("SCALPER_",""))}</b></div>):<Empty>NO SCALPER EVENTS YET</Empty>}</div>
+  </section>;
+}
+
 function freshness(data: DashboardData) {
   if (!data.snapshot) return { label: "NO DATA", tone: "muted", age: "N/A" };
   const age = ageSeconds(data.snapshot.timestamp_ist);
@@ -61,6 +88,7 @@ export function Dashboard() {
     <div className="page-head"><div><h1>Market Research Dashboard</h1><p>Deterministic NIFTY options research · Asia/Kolkata</p></div>{error && <Badge value="FAILED"/>}</div>
     {!data ? <><SectionError>MARKET DATA UNAVAILABLE</SectionError><div className="grid grid-2" style={{marginTop:12}}><Panel title="Pipeline health"><SectionError>PIPELINE DATA UNAVAILABLE</SectionError></Panel><Panel title="Shadow research"><SectionError>SHADOW DATA UNAVAILABLE</SectionError></Panel></div></> : <>
       <SessionOverview data={data}/>
+      <ScalperSection data={data}/>
       <section className="metric-strip" aria-label="Current market status">
         <Metric label="NIFTY Spot" value={number(data.snapshot?.nifty_spot)} detail={data.features?.price_structure_features.spot_change_pct_from_previous_snapshot == null ? "Change N/A" : percent(data.features.price_structure_features.spot_change_pct_from_previous_snapshot)} />
         <Metric label="NIFTY Future" value={number(data.snapshot?.nifty_future)} detail={`Basis ${number(data.features?.futures_features.futures_basis)}`} />

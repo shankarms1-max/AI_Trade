@@ -244,6 +244,60 @@ class Settings(BaseSettings):
     pipeline_decision_only: bool = False
     forward_paper_enabled: bool = False
 
+    # Phase 15 isolated fast paper scalper. It has its own stream and journal.
+    scalper_enabled: bool = False
+    scalper_interval_seconds: int = Field(default=15, ge=10, le=60)
+    scalper_start_time: time = time(9, 20)
+    scalper_entry_end_time: time = time(14, 45)
+    scalper_forced_exit_time: time = time(15, 20)
+    scalper_strike_range: int = Field(default=10, ge=4, le=20)
+    scalper_feature_lookback: int = Field(default=12, ge=5, le=120)
+    scalper_signal_min_score: float = Field(default=80, ge=0, le=100)
+    scalper_min_confirmations: int = Field(default=2, ge=1, le=20)
+    scalper_allowed_widths: str = "100,200,300,400"
+    scalper_min_short_distance_points: float = Field(default=50, ge=0)
+    scalper_min_credit: float = Field(default=1, gt=0)
+    scalper_min_credit_to_width: float = Field(default=.03, gt=0, lt=1)
+    scalper_max_bid_ask_spread_pct: float = Field(default=20, gt=0)
+    scalper_max_quote_age_seconds: int = Field(default=30, ge=1, le=300)
+    scalper_min_open_interest: int = Field(default=100, ge=0)
+    scalper_min_volume: int = Field(default=1, ge=0)
+    scalper_max_open_positions: int = Field(default=1, ge=1, le=1)
+    scalper_lots: int = Field(default=1, ge=1, le=1)
+    scalper_max_trades_per_day: int = Field(default=10, ge=0, le=100)
+    scalper_max_loss_per_trade: float = Field(default=25000, gt=0)
+    scalper_hard_daily_loss: float = Field(default=50000, gt=0)
+    scalper_max_consecutive_losses: int = Field(default=3, ge=1, le=20)
+    scalper_cooldown_after_loss_seconds: int = Field(default=300, ge=0)
+    scalper_cooldown_after_exit_seconds: int = Field(default=60, ge=0)
+    scalper_kill_switch: bool = False
+    scalper_market_events_json: str = "[]"
+    scalper_profit_capture_pct: float = Field(default=50, gt=0, le=100)
+    scalper_stop_credit_multiple: float = Field(default=1.5, gt=1)
+    scalper_trailing_activation_pct: float = Field(default=35, gt=0, le=100)
+    scalper_trailing_giveback_pct: float = Field(default=20, gt=0, le=100)
+    scalper_time_stop_minutes: int = Field(default=30, ge=1, le=180)
+    scalper_entry_ttl_seconds: int = Field(default=60, ge=10, le=600)
+    scalper_use_phase14_context: bool = True
+    scalper_cost_schedule_version: str = "UNCONFIGURED"
+    scalper_brokerage_per_order: float = Field(default=0, ge=0)
+    scalper_exchange_rate: float = Field(default=0, ge=0)
+    scalper_stt_rate: float = Field(default=0, ge=0)
+    scalper_gst_rate: float = Field(default=0, ge=0)
+    scalper_stamp_rate: float = Field(default=0, ge=0)
+    scalper_sebi_rate: float = Field(default=0, ge=0)
+    scalper_slippage_points_per_leg: float = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_scalper_mode(self):
+        from app.scalper.config import parse_widths
+        parse_widths(self.scalper_allowed_widths)
+        if not self.scalper_start_time < self.scalper_entry_end_time < self.scalper_forced_exit_time:
+            raise ValueError("SCALPER_SESSION_TIMES_INVALID")
+        if self.scalper_enabled and self.telegram_enabled:
+            raise ValueError("SCALPER_REQUIRES_NOTIFICATION_NETWORK_OFF")
+        return self
+
     @model_validator(mode="after")
     def validate_forward_paper_mode(self):
         if self.forward_paper_enabled:
@@ -453,4 +507,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]
-
