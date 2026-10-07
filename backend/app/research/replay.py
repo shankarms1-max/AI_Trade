@@ -106,6 +106,9 @@ def replay_integrity(rows, parameters, strategy_config, risk_config, regime_conf
         policy = replace(policy, strong_min_carry=parameters.minimum_carry_score,
                          moderate_min_carry=parameters.minimum_carry_score, theta_min_carry=parameters.minimum_carry_score)
     strategy = replace(strategy_config, credit_spread_policy=policy, allowed_spread_widths=parameters.spread_widths,
+                       max_defined_loss_rupees=risk_config.max_loss_per_trade,
+                       max_defined_capital_rupees=risk_config.max_capital_per_trade,
+                       max_defined_width=risk_config.max_spread_width, requested_lots=quantity,
                        min_short_distance_points=parameters.short_strike_buffer,
                        min_credit_to_width_ratio=parameters.minimum_credit_to_width)
     risk = replace(risk_config, credit_spread_policy=policy, require_bid_ask=True, allow_ltp_estimate=False,

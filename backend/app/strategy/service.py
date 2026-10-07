@@ -4,8 +4,14 @@ from app.strategy.models import StrategyCandidateSet
 from app.strategy.repository import StrategyRepository
 
 
-def config_from_settings(settings) -> StrategyConfig:
+def config_from_settings(settings, *, risk=None) -> StrategyConfig:
+    if risk is None:
+        from app.risk.service import config_from_settings as risk_config
+        risk = risk_config(settings)
     return StrategyConfig(
+        max_defined_loss_rupees=risk.max_loss_per_trade,
+        max_defined_capital_rupees=risk.max_capital_per_trade,
+        max_defined_width=risk.max_spread_width,
         credit_spread_policy=policy_from_settings(settings),
         min_regime_confidence=settings.strategy_min_regime_confidence,
         min_evidence_quality=settings.strategy_min_evidence_quality,

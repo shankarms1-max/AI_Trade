@@ -618,9 +618,14 @@ def test_component_ranking_reconciles(context):
             * sum(c.ranking_components[k] * v for k, v in p.ranking_weights.items())
             / sum(p.ranking_weights.values())
         )
-        assert c.selection_score == pytest.approx(
+        # The former vertical score remains auditable, but no longer selects
+        # hedges. New selection_score is the explicit short-first ordinal rank.
+        assert c.construction_evidence["prior_vertical_score"] == pytest.approx(
             max(0, round(raw, 4) - sum(c.ranking_penalties.values())), abs=0.0001
         )
+        evidence = c.construction_evidence
+        assert c.selection_score == pytest.approx(100 * (
+            evidence["eligible_pair_count"]-evidence["ordinal_rank"]+1) / evidence["eligible_pair_count"])
 
 
 def test_cost_and_liquidity_reduce_ranking(context):
@@ -643,7 +648,8 @@ def test_cost_and_liquidity_reduce_ranking(context):
             if (c.short_leg.strike, c.spread_width) in base_by_key
         ]
         assert overlap
-        assert all(b.selection_score > a.selection_score for b, a in overlap)
+        assert all(b.construction_evidence["prior_vertical_score"] >
+                   a.construction_evidence["prior_vertical_score"] for b, a in overlap)
 
 
 def test_no_alpha_or_confidence_only_hard_veto(context):

@@ -226,6 +226,9 @@ def replay_parameters(rows: list[ReplayRow], parameters: ExperimentParameters,
         raise ValueError("quantity must be positive")
     rows = sorted(rows, key=lambda item: (item.snapshot.timestamp_ist, item.snapshot_id))
     strategy_config = replace(strategy_config, allowed_spread_widths=parameters.spread_widths,
+                              max_defined_loss_rupees=risk_config.max_loss_per_trade,
+                              max_defined_capital_rupees=risk_config.max_capital_per_trade,
+                              max_defined_width=risk_config.max_spread_width, requested_lots=quantity,
                               min_short_distance_points=parameters.short_strike_buffer,
                               min_credit_to_width_ratio=parameters.minimum_credit_to_width,
                               vix_elevated_distance_multiplier=parameters.volatility_distance_multiplier)

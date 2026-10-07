@@ -74,7 +74,7 @@ class PaperEngine:
         self.risk = shadow_risk_config_from_settings(settings)
         self.events = ConfiguredMarketEventProvider.from_json(settings.risk_market_events_json)
         self.policy = json_value(dict(version="forward_paper_v1", integrity=self.integrity,
-            exits=self.exits, risk=self.risk, strategy=strategy_config(settings),
+            exits=self.exits, risk=self.risk, strategy=strategy_config(settings, risk=self.risk),
             regime=regime_config(settings), features=feature_config(settings),
             alpha=alpha_config(settings), alpha_enabled=settings.alpha_engine_enabled,
             costs=self.costs, lots=1, event_configuration_hash=digest(settings.risk_market_events_json),

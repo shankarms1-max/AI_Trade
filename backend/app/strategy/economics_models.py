@@ -57,5 +57,7 @@ class CreditSpreadEconomics(BaseModel):
     credit_to_expected_move: float | None = None
     credit_per_dte: float | None = None
     premium_retention_ratio: float | None = None
+    construction_method: str | None = None
+    construction_evidence: dict[str, Any] = Field(default_factory=dict)
     carry_model: str | None = None
     side_safety: dict[str, Any] = Field(default_factory=dict)

@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 from app.research.manifest import digest
 from app.scalper.config import ScalperConfig
+from app.strategy.construction import (construction_key, ordinal_score,
+                                       premium_retention, defined_risk_rejection)
 from app.scalper.models import (ScalperCandidate, ScalperDirection, ScalperLeg,
                                 ScalperMarketSnapshot, ScalperOptionQuote,
                                 ScalperSignal)
@@ -96,7 +98,6 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
     option_type = "PE" if signal.direction == ScalperDirection.BULL else "CE"
     strategy_type: Literal["BULL_PUT_SPREAD", "BEAR_CALL_SPREAD"] = (
         "BULL_PUT_SPREAD" if option_type == "PE" else "BEAR_CALL_SPREAD")
-    by_key = {(item.strike, item.option_type): item for item in snapshot.quotes}
     candidates: list[ScalperCandidate] = []
     rejected: dict[str, int] = {}
 
@@ -116,15 +117,18 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
         if not short_book.valid:
             reject(short_book.reason or "SHORT_BOOK_INVALID")
             continue
-        for width in config.allowed_widths:
-            long_strike = short.strike - width if option_type == "PE" else short.strike + width
-            long = by_key.get((long_strike, option_type))
-            if long is None:
-                reject("LONG_LEG_NOT_CAPTURED")
-                continue
+        hedges = [item for item in snapshot.quotes
+                  if item.option_type == option_type and item.expiry == short.expiry
+                  and (item.strike < short.strike if option_type == "PE" else item.strike > short.strike)
+                  and abs(item.strike-short.strike) in config.allowed_widths]
+        if not hedges:
+            reject("LONG_LEG_NOT_CAPTURED")
+        for long in hedges:
+            width = abs(long.strike-short.strike)
             long_book = validate_book(long, snapshot.response_received_at,
                                       snapshot.lot_size, config, side="ask")
             if not long_book.valid:
+                reject("HEDGE_REJECTED_EXECUTION")
                 reject(long_book.reason or "LONG_BOOK_INVALID")
                 continue
             credit = short.bid - long.ask  # type: ignore[operator]
@@ -137,11 +141,19 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                 continue
             max_loss = width - credit
             max_loss_lot = max_loss * snapshot.lot_size * config.lots
+            risk_failure = defined_risk_rejection(width, credit, snapshot.lot_size,
+                config.lots, max_loss=config.max_loss_per_trade)
+            if risk_failure:
+                reject(risk_failure)
+                continue
             execution = max(0.0, 30.0 - ((short_book.spread_pct or 0)
                                          + (long_book.spread_pct or 0)) / 2.0)
             liquidity = min(20.0, 10.0 * min(
                 (short.open_interest or 0) / max(config.min_open_interest, 1),
                 (long.open_interest or 0) / max(config.min_open_interest, 1)))
+            retention = premium_retention(short.bid, long.ask)
+            # Retain the former component score for audit, not selection.
+            # Hedge selection below uses gross premium retention directly.
             economics = min(20.0, ratio / max(config.min_credit_to_width, .000001) * 8.0)
             proximity = max(0.0, 20.0 - distance / 20.0)
             signal_fit = signal.score / 10.0
@@ -157,6 +169,12 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                 executable_credit=credit, credit_to_width=ratio,
                 defined_max_loss_per_unit=max_loss,
                 defined_max_loss_per_lot=max_loss_lot,
+                premium_retention_ratio=retention,
+                construction_method="SHORT_LEG_FIRST_V1",
+                construction_evidence={"short_sell_price": short.bid,
+                    "hedge_protection_cost": long.ask,
+                    "prior_vertical_score": round(sum(components.values()), 6)},
+                reason_codes=["SHORT_LEG_SELECTED", "HEDGE_SELECTED_FOR_PREMIUM_RETENTION"],
                 ranking_score=round(sum(components.values()), 6),
                 ranking_components={key: round(value, 6)
                                     for key, value in components.items()},
@@ -166,10 +184,18 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                                 "long": {**long.model_dump(mode="json"),
                                          "validation": long_book.payload(), "side": "ask"}},
             ))
-    candidates.sort(key=lambda item: (-item.ranking_score,
-                                      item.defined_max_loss_per_lot,
-                                      item.short_distance_points,
-                                      item.candidate_id))
+    candidates.sort(key=lambda item: construction_key(
+        short_price=item.quote_evidence["short"]["bid"],
+        short_oi=item.quote_evidence["short"]["open_interest"],
+        short_volume=item.quote_evidence["short"]["volume"],
+        short_spread_pct=item.quote_evidence["short"]["validation"]["spread_pct"],
+        short_distance=item.short_distance_points, retention=item.premium_retention_ratio,
+        width=item.spread_width, identity=item.candidate_id))
+    candidates = [item.model_copy(update={"ranking_score": ordinal_score(i, len(candidates)),
+                  "construction_evidence": {**item.construction_evidence,
+                      "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
+                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                  for i, item in enumerate(candidates)]
     return CandidateBuildResult(candidates, rejected)
 
 

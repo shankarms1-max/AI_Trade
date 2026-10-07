@@ -21,6 +21,8 @@ from app.strategy.strike_selection import structural_reference
 from app.strategy.liquidity import check_liquidity, bid_ask_spread_pct
 from app.strategy.payoff import calculate_payoff
 from app.strategy.pricing import price_spread
+from app.strategy.construction import (construction_key, ordinal_score,
+                                       defined_risk_rejection, phase14_quote_failure)
 
 
 def generate_credit_spread_candidates(
@@ -201,12 +203,17 @@ def generate_credit_spread_candidates(
             if not _delta_allowed(short, config):
                 rejections.add("DELTA_OUT_OF_RANGE")
                 continue
-            for width in config.allowed_spread_widths:
-                long = by_strike.get(
-                    short.strike - width if side == "BULLISH" else short.strike + width
-                )
-                if long is None:
-                    rejections.add("NO_VALID_LONG_HEDGE")
+            # Inspect actual captured hedges for this short. Configured widths
+            # remain an allowlist/safety boundary, never a ranking objective.
+            hedges = [long for long in by_strike.values()
+                      if (long.strike < short.strike if side == "BULLISH" else long.strike > short.strike)
+                      and abs(long.strike-short.strike) in config.allowed_spread_widths]
+            if not hedges:
+                rejections.add("NO_VALID_LONG_HEDGE")
+            for long in hedges:
+                failure = phase14_quote_failure(snapshot, short, long, config)
+                if failure:
+                    rejections.update(("HEDGE_REJECTED_EXECUTION", failure))
                     continue
                 # Same contract and observed quote freshness; timestamps missing stay explicitly estimated.
                 if p.replay_integrity_enabled:
@@ -214,6 +221,7 @@ def generate_credit_spread_candidates(
                     quote_policy = policy_quote_contract(p, max_spread_percent=config.max_bid_ask_spread_pct)
                     qualities = [validate_book(c, snapshot.timestamp_ist, quote_policy, evaluated_at=information_time(snapshot)) for c in (short, long)]
                     if not all(item.valid for item in qualities):
+                        rejections.add("HEDGE_REJECTED_EXECUTION")
                         rejections.update(item.reason for item in qualities if not item.valid)
                         continue
                     if abs((short.source_market_timestamp-long.source_market_timestamp).total_seconds()) > p.quote_max_leg_skew_seconds:
@@ -234,6 +242,7 @@ def generate_credit_spread_candidates(
                     short, long, config, feature.data_quality.intraday_volume_usable
                 )
                 if not liquidity.eligible:
+                    rejections.add("HEDGE_REJECTED_EXECUTION")
                     rejections.update(liquidity.reason_codes)
                     continue
                 price = price_spread(short, long)
@@ -245,6 +254,14 @@ def generate_credit_spread_candidates(
                 )
                 if payoff is None:
                     rejections.add("INVALID_DEFINED_RISK_PAYOFF")
+                    continue
+                risk_failure = defined_risk_rejection(payoff.width, price.net_credit,
+                    snapshot.lot_size, config.requested_lots,
+                    max_loss=config.max_defined_loss_rupees,
+                    max_capital=config.max_defined_capital_rupees,
+                    max_width=config.max_defined_width)
+                if risk_failure:
+                    rejections.add(risk_failure)
                     continue
                 if (
                     price.net_credit < config.min_net_credit
@@ -341,18 +358,23 @@ def generate_credit_spread_candidates(
                             volume_usable=feature.data_quality.intraday_volume_usable,
                         ),
                         pricing_basis=price.basis,
-                        reason_codes=["CANDIDATE_ELIGIBLE"],
+                        construction_method="SHORT_LEG_FIRST_V1",
+                        construction_evidence={"short_sell_price": price.short_price,
+                            "hedge_protection_cost": price.long_price,
+                            "prior_vertical_score": economics["selection_score"]},
+                        reason_codes=["CANDIDATE_ELIGIBLE", "SHORT_LEG_SELECTED",
+                                      "HEDGE_SELECTED_FOR_PREMIUM_RETENTION"],
                         warnings=warnings,
                         created_at=snapshot.timestamp_ist,
                     )
                 )
     candidates.sort(
-        key=lambda c: (
-            -c.selection_score,
-            c.strategy_family.value,
-            c.short_leg.strike,
-            c.spread_width,
-        )
+        key=lambda c: construction_key(short_price=c.construction_evidence["short_sell_price"],
+            short_oi=c.short_leg.open_interest, short_volume=c.short_leg.volume,
+            short_spread_pct=c.liquidity_metrics.short_bid_ask_spread_pct,
+            short_distance=c.short_leg_distance_from_spot, retention=c.premium_retention_ratio,
+            width=c.spread_width, identity=(-c.construction_evidence["prior_vertical_score"],
+                c.strategy_family.value, c.candidate_id))
     )
     # One physical spread has one duplicate-position fingerprint in the risk ledger.
     # Keep the best family interpretation; separate family-mode replays compare policies.
@@ -366,6 +388,11 @@ def generate_credit_spread_candidates(
         )
         unique.setdefault(key, candidate)
     candidates = list(unique.values())
+    candidates = [c.model_copy(update={"selection_score": ordinal_score(i, len(candidates)),
+                  "construction_evidence": {**c.construction_evidence,
+                      "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
+                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                  for i, c in enumerate(candidates)]
     candidates = candidates[: config.max_candidates]
     if not candidates:
         return none(*sorted(rejections), "NO_ELIGIBLE_CANDIDATES")
@@ -380,7 +407,8 @@ def generate_credit_spread_candidates(
         eligible=True,
         candidates=candidates,
         candidate_count=len(candidates),
-        reason_codes=["CANDIDATE_ELIGIBLE"],
+        reason_codes=["CANDIDATE_ELIGIBLE", "SHORT_LEG_SELECTED",
+                      "HEDGE_SELECTED_FOR_PREMIUM_RETENTION", *sorted(rejections)],
         warnings=sorted({w for c in candidates for w in c.warnings}),
         strategy_version=LOGIC_VERSION,
         strategy_logic_version=LOGIC_VERSION,

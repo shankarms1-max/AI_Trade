@@ -19,6 +19,8 @@ from app.strategy.models import (
 from app.strategy.payoff import calculate_payoff
 from app.strategy.pricing import price_spread
 from app.strategy.strike_selection import structural_reference
+from app.strategy.construction import (construction_key, ordinal_score,
+                                       premium_retention, defined_risk_rejection, phase14_quote_failure)
 
 IST = ZoneInfo("Asia/Kolkata")
 QUALITY_RANK = {"INSUFFICIENT": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -52,6 +54,11 @@ class StrategyConfig:
     vix_elevated_distance_multiplier: float = 1.25
     vix_high_distance_multiplier: float = 1.5
     no_candidate_on_high_vix: bool = False
+    # Construction prefilters mirror (never replace) applicable hard risk gates.
+    max_defined_loss_rupees: float | None = None
+    max_defined_capital_rupees: float | None = None
+    max_defined_width: float | None = None
+    requested_lots: int = 1
 
 
 def _none_result(
@@ -220,12 +227,12 @@ def generate_candidates(
         if not _delta_allowed(short, config):
             rejection_codes.add("DELTA_OUT_OF_RANGE")
             continue
-        for allowed_width in config.allowed_spread_widths:
-            long_strike = short.strike - allowed_width if regime_name == "BULLISH" else short.strike + allowed_width
-            long = by_strike.get(long_strike)
-            if long is None:
-                rejection_codes.add("NO_VALID_LONG_HEDGE")
-                continue
+        hedges = [long for long in by_strike.values()
+                  if (long.strike < short.strike if regime_name == "BULLISH" else long.strike > short.strike)
+                  and abs(long.strike-short.strike) in config.allowed_spread_widths]
+        if not hedges:
+            rejection_codes.add("NO_VALID_LONG_HEDGE")
+        for long in hedges:
             liquidity = check_liquidity(short, long, config, feature.data_quality.intraday_volume_usable)
             if not liquidity.eligible:
                 rejection_codes.update(liquidity.reason_codes)
@@ -234,9 +241,23 @@ def generate_candidates(
             if price is None or price.short_price < config.min_short_premium:
                 rejection_codes.add("INSUFFICIENT_CREDIT")
                 continue
+            # Preserve explicitly labeled legacy LTP research estimates; they
+            # still cannot pass the forward/replay observed-book execution gate.
+            if price.basis == PricingBasis.BID_ASK:
+                failure = phase14_quote_failure(snapshot, short, long, config)
+                if failure:
+                    rejection_codes.update(("HEDGE_REJECTED_EXECUTION", failure))
+                    continue
             payoff = calculate_payoff(strategy, short.strike, long.strike, price.net_credit)
             if payoff is None:
                 rejection_codes.add("INVALID_DEFINED_RISK_PAYOFF")
+                continue
+            risk_failure = defined_risk_rejection(payoff.width, price.net_credit,
+                snapshot.lot_size, config.requested_lots,
+                max_loss=config.max_defined_loss_rupees,
+                max_capital=config.max_defined_capital_rupees, max_width=config.max_defined_width)
+            if risk_failure:
+                rejection_codes.add(risk_failure)
                 continue
             credit_ratio = price.net_credit / payoff.width
             if price.net_credit < config.min_net_credit or credit_ratio < config.min_credit_to_width_ratio:
@@ -289,11 +310,25 @@ def generate_candidates(
                 ),
                 pricing_basis=price.basis,
                 selection_score=score,
-                reason_codes=["CANDIDATE_ELIGIBLE"],
+                premium_retention_ratio=premium_retention(price.short_price, price.long_price),
+                construction_method="SHORT_LEG_FIRST_V1",
+                construction_evidence={"short_sell_price": price.short_price,
+                    "hedge_protection_cost": price.long_price, "prior_vertical_score": score},
+                reason_codes=["CANDIDATE_ELIGIBLE", "SHORT_LEG_SELECTED",
+                              "HEDGE_SELECTED_FOR_PREMIUM_RETENTION"],
                 warnings=list(dict.fromkeys(warnings)),
                 created_at=datetime.now(IST),
             ))
-    candidates.sort(key=lambda item: (-item.selection_score, item.short_leg.strike, item.spread_width))
+    candidates.sort(key=lambda c: construction_key(
+        short_price=c.construction_evidence["short_sell_price"], short_oi=c.short_leg.open_interest,
+        short_volume=c.short_leg.volume, short_spread_pct=c.liquidity_metrics.short_bid_ask_spread_pct,
+        short_distance=c.short_leg_distance_from_spot, retention=c.premium_retention_ratio,
+        width=c.spread_width, identity=c.candidate_id))
+    candidates = [c.model_copy(update={"selection_score": ordinal_score(i, len(candidates)),
+                  "construction_evidence": {**c.construction_evidence,
+                      "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
+                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                  for i, c in enumerate(candidates)]
     candidates = candidates[:config.max_candidates]
     if not candidates:
         reasons = sorted(rejection_codes) + ["NO_ELIGIBLE_CANDIDATES"]
@@ -307,7 +342,8 @@ def generate_candidates(
         eligible=True,
         candidates=candidates,
         candidate_count=len(candidates),
-        reason_codes=["CANDIDATE_ELIGIBLE"],
+        reason_codes=["CANDIDATE_ELIGIBLE", "SHORT_LEG_SELECTED",
+                      "HEDGE_SELECTED_FOR_PREMIUM_RETENTION", *sorted(rejection_codes)],
         warnings=warnings,
         created_at=datetime.now(IST),
     )

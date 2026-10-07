@@ -460,7 +460,9 @@ def candidate_economics(
         credit_to_max_loss=price.net_credit / payoff.max_loss,
         credit_to_expected_move=price.net_credit / move["expected_move_points"],
         credit_per_dte=price.net_credit / expiry["fractional_time_to_expiry"],
-        premium_retention_ratio=retention,
+        # Gross retained premium, not net-after-estimated-costs retention.
+        # The existing carry gate above keeps its original after-cost calculation.
+        premium_retention_ratio=price.net_credit / price.short_price,
         carry_model="TRANSPARENT_CARRY_PROXY_NO_GREEKS",
         side_safety=safety,
     )

@@ -161,6 +161,10 @@ class ScalperLeg(BaseModel):
 
 class ScalperCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    premium_retention_ratio: float | None = None
+    construction_method: str | None = None
+    construction_evidence: dict[str, Any] = Field(default_factory=dict)
+    reason_codes: list[str] = Field(default_factory=list)
     candidate_id: str
     strategy_type: Literal["BULL_PUT_SPREAD", "BEAR_CALL_SPREAD"]
     direction: ScalperDirection

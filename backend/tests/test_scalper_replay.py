@@ -236,13 +236,13 @@ def test_bullish_and_bearish_spreads_replay(direction, strategy):
     assert result.trades[0]["entry_timestamp"] is not None
 
 
-@pytest.mark.parametrize("debit,reason", [
-    (19.0, "SPREAD_STOP"),
-    (1.0, "PROFIT_CAPTURE"),
+@pytest.mark.parametrize("debit_multiple,reason", [
+    (2.1, "SPREAD_STOP"),
+    (0.1, "PROFIT_CAPTURE"),
 ])
-def test_spread_stop_and_profit_capture(debit, reason):
+def test_spread_stop_and_profit_capture(debit_multiple, reason):
     observations, trade = entered_prefix()
-    final = spread_prices(snapshot(4), trade, debit=debit)
+    final = spread_prices(snapshot(4), trade, debit=trade["entry_credit"] * debit_multiple)
     result = run([*observations, final])
     closed = next(item for item in result.trades if item["state"] == "CLOSED")
     assert closed["exit_reason"] == reason
@@ -250,15 +250,19 @@ def test_spread_stop_and_profit_capture(debit, reason):
 
 def test_trailing_exit_and_excursion_calculation():
     observations, trade = entered_prefix()
-    favorable = spread_prices(snapshot(4), trade, debit=5.0)
-    giveback = spread_prices(snapshot(5), trade, debit=7.0)
+    credit = trade["entry_credit"]
+    # Scale the original 5/9 -> 7/9 path to the selected spread's actual credit.
+    favorable_debit = round(credit * 5 / 9 / .05) * .05
+    giveback_debit = round(credit * 7 / 9 / .05) * .05
+    favorable = spread_prices(snapshot(4), trade, debit=favorable_debit)
+    giveback = spread_prices(snapshot(5), trade, debit=giveback_debit)
     result = run([*observations, favorable, giveback])
     closed = next(item for item in result.trades if item["state"] == "CLOSED")
     assert closed["exit_reason"] == "TRAILING_EXIT"
-    assert closed["mfe"] == 4.0
+    assert closed["mfe"] == pytest.approx(credit - favorable_debit)
     assert closed["mae"] == 0.0
-    assert closed["minimum_spread_debit"] == 5.0
-    assert closed["max_spread_debit"] == 9.0
+    assert closed["minimum_spread_debit"] == pytest.approx(favorable_debit)
+    assert closed["max_spread_debit"] == credit
 
 
 def test_signal_failure_exit():
@@ -307,9 +311,9 @@ def test_gross_pnl_mae_mfe_and_gross_only_accounting():
     observations, trade = entered_prefix()
     result = run([*observations, spread_prices(snapshot(4), trade, debit=1.0)])
     closed = next(item for item in result.trades if item["state"] == "CLOSED")
-    assert closed["gross_points"] == 8.0
-    assert closed["gross_rupees"] == 400.0
-    assert closed["mfe"] == 8.0 and closed["mae"] == 0.0
+    assert closed["gross_points"] == trade["entry_credit"] - 1.0
+    assert closed["gross_rupees"] == (trade["entry_credit"] - 1.0) * 50
+    assert closed["mfe"] == trade["entry_credit"] - 1.0 and closed["mae"] == 0.0
     assert closed["net_rupees"] is None
     assert closed["accounting_status"] == "GROSS_ONLY"
 

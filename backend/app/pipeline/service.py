@@ -67,6 +67,7 @@ def build_pipeline_orchestrator(
     risk_repository = RiskRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     shadow_repository = ShadowRepository(session_factory, regime_version=settings.active_regime_version, strategy_version=settings.active_strategy_version)
     alpha_repository = AlphaRepository(session_factory)
+    construction_config = strategy_config(settings, risk=shadow_risk_config_from_settings(settings))
 
     def decision_only_update(snapshot_id):
         # Do not silently strand existing exposure by switching its manager off.
@@ -109,7 +110,7 @@ def build_pipeline_orchestrator(
             if settings.phase14_2_strategy_logic_enabled:
                 from app.strategy.candidate_engine import generate_candidates
                 raw, _, feature, regime_id, regime = strategy_repository.load_context(snapshot_id)
-                candidates = generate_candidates(raw, feature, regime, regime_id, strategy_config(settings))
+                candidates = generate_candidates(raw, feature, regime, regime_id, construction_config)
             return build_and_store_ai_research(
                 AIResearchRepository(session_factory, regime_version=settings.active_regime_version,
                                      strategy_version=settings.active_strategy_version),
@@ -132,7 +133,7 @@ def build_pipeline_orchestrator(
         ),
         ai=ai_step,
         strategy=lambda snapshot_id: build_and_store_candidates(
-            strategy_repository, snapshot_id, strategy_config(settings), enforce_freshness=False
+            strategy_repository, snapshot_id, construction_config, enforce_freshness=False
         ),
         risk=lambda snapshot_id: build_and_store_risk(
             risk_repository,

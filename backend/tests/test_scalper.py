@@ -181,7 +181,8 @@ def test_wide_book_and_missing_hedge_produce_no_candidate():
     built = build_candidates(no_put_hedges, signal_for(raw),
                              ScalperConfig.from_settings(settings()))
     assert not built.candidates
-    assert built.rejection_counts["LONG_LEG_NOT_CAPTURED"] == 4
+    # Inventory-first: one missing-hedge rejection per short, not per width.
+    assert built.rejection_counts["LONG_LEG_NOT_CAPTURED"] == 1
 
 
 def test_strict_next_observation_entry_and_no_same_observation_fill(scalper):
