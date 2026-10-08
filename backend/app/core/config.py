@@ -254,6 +254,10 @@ class Settings(BaseSettings):
     scalper_strike_range: int = Field(default=10, ge=4, le=20)
     scalper_feature_lookback: int = Field(default=12, ge=5, le=120)
     scalper_signal_min_score: float = Field(default=80, ge=0, le=100)
+    scalper_trend_aligned_min_score: float = Field(default=68, ge=0, le=100)
+    # None preserves SCALPER_SIGNAL_MIN_SCORE as the legacy mixed-regime fallback.
+    scalper_mixed_min_score: float | None = Field(default=None, ge=0, le=100)
+    scalper_countertrend_min_score: float = Field(default=85, ge=0, le=100)
     scalper_min_confirmations: int = Field(default=2, ge=1, le=20)
     scalper_allowed_widths: str = "100,200,300,400"
     scalper_min_short_distance_points: float = Field(default=50, ge=0)

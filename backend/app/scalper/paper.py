@@ -67,7 +67,9 @@ def exit_trigger(document: dict, snapshot: ScalperMarketSnapshot,
     if reference is not None and ((direction == "BULL" and snapshot.nifty_spot < reference)
                                   or (direction == "BEAR" and snapshot.nifty_spot > reference)):
         return "STRUCTURE_FAILURE"
-    if signal.direction.value != direction or signal.score < config.signal_min_score:
+    threshold = (signal.applicable_entry_threshold if signal.applicable_entry_threshold is not None
+                 else config.signal_min_score)
+    if signal.direction.value != direction or signal.score < threshold:
         return "SIGNAL_FAILURE"
     best = max(document.get("best_gross_points", 0.0), pnl)
     activation = entry_credit * config.trailing_activation_pct / 100.0

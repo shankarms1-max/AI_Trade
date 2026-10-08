@@ -48,6 +48,21 @@ class ScalperConfig:
     time_stop_minutes: int
     entry_ttl_seconds: int
     use_phase14_context: bool
+    trend_aligned_min_score: float = 68
+    mixed_min_score: float | None = None
+    countertrend_min_score: float = 85
+
+    @property
+    def mixed_threshold(self) -> float:
+        return self.signal_min_score if self.mixed_min_score is None else self.mixed_min_score
+
+    def signal_policy(self) -> dict:
+        return dict(min_score=self.signal_min_score,
+                    trend_aligned_min_score=self.trend_aligned_min_score,
+                    mixed_min_score=self.mixed_threshold,
+                    countertrend_min_score=self.countertrend_min_score,
+                    min_confirmations=self.min_confirmations,
+                    max_confirmation_gap_seconds=self.interval_seconds * 1.5)
 
     @classmethod
     def from_settings(cls, settings) -> "ScalperConfig":
@@ -85,9 +100,15 @@ class ScalperConfig:
             time_stop_minutes=settings.scalper_time_stop_minutes,
             entry_ttl_seconds=settings.scalper_entry_ttl_seconds,
             use_phase14_context=settings.scalper_use_phase14_context,
+            trend_aligned_min_score=settings.scalper_trend_aligned_min_score,
+            mixed_min_score=settings.scalper_mixed_min_score,
+            countertrend_min_score=settings.scalper_countertrend_min_score,
         )
         if not config.start_time < config.entry_end_time < config.forced_exit_time:
             raise ValueError("SCALPER_SESSION_TIMES_INVALID")
+        if not (config.trend_aligned_min_score < config.mixed_threshold
+                <= config.countertrend_min_score):
+            raise ValueError("SCALPER_ADAPTIVE_THRESHOLDS_INVALID")
         return config
 
     def payload(self) -> dict:

@@ -129,7 +129,7 @@ def test_postgresql_empty_upgrade_and_phase15_transition():
         with scoped_engine.connect() as connection:
             assert connection.execute(text(
                 "SELECT version_num FROM alembic_version"
-            )).scalar_one() == "0016_scalper"
+            )).scalar_one() == "0017_contract_continuity"
             version_column = next(
                 column for column in inspect(connection).get_columns("alembic_version")
                 if column["name"] == "version_num"

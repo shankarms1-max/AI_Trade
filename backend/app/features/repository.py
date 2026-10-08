@@ -43,6 +43,7 @@ def raw_record_to_model(record: MarketSnapshotRecord, *, normalize_research_time
         atm_strike=float(record.atm_strike),
         expiry=record.expiry,
         source=record.source,
+        required_contracts=record.required_contracts_json,
         options=[
             OptionContractSnapshot(
                 strike=float(item.strike),

@@ -111,6 +111,8 @@ class SnapshotRepository:
                     atm_strike=_decimal(snapshot.atm_strike),
                     expiry=snapshot.expiry,
                     source=snapshot.source,
+                    required_contracts_json=(snapshot.required_contracts.model_dump(mode="json")
+                                             if snapshot.required_contracts else None),
                 )
                 session.add(record)
                 session.flush()
@@ -223,6 +225,7 @@ def snapshot_to_dict(
         "atm_strike": record.atm_strike,
         "expiry": record.expiry,
         "source": record.source,
+        "required_contracts": record.required_contracts_json,
         "created_at": record.created_at,
         "snapshot_persisted_at": record.created_at,
     }

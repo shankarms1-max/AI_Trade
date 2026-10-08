@@ -13,6 +13,7 @@ from app.core.logging import configure_logging  # noqa: E402
 from app.db.repositories import SnapshotRepository  # noqa: E402
 from app.db.session import build_engine, build_session_factory  # noqa: E402
 from app.pipeline.service import make_after_snapshot_callback  # noqa: E402
+from app.paper.continuity import required_paper_contracts  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
 
 
@@ -29,7 +30,10 @@ def main() -> int:
     sessions = build_session_factory(build_engine(settings.database_url.get_secret_value()))
     repository = SnapshotRepository(sessions)
     service = CollectorService(
-        make_live_snapshot_builder(settings),
+        make_live_snapshot_builder(
+            settings,
+            (lambda: required_paper_contracts(sessions)) if settings.forward_paper_enabled else None,
+        ),
         repository,
         TradingCalendar(
             settings.collector_start_time,

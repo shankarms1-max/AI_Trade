@@ -102,7 +102,8 @@ class QuoteResult:
 def exact_contract(snapshot, identity):
     if not identity.valid():
         return None, "INVALID_EXACT_CONTRACT_IDENTITY"
-    matches = [item for item in snapshot.options if ContractIdentity.of(item) == identity]
+    matches = [item for item in getattr(snapshot, "execution_options", snapshot.options)
+               if ContractIdentity.of(item) == identity]
     if len(matches) != 1:
         return None, "EXACT_CONTRACT_AMBIGUOUS" if matches else "MISSING_EXACT_CONTRACT"
     return matches[0], "OK"

@@ -87,6 +87,24 @@ def quote_updates(row: dict) -> dict:
             "source_market_timestamp": parse_quote_timestamp(row.get("lstup_time"))}
 
 
+def required_quote_updates(row: dict) -> dict:
+    """Fresh all-quotes fields only, using the SDK's documented response mapping.
+
+    open_int and last_volume are the quote's OI and total traded volume. Missing
+    or malformed values remain unknown so pending-fill liquidity gates still apply.
+    No chain values from a previous observation are reused.
+    """
+    result = quote_updates(row)
+    for field, key in (("open_interest", "open_int"), ("volume", "last_volume")):
+        number = _number(row.get(key))
+        result[field] = (int(number) if number is not None
+                         and number == number.to_integral_value() and number <= 2**63 - 1
+                         else None)
+    ltp = _number(row.get("ltp"))
+    result["ltp"] = float(ltp) if ltp is not None and 0 < ltp < Decimal("1e308") else None
+    return result
+
+
 def index_quotes(response: Any, requested: set[tuple[str, str]]) -> dict:
     rows = response.get("data") if isinstance(response, dict) else response
     if not isinstance(rows, list):

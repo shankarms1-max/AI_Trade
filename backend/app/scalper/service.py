@@ -19,15 +19,15 @@ from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper import SCALPER_VERSION
 from app.scalper.config import ScalperConfig
 from app.scalper.features import build_features
+from app.scalper.decisions import assess_entry
 from app.scalper.models import (ScalperCursor, ScalperEvent, ScalperFeatures,
                                 ScalperMarketSnapshot, ScalperMarketSnapshotRecord,
                                 ScalperOptionQuote, ScalperSignal, ScalperTrade,
                                 ScalperCandidate)
 from app.scalper.paper import cost_schedule, executable_pair, exit_trigger
 from app.scalper.repository import ScalperRepository
-from app.scalper.risk import ScalperRiskState, evaluate_entry
+from app.scalper.risk import ScalperRiskState
 from app.scalper.signals import build_signal
-from app.scalper.strategy import build_candidates
 
 logger = get_logger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
@@ -294,9 +294,12 @@ class ScalperPaperEngine:
                 self._transition_active(session, cursor, row, raw, signal, trade)
 
             state = self._risk_state(session, raw.captured_at.date())
+            candidate_started = perf_counter()
+            blocked = any(item.block_entries for item in self.events.events_at(raw.captured_at))
+            signal, built, risk = assess_entry(raw, signal, state, self.config,
+                                               event_blocked=blocked)
+            row.signal_json = canonical(json_value(signal))
             if state.open_positions + state.unresolved_positions == 0 and signal.confirmed:
-                candidate_started = perf_counter()
-                built = build_candidates(raw, signal, self.config)
                 logger.info(
                     "SCALPER_CANDIDATES_BUILT snapshot_id=%d count=%d "
                     "candidate_latency_ms=%.3f",
@@ -304,10 +307,7 @@ class ScalperPaperEngine:
                     (perf_counter() - candidate_started) * 1000)
                 if built.candidates:
                     candidate = built.candidates[0]
-                    blocked = any(item.block_entries for item in
-                                  self.events.events_at(raw.captured_at))
-                    risk = evaluate_entry(candidate, signal, state, self.config,
-                                          raw.captured_at, event_blocked=blocked)
+                    assert risk is not None
                     if self.config.kill_switch:
                         logger.warning("SCALPER_KILL_SWITCH snapshot_id=%d", snapshot_id)
                     structural_reference = (features.local_low if signal.direction.value == "BULL"
@@ -364,7 +364,7 @@ class ScalperPaperEngine:
             cursor.confirmation_count = signal.confirmation_count
             self._emit(session, cursor, "SCALPER_OBSERVATION", row, raw,
                        score=signal.score, direction=signal.direction.value,
-                       confirmed=signal.confirmed)
+                       confirmed=signal.confirmed, signal=signal)
         return "PROCESSED"
 
 
@@ -410,21 +410,23 @@ class ScalperService:
             latest_at = self.repository.latest_captured_at()
             if latest_at is not None and raw.captured_at <= latest_at:
                 raise ValueError("SCALPER_OUT_OF_ORDER_CAPTURE")
-            prior = self.repository.history(before=raw.captured_at, inclusive=False,
-                                            limit=max(1000, self.config.feature_lookback))
+            session_start = raw.captured_at.astimezone(IST).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            # Only the fast window needs option rows; slow context needs five scalar fields.
+            prior = self.repository.history(
+                before=raw.captured_at, inclusive=False, since=session_start,
+                limit=max(2, self.config.feature_lookback) - 1)
+            prices = self.repository.price_history(since=session_start, before=raw.captured_at)
             feature_started = perf_counter()
             features = build_features([*prior, raw], self.config.feature_lookback,
-                                      self.config.interval_seconds)
+                                      self.config.interval_seconds, context_history=prices)
             feature_latency = (perf_counter() - feature_started) * 1000
             context = (self.repository.phase14_context_before(raw.request_started_at)
                        if self.config.use_phase14_context else None)
             signal_started = perf_counter()
             signal = build_signal(raw, features,
-                                  self.repository.signal_history(before=raw.captured_at),
-                                  min_score=self.config.signal_min_score,
-                                  min_confirmations=self.config.min_confirmations,
-                                  max_confirmation_gap_seconds=(
-                                      self.config.interval_seconds * 1.5),
+                                  self.repository.signal_history(before=raw.captured_at, limit=1),
+                                  **self.config.signal_policy(),
                                   phase14_context=context)
             signal_latency = (perf_counter() - signal_started) * 1000
             logger.info(

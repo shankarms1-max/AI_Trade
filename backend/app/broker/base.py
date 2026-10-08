@@ -48,3 +48,9 @@ class MarketDataBroker(ABC):
     def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
         """Optional read-only metadata; unknown identity must remain unknown."""
         return None, None
+
+    def capture_required_option_quotes(
+        self, contracts: list[OptionContractSnapshot]
+    ) -> list[OptionContractSnapshot]:
+        """Return only broker-matched exact quotes; unsupported adapters fail closed."""
+        return []

@@ -17,6 +17,7 @@ from app.core.logging import configure_logging, get_logger  # noqa: E402
 from app.db.repositories import SnapshotRepository  # noqa: E402
 from app.db.session import build_engine, build_session_factory  # noqa: E402
 from app.pipeline.service import make_after_snapshot_callback  # noqa: E402
+from app.paper.continuity import required_paper_contracts  # noqa: E402
 from app.observability.models import EventSeverity  # noqa: E402
 from app.observability.repository import ObservabilityRepository  # noqa: E402
 from app.notifications.models import (  # noqa: E402
@@ -65,7 +66,10 @@ def main() -> int:
             "Market-data collection or persistence failed", error_type=type(error).__name__,
         )
     service = CollectorService(
-        make_live_snapshot_builder(settings),
+        make_live_snapshot_builder(
+            settings,
+            (lambda: required_paper_contracts(sessions)) if settings.forward_paper_enabled else None,
+        ),
         repository,
         TradingCalendar(
             settings.collector_start_time,

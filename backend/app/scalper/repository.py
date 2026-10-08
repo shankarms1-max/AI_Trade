@@ -16,7 +16,7 @@ from app.research.manifest import canonical, digest, json_value
 from app.scalper.models import (ScalperEvent, ScalperFeatures,
                                 ScalperMarketSnapshot, ScalperMarketSnapshotRecord,
                                 ScalperOptionQuote, ScalperOptionQuoteRecord,
-                                ScalperSignal, ScalperTrade)
+                                ScalperPriceObservation, ScalperSignal, ScalperTrade)
 
 
 def _decimal(value: float | None) -> Decimal | None:
@@ -27,8 +27,11 @@ IST = ZoneInfo("Asia/Kolkata")
 
 
 def _aware(value):
-    return (value.replace(tzinfo=IST)
-            if value is not None and value.tzinfo is None else value)
+    if value is None:
+        return None
+    # SQLite preserves collector IST wall time; PostgreSQL may return UTC offsets.
+    # Entry/forced-exit clocks and trading dates always belong to the IST session.
+    return value.replace(tzinfo=IST) if value.tzinfo is None else value.astimezone(IST)
 
 
 class ScalperRepository:
@@ -136,11 +139,13 @@ class ScalperRepository:
                     ScalperMarketSnapshotRecord.id == snapshot_id))
             return None if row is None else self._row_to_snapshot(row)
 
-    def history(self, *, before=None, inclusive=True,
-                limit: int = 1000) -> list[ScalperMarketSnapshot]:
+    def history(self, *, before=None, inclusive=True, since=None,
+                limit: int | None = 1000) -> list[ScalperMarketSnapshot]:
         with self.sessions() as session:
             query = select(ScalperMarketSnapshotRecord).options(
                 selectinload(ScalperMarketSnapshotRecord.quotes))
+            if since is not None:
+                query = query.where(ScalperMarketSnapshotRecord.captured_at >= since)
             if before is not None:
                 comparison = (ScalperMarketSnapshotRecord.captured_at <= before if inclusive
                               else ScalperMarketSnapshotRecord.captured_at < before)
@@ -152,11 +157,24 @@ class ScalperRepository:
 
     def signal_history(self, *, before, limit: int = 100) -> list[ScalperSignal]:
         with self.sessions() as session:
-            rows = session.scalars(select(ScalperMarketSnapshotRecord).where(
+            rows = session.scalars(select(ScalperMarketSnapshotRecord.signal_json).where(
                 ScalperMarketSnapshotRecord.captured_at < before).order_by(
                     ScalperMarketSnapshotRecord.captured_at.desc()).limit(limit)).all()
-            return [ScalperSignal.model_validate(json.loads(row.signal_json))
-                    for row in reversed(rows)]
+            return [ScalperSignal.model_validate_json(value) for value in reversed(rows)]
+
+    def price_history(self, *, since, before) -> list[ScalperPriceObservation]:
+        """Indexed session-bounded projection: no option rows or feature/signal JSON."""
+        record = ScalperMarketSnapshotRecord
+        query = select(record.captured_at, record.nifty_spot, record.nifty_future,
+                       record.future_instrument_id, record.future_expiry).where(
+            record.captured_at >= since, record.captured_at < before
+        ).order_by(record.captured_at, record.id)
+        with self.sessions() as session:
+            return [ScalperPriceObservation(
+                captured_at=_aware(row.captured_at), nifty_spot=float(row.nifty_spot),
+                nifty_future=None if row.nifty_future is None else float(row.nifty_future),
+                future_instrument_id=row.future_instrument_id, future_expiry=row.future_expiry)
+                for row in session.execute(query)]
 
     def phase14_context_before(self, timestamp) -> dict[str, Any] | None:
         with self.sessions() as session:
@@ -226,5 +244,10 @@ def scalper_summary(sessions, settings, trading_date: date) -> dict[str, Any]:
                   interval_seconds=settings.scalper_interval_seconds,
                   kill_switch=settings.scalper_kill_switch,
                   score_threshold=settings.scalper_signal_min_score,
+                  entry_thresholds={"TREND_ALIGNED": settings.scalper_trend_aligned_min_score,
+                                    "MIXED": (settings.scalper_mixed_min_score if
+                                              settings.scalper_mixed_min_score is not None
+                                              else settings.scalper_signal_min_score),
+                                    "COUNTERTREND": settings.scalper_countertrend_min_score},
                   minimum_confirmations=settings.scalper_min_confirmations)
     return result

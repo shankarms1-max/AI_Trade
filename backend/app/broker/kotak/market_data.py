@@ -7,7 +7,8 @@ from typing import Any
 
 from app.broker.base import BrokerSessionError, MarketDataBroker, MarketDataError
 from app.broker.kotak.client import KotakSDKClient
-from app.broker.kotak.depth import index_quotes, quote_identity, quote_updates
+from app.broker.kotak.depth import (index_quotes, quote_identity, quote_updates,
+                                   required_quote_updates)
 from app.broker.kotak.instruments import (
     NIFTY_INDEX_IDENTIFIER,
     NIFTY_UNDERLYING,
@@ -281,8 +282,38 @@ class KotakMarketDataAdapter(MarketDataBroker):
         # 42 filtered ATM +/-10 contracts fit in one broker-supported batch.
         identities = list(dict.fromkeys(key for item in contracts
                                         if (key := quote_identity(item)) is not None))
-        rows = {}
         started = monotonic()
+        rows = self._option_quote_rows(identities, started=started)
+        enriched = [item.model_copy(update=quote_updates(rows[key]))
+                    if (key := quote_identity(item)) in rows else item for item in contracts]
+        logger.info(
+            "OPTION_QUOTES_CAPTURED requested=%d matched=%d bid_ask=%d quantities=%d "
+            "source_timestamps=%d depth_unit=UNITS tick_size=unavailable elapsed_ms=%d",
+            len(identities), len(rows),
+            sum(item.bid is not None and item.ask is not None for item in enriched),
+            sum(item.bid_quantity is not None and item.ask_quantity is not None for item in enriched),
+            sum(item.source_market_timestamp is not None for item in enriched),
+            int((monotonic() - started) * 1000),
+        )
+        return enriched
+
+    def capture_required_option_quotes(
+        self, contracts: list[OptionContractSnapshot]
+    ) -> list[OptionContractSnapshot]:
+        identities = list(dict.fromkeys(key for item in contracts
+                                        if (key := quote_identity(item)) is not None))
+        rows = self._option_quote_rows(identities)
+        # Never return an old book or an identity-only placeholder as a matched quote.
+        return [OptionContractSnapshot(
+            expiry=item.expiry, strike=item.strike, option_type=item.option_type,
+            exchange=item.exchange, instrument_token=item.instrument_token,
+            trading_symbol=item.trading_symbol, **required_quote_updates(rows[key]))
+            for item in contracts if (key := quote_identity(item)) in rows]
+
+    def _option_quote_rows(self, identities: list[tuple[str, str]], *,
+                          started: float | None = None) -> dict:
+        rows = {}
+        started = monotonic() if started is None else started
         for offset in range(0, len(identities), 50):
             if offset:
                 if monotonic() - started >= 10:
@@ -303,18 +334,7 @@ class KotakMarketDataAdapter(MarketDataBroker):
                 logger.warning("OPTION_QUOTES_UNAVAILABLE reason=request_failed")
                 break
             rows.update(index_quotes(response, set(batch)))
-        enriched = [item.model_copy(update=quote_updates(rows[key]))
-                    if (key := quote_identity(item)) in rows else item for item in contracts]
-        logger.info(
-            "OPTION_QUOTES_CAPTURED requested=%d matched=%d bid_ask=%d quantities=%d "
-            "source_timestamps=%d depth_unit=UNITS tick_size=unavailable elapsed_ms=%d",
-            len(identities), len(rows),
-            sum(item.bid is not None and item.ask is not None for item in enriched),
-            sum(item.bid_quantity is not None and item.ask_quantity is not None for item in enriched),
-            sum(item.source_market_timestamp is not None for item in enriched),
-            int((monotonic() - started) * 1000),
-        )
-        return enriched
+        return rows
 
     def get_nifty_future_identity(self) -> tuple[str | None, date | None]:
         return self._cached_nifty_future_identity

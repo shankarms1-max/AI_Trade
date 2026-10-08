@@ -6,6 +6,7 @@ import csv
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 import json
+from math import ceil
 from pathlib import Path
 from statistics import mean, median
 from typing import Any, Iterable
@@ -20,6 +21,7 @@ from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper import SCALPER_VERSION
 from app.scalper.config import ScalperConfig, parse_widths
 from app.scalper.features import build_features
+from app.scalper.decisions import assess_entry
 from app.scalper.models import (
     ScalperCandidate,
     ScalperFeatures,
@@ -30,17 +32,20 @@ from app.scalper.models import (
 )
 from app.scalper.paper import ExecutionPair, executable_pair, exit_trigger
 from app.scalper.repository import ScalperRepository
-from app.scalper.risk import ScalperRiskState, evaluate_entry
+from app.scalper.risk import ScalperRiskState
 from app.scalper.signals import build_signal
-from app.scalper.strategy import build_candidates, validate_book
+from app.scalper.strategy import validate_book
 
 IST = ZoneInfo("Asia/Kolkata")
-REPLAY_VERSION = "phase15_1_v1"
+REPLAY_VERSION = "phase15_1_trend_v2"
 EXECUTION_MODEL = "NEXT_OBSERVATION_BID_ASK"
 ACTIVE_STATES = {"PENDING_ENTRY", "OPEN", "UNRESOLVED"}
 
 OVERRIDE_FIELDS = {
     "SCALPER_SIGNAL_MIN_SCORE": "signal_min_score",
+    "SCALPER_TREND_ALIGNED_MIN_SCORE": "trend_aligned_min_score",
+    "SCALPER_MIXED_MIN_SCORE": "mixed_min_score",
+    "SCALPER_COUNTERTREND_MIN_SCORE": "countertrend_min_score",
     "SCALPER_MIN_CONFIRMATIONS": "min_confirmations",
     "SCALPER_ALLOWED_WIDTHS": "allowed_widths",
     "SCALPER_PROFIT_CAPTURE_PCT": "profit_capture_pct",
@@ -56,7 +61,8 @@ TRADE_FIELDS = (
     "entry_spot", "entry_credit", "max_defined_loss", "exit_timestamp",
     "exit_debit", "gross_points", "gross_rupees", "net_rupees",
     "accounting_status", "holding_seconds", "holding_minutes", "exit_reason",
-    "rejection_reason", "entry_score", "confirmation_count",
+    "rejection_reason", "entry_score", "confirmation_count", "threshold_regime",
+    "applicable_entry_threshold",
     "signal_component_scores", "candidate_rank", "mae", "mfe",
     "max_spread_debit", "minimum_spread_debit", "dte", "vix_regime",
 )
@@ -70,6 +76,9 @@ QUALITY_FIELDS = (
 
 SIGNAL_FIELDS = (
     "snapshot_id", "timestamp", "direction", "score", "strength",
+    "fast_direction", "slow_direction", "trend_alignment", "fast_score", "slow_context_score",
+    "combined_score", "applicable_entry_threshold", "threshold_regime", "strong_slow_trend",
+    "signal_qualified", "entry_qualified", "primary_blockers", "component_scores",
     "confirmation_count", "confirmed", "momentum", "structure", "futures",
     "participation", "execution", "contradiction_penalty", "reasons",
     "warnings", "candidate_count", "candidate_widths", "decision",
@@ -144,6 +153,9 @@ def apply_replay_overrides(
     candidate = replace(base, **normalized)
     if not 0 <= candidate.signal_min_score <= 100:
         raise ValueError("SCALPER_SIGNAL_MIN_SCORE_INVALID")
+    if not (0 <= candidate.trend_aligned_min_score < candidate.mixed_threshold
+            <= candidate.countertrend_min_score <= 100):
+        raise ValueError("SCALPER_ADAPTIVE_THRESHOLDS_INVALID")
     if not 1 <= candidate.min_confirmations <= 20:
         raise ValueError("SCALPER_MIN_CONFIRMATIONS_INVALID")
     if not 0 < candidate.profit_capture_pct <= 100:
@@ -446,6 +458,8 @@ def _trade_output(trade: ReplayTrade) -> dict[str, Any]:
         "exit_reason": doc.get("exit_reason"),
         "rejection_reason": doc.get("rejection_reason") or doc.get("unresolved_reason"),
         "entry_score": doc["signal"]["score"],
+        "threshold_regime": doc["signal"]["threshold_regime"],
+        "applicable_entry_threshold": doc["signal"]["applicable_entry_threshold"],
         "confirmation_count": doc["signal"]["confirmation_count"],
         "signal_component_scores": doc["signal"]["components"],
         "candidate_rank": trade.candidate_rank,
@@ -540,10 +554,12 @@ def _summary(
         "entry_rejections": counters.entry_rejections,
         "executed_trades": counters.executed_trades,
         "closed_trades": len(closed),
+        "wins": len(wins), "losses": len(losses),
         "unresolved_trades": sum(item["state"] == "UNRESOLVED" for item in trades),
         "performance": performance,
         "breakdowns": {
             "direction": _breakdown(enriched, "direction"),
+            "threshold_regime": _breakdown(enriched, "threshold_regime"),
             "score_bucket": _breakdown(enriched, "score_bucket"),
             "confirmation_count": _breakdown(enriched, "confirmation_count"),
             "spread_width": _breakdown(enriched, "width"),
@@ -554,6 +570,36 @@ def _summary(
         },
         "statistical_significance": "NOT_ASSESSED",
         "profitability_claim": False,
+    }
+
+
+def _distribution(values: list[float]) -> dict:
+    ordered = sorted(values)
+    return {"count": len(values), "minimum": min(values) if values else None,
+            "median": median(values) if values else None,
+            "p95": ordered[ceil(len(ordered) * .95) - 1] if values else None,
+            "maximum": max(values) if values else None,
+            "buckets": dict(sorted(Counter(_score_bucket(value) for value in values).items()))}
+
+
+def signal_diagnostics(timeline: list[dict], trades: list[dict]) -> dict:
+    missed = [row for row in timeline if row["strong_slow_trend"]
+              and row["trend_alignment"] == "ALIGNED" and not row["entry_qualified"]]
+    return {
+        "total_signals": sum(row["direction"] != "NEUTRAL" for row in timeline),
+        "qualified_signals": sum(row["signal_qualified"] for row in timeline),
+        "entry_qualified_observations": sum(row["entry_qualified"] for row in timeline),
+        "signal_direction_split": dict(sorted(Counter(
+            row["direction"] for row in timeline).items())),
+        "signal_threshold_regime_split": dict(sorted(Counter(
+            row["threshold_regime"] for row in timeline).items())),
+        # Includes occupied/cooldown observations; it is not a claim of independent opportunities.
+        "missed_strong_trend_signals": len(missed),
+        "missed_strong_trend_blockers": dict(sorted(Counter(
+            reason for row in missed for reason in row["primary_blockers"]).items())),
+        "score_distribution": _distribution([row["score"] for row in timeline]),
+        "entry_score_distribution": _distribution(
+            [row["entry_score"] for row in trades if row["entry_timestamp"]]),
     }
 
 
@@ -638,16 +684,12 @@ class ScalperReplayEngine:
                 row.snapshot,
                 features,
                 prior_signals,
-                min_score=config.signal_min_score,
-                min_confirmations=config.min_confirmations,
-                max_confirmation_gap_seconds=config.interval_seconds * 1.5,
+                **config.signal_policy(),
                 phase14_context=row.context,
             ).model_copy(update={"snapshot_id": row.snapshot_id})
 
             feature_match = _model_match(
                 row.stored_feature_json, features, ScalperFeatures)
-            signal_match = _model_match(
-                row.stored_signal_json, signal, ScalperSignal)
 
             for active in [item for item in trades if item.state in ACTIVE_STATES]:
                 transition = _transition_trade(
@@ -664,24 +706,20 @@ class ScalperReplayEngine:
                 counters.signals += 1
             if signal.confirmed:
                 counters.confirmed_signals += 1
+            state = _risk_state(trades, row.snapshot.captured_at.date())
+            signal, built, risk = assess_entry(
+                row.snapshot, signal, state, config,
+                event_blocked=any(item.block_entries
+                                  for item in events.events_at(row.snapshot.captured_at)))
+            signal_match = _model_match(row.stored_signal_json, signal, ScalperSignal)
             active_count = sum(item.state in ACTIVE_STATES for item in trades)
             if active_count == 0 and signal.confirmed:
-                built = build_candidates(row.snapshot, signal, config)
                 candidate_count = len(built.candidates)
                 candidate_widths = [item.spread_width for item in built.candidates]
                 counters.candidates += candidate_count
                 if built.candidates:
                     candidate = built.candidates[0]
-                    risk = evaluate_entry(
-                        candidate,
-                        signal,
-                        _risk_state(trades, row.snapshot.captured_at.date()),
-                        config,
-                        row.snapshot.captured_at,
-                        event_blocked=any(
-                            item.block_entries
-                            for item in events.events_at(row.snapshot.captured_at)),
-                    )
+                    assert risk is not None
                     structural_reference = (
                         features.local_low if signal.direction.value == "BULL"
                         else features.local_high)
@@ -741,6 +779,12 @@ class ScalperReplayEngine:
                 "direction": signal.direction.value,
                 "score": signal.score,
                 "strength": signal.strength.value,
+                **{key: json_value(getattr(signal, key)) for key in (
+                    "fast_direction", "slow_direction", "trend_alignment", "fast_score",
+                    "slow_context_score", "combined_score", "applicable_entry_threshold",
+                    "threshold_regime", "strong_slow_trend", "signal_qualified",
+                    "entry_qualified", "primary_blockers")},
+                "component_scores": signal.components,
                 "confirmation_count": signal.confirmation_count,
                 "confirmed": signal.confirmed,
                 "momentum": components.get("momentum"),
@@ -774,6 +818,7 @@ class ScalperReplayEngine:
 
         trade_rows = [_trade_output(item) for item in trades]
         summary = _summary(len(ordered), quality_rows, counters, trade_rows)
+        summary.update(signal_diagnostics(timeline, trade_rows))
         comparison_names = (
             "LIVE_STORED_VS_REPLAY_FEATURE_MATCH",
             "LIVE_STORED_VS_REPLAY_SIGNAL_MATCH",

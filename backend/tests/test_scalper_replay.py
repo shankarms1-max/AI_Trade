@@ -88,6 +88,7 @@ def snapshot(index: int, *, direction: int = 1) -> ScalperMarketSnapshot:
         source_market_timestamp=at,
         nifty_spot=spot,
         nifty_future=spot + direction * (15 + index * 4),
+        future_instrument_id="NIFTY-FUT", future_expiry=EXPIRY,
         india_vix=14,
         lot_size=50,
         atm_strike=round(spot / 50) * 50,

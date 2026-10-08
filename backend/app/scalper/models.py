@@ -1,6 +1,7 @@
 """Phase 15 domain records and isolated SQL projections."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
@@ -109,6 +110,36 @@ class ScalperMarketSnapshot(BaseModel):
         return self
 
 
+@dataclass(frozen=True)
+class ScalperPriceObservation:
+    """Only the five captured scalar fields needed by the slow context."""
+
+    captured_at: datetime
+    nifty_spot: float
+    nifty_future: float | None
+    future_instrument_id: str | None
+    future_expiry: date | None
+
+
+class IntradayContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_first_at: datetime
+    session_open: float
+    session_high: float
+    session_low: float
+    session_move_bps: float
+    session_range_bps: float
+    range_position: float | None
+    returns_bps: dict[str, float | None]
+    horizon_reference_at: dict[str, datetime | None]
+    horizon_agreement: float
+    opening_range_complete: bool
+    opening_high_distance_bps: float | None
+    opening_low_distance_bps: float | None
+    futures_returns_bps: dict[str, float | None]
+    futures_basis_change_5m: float | None
+
+
 class ScalperFeatures(BaseModel):
     model_config = ConfigDict(extra="forbid")
     snapshot_id: int | None = None
@@ -130,6 +161,8 @@ class ScalperFeatures(BaseModel):
     put_volume_change: float | None
     executable_book_coverage: float
     median_spread_pct: float | None
+    futures_return_bps: float | None = None
+    intraday: IntradayContext | None = None
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -147,6 +180,20 @@ class ScalperSignal(BaseModel):
     confirmation_count: int = Field(ge=0)
     confirmed: bool
     phase14_context: dict[str, Any] | None = None
+    fast_direction: ScalperDirection | None = None
+    slow_direction: ScalperDirection | None = None
+    trend_alignment: Literal["ALIGNED", "OPPOSED", "MIXED"] = "MIXED"
+    fast_score: float | None = None
+    slow_context_score: float | None = None
+    combined_score: float | None = None
+    applicable_entry_threshold: float | None = None
+    threshold_regime: Literal["TREND_ALIGNED", "MIXED", "COUNTERTREND"] = "MIXED"
+    strong_slow_trend: bool = False
+    signal_qualified: bool = False
+    entry_qualified: bool = False
+    primary_blockers: list[str] = Field(default_factory=list)
+    candidate_count: int = 0
+    candidate_rejections: dict[str, int] = Field(default_factory=dict)
 
 
 class ScalperLeg(BaseModel):

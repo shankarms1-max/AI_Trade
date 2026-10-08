@@ -37,6 +37,14 @@ class OptionContractSnapshot(BaseModel):
     theta: float | None = None
     vega: float | None = None
 
+class RequiredContractCapture(BaseModel):
+    """Supplementary execution evidence; never part of the rolling indicator chain."""
+
+    model_config = ConfigDict(extra="forbid")
+    requested: list[OptionContractSnapshot]
+    quotes: list[OptionContractSnapshot]
+
+
 class MarketSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -55,6 +63,11 @@ class MarketSnapshot(BaseModel):
     expiry: date
     source: str = "KOTAK_NEO"
     options: list[OptionContractSnapshot]
+    required_contracts: RequiredContractCapture | None = None
+
+    @property
+    def execution_options(self) -> list[OptionContractSnapshot]:
+        return self.options + (self.required_contracts.quotes if self.required_contracts else [])
 
     @model_validator(mode="after")
     def option_chain_must_be_usable(self) -> "MarketSnapshot":
@@ -65,4 +78,3 @@ class MarketSnapshot(BaseModel):
         if any(contract.expiry != self.expiry for contract in self.options):
             raise ValueError("option expiry does not match snapshot expiry")
         return self
-

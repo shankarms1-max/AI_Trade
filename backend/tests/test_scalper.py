@@ -61,6 +61,7 @@ def snapshot(index: int, *, direction: int = 1, gap_seconds: int = 15,
         captured_at=at, request_started_at=at - timedelta(seconds=1),
         response_received_at=at, source_market_timestamp=at,
         nifty_spot=spot, nifty_future=spot + direction * (15 + index * 4),
+        future_instrument_id="NIFTY-FUT", future_expiry=EXPIRY,
         india_vix=14, lot_size=50, atm_strike=round(spot / 50) * 50,
         expiry=EXPIRY, quotes=quotes)
 
@@ -103,8 +104,8 @@ def test_short_window_features_and_directional_signal(direction, expected):
                           min_confirmations=2, max_confirmation_gap_seconds=22.5)
     assert result.direction == expected
     assert result.score >= 75
-    assert set(result.components) == {"momentum", "structure", "futures",
-                                      "participation", "execution"}
+    assert {"momentum", "structure", "futures", "participation", "execution",
+            "slow_session"} <= set(result.components)
     assert result.confirmed
     assert "UNDERLYING_VWAP_UNAVAILABLE" in result.warnings
 
