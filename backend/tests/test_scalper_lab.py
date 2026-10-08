@@ -4,12 +4,16 @@ from datetime import timedelta
 from pathlib import Path
 import csv
 import json
+import os
 import sqlite3
 import subprocess
 import sys
+from uuid import uuid4
 
 import pytest
-from sqlalchemy import insert
+from sqlalchemy import create_engine, insert, select, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DatabaseError
 
 from app.scalper.config import ScalperConfig
 from app.scalper.models import (ScalperCandidate, ScalperMarketSnapshotRecord,
@@ -20,7 +24,8 @@ from app.scalper_lab.context import (FUTURES_BASIS, ResearchObservation,
                                      context_at)
 from app.scalper_lab.engine import (LabTrade, Ledger, ScalperLab, _candidate,
                                     _exit_reason, _risk_blockers)
-from app.scalper_lab.io import load_futures_csv, load_local_sqlite, write_result
+from app.scalper_lab.io import (load_futures_csv, load_local_sqlite,
+                                load_postgresql, write_result)
 from app.scalper_lab.strategies import decide
 from tests.test_scalper import settings
 from tests.test_scalper_trend import trend_history
@@ -423,6 +428,78 @@ def test_read_only_sqlite_input_and_new_artifacts_only(engine, tmp_path: Path):
     with sqlite3.connect(uri, uri=True) as connection:
         with pytest.raises(sqlite3.OperationalError):
             connection.execute("CREATE TABLE forbidden_write (id INTEGER)")
+
+
+@pytest.mark.skipif(not os.getenv("PHASE15_POSTGRES_TEST_URL"),
+                    reason="PHASE15_POSTGRES_TEST_URL is required for PostgreSQL integration")
+def test_postgresql_and_sqlite_load_equivalent_observations(engine, tmp_path, monkeypatch):
+    schema = f"scalper_lab_{uuid4().hex}"
+    base_url = make_url(os.environ["PHASE15_POSTGRES_TEST_URL"])
+    scoped_url = base_url.update_query_dict({"options": f"-csearch_path={schema}"})
+    admin = create_engine(base_url)
+    postgres = create_engine(scoped_url)
+    rows = observed(count=3)
+    last = rows[2].snapshot
+    outside = last.model_copy(update={"captured_at": last.captured_at + timedelta(days=1)})
+    fixtures = [(2, rows[1].snapshot), (1, rows[0].snapshot), (3, outside)]
+    try:
+        with admin.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        ScalperMarketSnapshotRecord.__table__.create(postgres)
+        ScalperOptionQuoteRecord.__table__.create(postgres)
+        for target in (engine, postgres):
+            with target.begin() as connection:
+                for identity, snapshot in fixtures:
+                    connection.execute(insert(ScalperMarketSnapshotRecord), [{
+                        **snapshot.model_dump(exclude={"quotes"}), "id": identity,
+                        "capture_key": f"lab-{identity}",
+                        "feature_json": "{}", "signal_json": "{}"}])
+                    connection.execute(insert(ScalperOptionQuoteRecord), [
+                        {**quote.model_dump(), "scalper_snapshot_id": identity}
+                        for quote in snapshot.quotes])
+        day = rows[0].snapshot.captured_at.date()
+        futures = {rows[0].snapshot.captured_at.isoformat(): rows[0].futures}
+        sqlite = load_local_sqlite(Path(engine.url.database), day, day, futures)
+        url = scoped_url.render_as_string(hide_password=False)
+        with postgres.connect() as connection:
+            before = (connection.execute(select(ScalperMarketSnapshotRecord)).all(),
+                      connection.execute(select(ScalperOptionQuoteRecord)).all())
+        loaded = load_postgresql(url, day, day, futures)
+        assert loaded == sqlite
+        assert [row.snapshot_id for row in loaded] == [1, 2]
+        assert loaded[0].futures == rows[0].futures
+        assert loaded[1].futures is None
+        with postgres.connect() as connection:
+            after = (connection.execute(select(ScalperMarketSnapshotRecord)).all(),
+                     connection.execute(select(ScalperOptionQuoteRecord)).all())
+        assert after == before
+
+        def forbidden_write(session, *_):
+            session.execute(text("UPDATE scalper_market_snapshots SET source = 'MUTATED'"))
+
+        with monkeypatch.context() as patch:
+            patch.setattr("app.scalper_lab.io._load_observations", forbidden_write)
+            with pytest.raises(DatabaseError, match="read-only transaction"):
+                load_postgresql(url, day, day)
+        with postgres.connect() as connection:
+            assert connection.execute(select(ScalperMarketSnapshotRecord)).all() == before[0]
+
+        root = Path(__file__).resolve().parents[2]
+        command = [sys.executable, str(root / "scripts/run_scalper_lab.py"),
+                   "--start", day.isoformat(), "--end", day.isoformat()]
+        for argument, env, output in (
+            (["--database-url", url], os.environ.copy(), tmp_path / "postgres-explicit"),
+            ([], {**os.environ, "DATABASE_URL": url}, tmp_path / "postgres-env"),
+        ):
+            result = subprocess.run(command + argument + ["--output", str(output)],
+                                    env=env, capture_output=True, text=True, check=False)
+            assert result.returncode == 0, result.stderr
+            assert json.loads(result.stdout)["periods"][0]["observations"] == 2
+    finally:
+        postgres.dispose()
+        with admin.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        admin.dispose()
 
 
 def test_future_observation_is_rejected_before_feature_calculation():

@@ -3,8 +3,9 @@
 The lab compares four fixed, independent paper strategies on the same ordered Phase
 15 snapshots. It is a separate offline package (`app.scalper_lab`) and CLI. It does
 not change the live worker, live signal rules, existing paper journal, Phase 14.2,
-or broker adapter. No order client is imported. The input SQLite file is opened
-with `mode=ro`; the lab writes new files only in a user-supplied output directory.
+or broker adapter. No order client is imported. SQLite input is opened with
+`mode=ro`; PostgreSQL input is read within a `SET TRANSACTION READ ONLY`
+transaction. The lab writes new files only in a user-supplied output directory.
 
 ## Inputs and causal evidence
 
@@ -119,6 +120,21 @@ python scripts/run_scalper_lab.py \
   --start 2026-10-08 --end 2026-10-08 \
   --output /path/to/new-lab-output
 ```
+
+For PostgreSQL, use `--database-url` or set `DATABASE_URL` instead of
+`--database`:
+
+```bash
+python scripts/run_scalper_lab.py \
+  --database-url 'postgresql+psycopg://readonly_user:password@host:5432/database' \
+  --start 2026-10-08 --end 2026-10-08 \
+  --output /path/to/new-lab-output
+```
+
+The PostgreSQL connection uses the same snapshot and option-quote models, IST
+date boundaries and capture-time/ID ordering as SQLite. Its transaction is
+read-only; use a database role with `SELECT` privileges for another layer of
+protection. The URL is never included in lab output artifacts.
 
 An optional `--futures-csv` must contain `timestamp,source_timestamp,symbol,
 expiry,instrument_token,ltp,cumulative_volume,vwap,basis,source_fields`.

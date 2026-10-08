@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from datetime import date
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -15,7 +16,8 @@ from app.core.config import Settings  # noqa: E402
 from app.scalper.config import ScalperConfig  # noqa: E402
 from app.scalper.paper import cost_schedule  # noqa: E402
 from app.scalper_lab.engine import ScalperLab  # noqa: E402
-from app.scalper_lab.io import load_futures_csv, load_local_sqlite, write_result  # noqa: E402
+from app.scalper_lab.io import (load_futures_csv, load_local_sqlite,  # noqa: E402
+                                load_postgresql, write_result)
 
 
 def _date(value: str) -> date:
@@ -27,8 +29,11 @@ def _date(value: str) -> date:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", required=True, type=Path,
-                        help="local Phase 15 SQLite file; opened with mode=ro")
+    database = parser.add_mutually_exclusive_group()
+    database.add_argument("--database", type=Path,
+                          help="local Phase 15 SQLite file; opened with mode=ro")
+    database.add_argument("--database-url",
+                          help="PostgreSQL URL; opened in a read-only transaction")
     parser.add_argument("--futures-csv", type=Path,
                         help="optional broker futures quote export with real volume and VWAP")
     parser.add_argument("--output", required=True, type=Path,
@@ -40,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--validation-start", type=_date)
     parser.add_argument("--validation-end", type=_date)
     args = parser.parse_args(argv)
+    database_url = args.database_url or (os.getenv("DATABASE_URL") if args.database is None
+                                         else None)
+    if args.database is None and database_url is None:
+        parser.error("provide --database, --database-url, or DATABASE_URL")
     split = [args.research_start, args.research_end,
              args.validation_start, args.validation_end]
     if all(item is not None for item in split):
@@ -62,7 +71,11 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     args.output.mkdir(parents=True, exist_ok=False)
     for period, start, end in periods:
-        observations = load_local_sqlite(args.database, start, end, futures)
+        if args.database is not None:
+            observations = load_local_sqlite(args.database, start, end, futures)
+        else:
+            assert database_url is not None
+            observations = load_postgresql(database_url, start, end, futures)
         result = lab.run(observations, period=period)
         directory = args.output / period.lower()
         write_result(result, directory)

@@ -10,6 +10,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import create_engine, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, selectinload
 
 from app.scalper.models import ScalperMarketSnapshotRecord
@@ -66,25 +67,48 @@ def load_local_sqlite(path: Path, start: date, end: date,
         raise FileNotFoundError(path)
     uri = path.resolve().as_uri() + "?mode=ro"
     engine = create_engine("sqlite+pysqlite://", creator=lambda: sqlite3.connect(uri, uri=True))
-    lower = datetime.combine(start, time.min, tzinfo=IST)
-    upper = datetime.combine(end + timedelta(days=1), time.min, tzinfo=IST)
     try:
         with Session(engine) as session:
-            records = session.scalars(select(ScalperMarketSnapshotRecord).options(
-                selectinload(ScalperMarketSnapshotRecord.quotes)).where(
-                    ScalperMarketSnapshotRecord.captured_at >= lower,
-                    ScalperMarketSnapshotRecord.captured_at < upper).order_by(
-                        ScalperMarketSnapshotRecord.captured_at,
-                        ScalperMarketSnapshotRecord.id)).all()
-            output = []
-            for record in records:
-                snapshot = ScalperRepository._row_to_snapshot(record)
-                output.append(ResearchObservation(
-                    record.id, snapshot,
-                    (futures or {}).get(snapshot.captured_at.isoformat())))
-            return output
+            return _load_observations(session, start, end, futures)
     finally:
         engine.dispose()
+
+
+def load_postgresql(database_url: str, start: date, end: date,
+                    futures: dict[str, dict[str, Any]] | None = None) -> list[ResearchObservation]:
+    """Read Phase 15 evidence inside a PostgreSQL read-only transaction."""
+    if make_url(database_url).get_backend_name() != "postgresql":
+        raise ValueError("LAB_POSTGRESQL_URL_REQUIRED")
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            with connection.begin():
+                connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+                with Session(connection) as session:
+                    return _load_observations(session, start, end, futures)
+    finally:
+        engine.dispose()
+
+
+def _load_observations(session: Session, start: date, end: date,
+                       futures: dict[str, dict[str, Any]] | None) -> list[ResearchObservation]:
+    if end < start:
+        raise ValueError("LAB_DATE_RANGE_INVALID")
+    lower = datetime.combine(start, time.min, tzinfo=IST)
+    upper = datetime.combine(end + timedelta(days=1), time.min, tzinfo=IST)
+    records = session.scalars(select(ScalperMarketSnapshotRecord).options(
+        selectinload(ScalperMarketSnapshotRecord.quotes)).where(
+            ScalperMarketSnapshotRecord.captured_at >= lower,
+            ScalperMarketSnapshotRecord.captured_at < upper).order_by(
+                ScalperMarketSnapshotRecord.captured_at,
+                ScalperMarketSnapshotRecord.id)).all()
+    output = []
+    for record in records:
+        snapshot = ScalperRepository._row_to_snapshot(record)
+        output.append(ResearchObservation(
+            record.id, snapshot,
+            (futures or {}).get(snapshot.captured_at.isoformat())))
+    return output
 
 
 def _jsonline(path: Path, rows: tuple[dict, ...]) -> None:
