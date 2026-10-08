@@ -9,7 +9,7 @@ from typing import Any, Literal
 from app.research.manifest import digest
 from app.scalper.config import ScalperConfig
 from app.strategy.construction import (construction_key, ordinal_score,
-                                       premium_retention, defined_risk_rejection)
+                                       premium_retention, defined_risk_rejection, short_leg_quality)
 from app.scalper.models import (ScalperCandidate, ScalperDirection, ScalperLeg,
                                 ScalperMarketSnapshot, ScalperOptionQuote,
                                 ScalperSignal)
@@ -184,17 +184,27 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                                 "long": {**long.model_dump(mode="json"),
                                          "validation": long_book.payload(), "side": "ask"}},
             ))
+    premium_reference = max((c.quote_evidence["short"]["bid"] for c in candidates), default=1)
+    for item in candidates:
+        quote = item.quote_evidence["short"]
+        signed_structure = signal.components.get("structure")
+        sign = 1 if signal.direction == ScalperDirection.BULL else -1
+        item.construction_evidence.update(short_leg_quality(
+            price=quote["bid"], premium_reference=premium_reference,
+            distance=item.short_distance_points, distance_scale=config.min_short_distance_points,
+            oi=quote["open_interest"], min_oi=config.min_open_interest,
+            volume=quote["volume"], min_volume=config.min_volume,
+            spread_pct=quote["validation"]["spread_pct"], max_spread_pct=config.max_bid_ask_spread_pct,
+            # Existing signal structure is signed and bounded by +/-20.
+            structure=None if signed_structure is None else sign * signed_structure / 20,
+            directional_fit=signal.score / 100))
     candidates.sort(key=lambda item: construction_key(
-        short_price=item.quote_evidence["short"]["bid"],
-        short_oi=item.quote_evidence["short"]["open_interest"],
-        short_volume=item.quote_evidence["short"]["volume"],
-        short_spread_pct=item.quote_evidence["short"]["validation"]["spread_pct"],
-        short_distance=item.short_distance_points, retention=item.premium_retention_ratio,
+        short_quality=item.construction_evidence["short_quality_score"], retention=item.premium_retention_ratio,
         width=item.spread_width, identity=item.candidate_id))
     candidates = [item.model_copy(update={"ranking_score": ordinal_score(i, len(candidates)),
                   "construction_evidence": {**item.construction_evidence,
                       "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
-                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                      "ranking_basis": "BALANCED_SHORT_QUALITY_THEN_PREMIUM_RETENTION_V2"}})
                   for i, item in enumerate(candidates)]
     return CandidateBuildResult(candidates, rejected)
 

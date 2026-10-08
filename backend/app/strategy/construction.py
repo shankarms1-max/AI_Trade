@@ -14,13 +14,63 @@ def premium_retention(short_sell_price, long_buy_price):
     return (short_sell_price - long_buy_price) / short_sell_price
 
 
-def construction_key(*, short_price, short_oi, short_volume, short_spread_pct,
-                     short_distance, retention, width, identity):
-    # Structure/direction/survival and liquidity are mandatory upstream gates.
-    # Premium is the dominant economic decision; no unavailable Greek is inferred.
-    return (-short_price, -(short_oi or 0), -(short_volume or 0),
-            short_spread_pct if short_spread_pct is not None else float("inf"),
-            short_distance, -retention, -width, identity)
+def short_leg_quality(*, price, premium_reference, distance, distance_scale,
+                      oi, min_oi, volume, min_volume, spread_pct, max_spread_pct,
+                      structure=None, directional_fit=None, survival=None):
+    """Equal-weight, bounded short-only factors, not a probability or a gate.
+
+    Premium is scaled to the best eligible short in this observation. Safety
+    distance and liquidity saturate at their existing policy scales. Optional
+    evidence stays absent, not fabricated. No hedge price/width enters this score.
+    """
+    def clip(value):
+        return max(0.0, min(1.0, value))
+
+    liquidity = [value / (value + max(minimum, 1))
+                 for value, minimum in ((oi, min_oi), (volume, min_volume))
+                 if value is not None]
+    components = {
+        "premium": clip(price / premium_reference),
+        "distance": clip(distance / (distance + max(distance_scale, 1))),
+        "liquidity": sum(liquidity) / len(liquidity) if liquidity else None,
+        "execution": (None if spread_pct is None else
+                      float(spread_pct == 0) if max_spread_pct == 0 else
+                      clip(1 - spread_pct / max_spread_pct)),
+        "structure": None if structure is None else clip(structure),
+        "directional_fit": None if directional_fit is None else clip(directional_fit),
+        "survival": None if survival is None else clip(survival),
+    }
+    available = [value for value in components.values() if value is not None]
+    return {"short_quality_score": 100 * sum(available) / len(available),
+            "short_quality_components": components,
+            "short_quality_weighting": "EQUAL_AVAILABLE_FACTORS",
+            "premium_reference": premium_reference,
+            "distance_scale": distance_scale}
+
+
+def phase14_short_quality(candidate, premium_reference, config):
+    """Reuse existing structure/survival evidence without hedge liquidity leakage."""
+    parts = candidate.survival_components
+    weights = config.credit_spread_policy.survival_weights
+    present = {key: weight for key, weight in weights.items()
+               if key != "liquidity" and key in parts}
+    survival = (sum(parts[key] * weight for key, weight in present.items()) / sum(present.values())
+                if present and sum(present.values()) > 0 else None)
+    scale = candidate.required_short_strike_buffer or config.min_short_distance_points
+    reference = candidate.support_or_resistance_reference
+    structure = (max(0, abs(candidate.short_leg.strike - reference)) / max(scale, 1)
+                 if reference is not None else None)
+    return short_leg_quality(price=candidate.construction_evidence["short_sell_price"],
+        premium_reference=premium_reference, distance=candidate.short_leg_distance_from_spot,
+        distance_scale=scale, oi=candidate.short_leg.open_interest,
+        min_oi=config.min_short_open_interest, volume=candidate.short_leg.volume,
+        min_volume=config.min_short_volume, spread_pct=candidate.liquidity_metrics.short_bid_ask_spread_pct,
+        max_spread_pct=config.max_bid_ask_spread_pct, structure=structure,
+        directional_fit=candidate.ranking_components.get("directional"), survival=survival)
+
+
+def construction_key(*, short_quality, retention, width, identity):
+    return (-short_quality, -retention, -width, identity)
 
 
 def ordinal_score(index, count):

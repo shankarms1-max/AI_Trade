@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     strategy_require_structure_reference: bool = True
     strategy_min_short_distance_points: float = Field(default=100, ge=0)
     strategy_min_short_distance_pct: float = Field(default=0.25, ge=0)
-    strategy_allowed_spread_widths: str = "50,100,150,200"
+    strategy_allowed_spread_widths: str = "50,100,150,200,300,400"
     strategy_min_short_premium: float = Field(default=1, ge=0)
     strategy_min_net_credit: float = Field(default=1, ge=0)
     strategy_min_credit_to_width_ratio: float = Field(default=0.03, ge=0)
@@ -200,7 +200,8 @@ class Settings(BaseSettings):
     risk_max_capital_per_trade: float | None = Field(default=None, gt=0)
     risk_max_trades_per_day: int = Field(default=1, ge=0)
     risk_max_daily_loss: float | None = Field(default=None, gt=0)
-    risk_max_spread_width: float = Field(default=200, gt=0)
+    # Optional explicit ceiling; defined loss/capital remain mandatory risk gates.
+    risk_max_spread_width: float | None = Field(default=None, gt=0)
     risk_min_net_credit: float = Field(default=1, ge=0)
     risk_min_credit_to_width: float = Field(default=0.03, ge=0)
     risk_min_short_oi: int = Field(default=100, ge=0)

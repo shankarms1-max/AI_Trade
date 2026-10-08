@@ -22,7 +22,7 @@ from app.strategy.liquidity import check_liquidity, bid_ask_spread_pct
 from app.strategy.payoff import calculate_payoff
 from app.strategy.pricing import price_spread
 from app.strategy.construction import (construction_key, ordinal_score,
-                                       defined_risk_rejection, phase14_quote_failure)
+                                       defined_risk_rejection, phase14_quote_failure, phase14_short_quality)
 
 
 def generate_credit_spread_candidates(
@@ -368,11 +368,12 @@ def generate_credit_spread_candidates(
                         created_at=snapshot.timestamp_ist,
                     )
                 )
+    premium_reference = max((c.construction_evidence["short_sell_price"] for c in candidates), default=1)
+    candidates = [c.model_copy(update={"construction_evidence": {**c.construction_evidence,
+                  **phase14_short_quality(c, premium_reference, config)}}) for c in candidates]
     candidates.sort(
-        key=lambda c: construction_key(short_price=c.construction_evidence["short_sell_price"],
-            short_oi=c.short_leg.open_interest, short_volume=c.short_leg.volume,
-            short_spread_pct=c.liquidity_metrics.short_bid_ask_spread_pct,
-            short_distance=c.short_leg_distance_from_spot, retention=c.premium_retention_ratio,
+        key=lambda c: construction_key(short_quality=c.construction_evidence["short_quality_score"],
+            retention=c.premium_retention_ratio,
             width=c.spread_width, identity=(-c.construction_evidence["prior_vertical_score"],
                 c.strategy_family.value, c.candidate_id))
     )
@@ -391,7 +392,7 @@ def generate_credit_spread_candidates(
     candidates = [c.model_copy(update={"selection_score": ordinal_score(i, len(candidates)),
                   "construction_evidence": {**c.construction_evidence,
                       "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
-                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                      "ranking_basis": "BALANCED_SHORT_QUALITY_THEN_PREMIUM_RETENTION_V2"}})
                   for i, c in enumerate(candidates)]
     candidates = candidates[: config.max_candidates]
     if not candidates:

@@ -1,4 +1,5 @@
 from datetime import datetime
+from math import isfinite
 from zoneinfo import ZoneInfo
 
 from app.data.models import MarketSnapshot
@@ -237,9 +238,11 @@ def _evaluate_candidate(
         _check(checks, "BID_ASK_SPREAD", CheckStatus.NOT_AVAILABLE, None,
                config.max_bid_ask_spread_pct, "Bid/ask spread unavailable")
 
-    width_ok = 0 < candidate.spread_width <= config.max_spread_width
+    width_ok = isfinite(candidate.spread_width) and candidate.spread_width > 0 and (
+        config.max_spread_width is None or candidate.spread_width <= config.max_spread_width)
     _check(checks, "MAX_SPREAD_WIDTH", CheckStatus.PASS if width_ok else CheckStatus.FAIL,
-           candidate.spread_width, config.max_spread_width, "Maximum allowed defined-risk width")
+           candidate.spread_width, config.max_spread_width,
+           "Positive defined-risk width; optional explicitly configured hard ceiling")
     if not width_ok:
         reasons.append("MAX_SPREAD_WIDTH_EXCEEDED")
     calculated_loss = (repriced.gross_max_loss if repriced and repriced.gross_max_loss is not None

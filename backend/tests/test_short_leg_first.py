@@ -28,7 +28,7 @@ def direction(request):
     return request.param
 
 
-def example(market_snapshot, direction, *, far_ask=10, far_change=None):
+def example(market_snapshot, direction, *, far_ask=10, far_change=None, structure_buffered=True):
     raw, feature, regime, _ = phase14_context.__wrapped__(market_snapshot)
     sign = 1 if direction == "BEARISH" else -1
     kind = "CE" if sign == 1 else "PE"
@@ -45,6 +45,15 @@ def example(market_snapshot, direction, *, far_ask=10, far_change=None):
             "depth_unit": "UNITS", "bid_quantity": 500, "ask_quantity": 500,
             "open_interest": 5000, "volume": 500, **change}))
     raw = raw.model_copy(update={"options": options})
+    if structure_buffered:
+        # Isolate hedge selection: the premium-rich short already has a full
+        # structural buffer. Separate tests exercise a materially safer rival.
+        levels = feature.support_resistance
+        feature = feature.model_copy(update={"support_resistance": levels.model_copy(update={
+            "potential_support_clusters": [c.model_copy(update={"low_strike": 24800, "high_strike": 24850})
+                for c in levels.potential_support_clusters],
+            "potential_resistance_clusters": [c.model_copy(update={"low_strike": 25150, "high_strike": 25200})
+                for c in levels.potential_resistance_clusters]})})
     regime = regime.model_copy(update={"regime": Regime(direction), "market_bias": MarketBias(direction),
         "directional_strength": DirectionalStrength.STRONG, "directional_score": 80,
         "strategy_family_eligibility": StrategyFamilyEligibility.DIRECTIONAL_ONLY})

@@ -696,11 +696,12 @@ def test_wider_spread_monetary_veto(context, limit, reason, width):
     assert reason in result.decisions[0].reason_codes
 
 
-def test_existing_width_cap_remains_strict(context):
+def test_explicit_width_cap_remains_strict(context):
     result = risk(
         context,
         config=RiskConfig(
             credit_spread_policy=CreditSpreadPolicy(enabled=True),
+            max_spread_width=200,
             max_loss_per_trade=100000,
             max_capital_per_trade=100000,
             required_consecutive_directional_snapshots=1,
@@ -1010,7 +1011,7 @@ def test_flags_and_legacy_behavior_unchanged(market_snapshot):
         not settings.strategy_volatility_buffer_enabled
         and not settings.pipeline_run_ai_research
     )
-    assert settings.configured_strategy_widths == (50, 100, 150, 200)
+    assert settings.configured_strategy_widths == (50, 100, 150, 200, 300, 400)
     raw, f, r = phase6_context(market_snapshot)
     default = generate_candidates(raw, f, r, 10)
     actual = generate_candidates(raw, f, r, 10, config_from_settings(settings))

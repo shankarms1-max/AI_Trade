@@ -20,7 +20,8 @@ from app.strategy.payoff import calculate_payoff
 from app.strategy.pricing import price_spread
 from app.strategy.strike_selection import structural_reference
 from app.strategy.construction import (construction_key, ordinal_score,
-                                       premium_retention, defined_risk_rejection, phase14_quote_failure)
+                                       premium_retention, defined_risk_rejection, phase14_quote_failure,
+                                       phase14_short_quality)
 
 IST = ZoneInfo("Asia/Kolkata")
 QUALITY_RANK = {"INSUFFICIENT": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -34,7 +35,7 @@ class StrategyConfig:
     require_structure_reference: bool = True
     min_short_distance_points: float = 100
     min_short_distance_pct: float = 0.25
-    allowed_spread_widths: tuple[float, ...] = (50, 100, 150, 200)
+    allowed_spread_widths: tuple[float, ...] = (50, 100, 150, 200, 300, 400)
     min_short_premium: float = 1
     min_net_credit: float = 1
     min_credit_to_width_ratio: float = 0.03
@@ -319,15 +320,16 @@ def generate_candidates(
                 warnings=list(dict.fromkeys(warnings)),
                 created_at=datetime.now(IST),
             ))
+    premium_reference = max((c.construction_evidence["short_sell_price"] for c in candidates), default=1)
+    candidates = [c.model_copy(update={"construction_evidence": {**c.construction_evidence,
+                  **phase14_short_quality(c, premium_reference, config)}}) for c in candidates]
     candidates.sort(key=lambda c: construction_key(
-        short_price=c.construction_evidence["short_sell_price"], short_oi=c.short_leg.open_interest,
-        short_volume=c.short_leg.volume, short_spread_pct=c.liquidity_metrics.short_bid_ask_spread_pct,
-        short_distance=c.short_leg_distance_from_spot, retention=c.premium_retention_ratio,
+        short_quality=c.construction_evidence["short_quality_score"], retention=c.premium_retention_ratio,
         width=c.spread_width, identity=c.candidate_id))
     candidates = [c.model_copy(update={"selection_score": ordinal_score(i, len(candidates)),
                   "construction_evidence": {**c.construction_evidence,
                       "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
-                      "ranking_basis": "SHORT_PRIORITY_THEN_PREMIUM_RETENTION"}})
+                      "ranking_basis": "BALANCED_SHORT_QUALITY_THEN_PREMIUM_RETENTION_V2"}})
                   for i, c in enumerate(candidates)]
     candidates = candidates[:config.max_candidates]
     if not candidates:

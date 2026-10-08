@@ -11,7 +11,7 @@ class RiskConfig:
     max_capital_per_trade: float | None = None
     max_trades_per_day: int = 1
     max_daily_loss: float | None = None
-    max_spread_width: float = 200
+    max_spread_width: float | None = None
     min_net_credit: float = 1
     min_credit_to_width: float = 0.03
     min_short_oi: int = 100
