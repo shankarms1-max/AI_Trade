@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from pathlib import Path
 from statistics import mean, median
 from typing import Any
+import subprocess
 
 from app.research.costs import CostSchedule
 from app.risk.event_checks import ConfiguredMarketEventProvider
@@ -15,6 +18,7 @@ from app.scalper.models import ScalperCandidate, ScalperDirection, ScalperSignal
 from app.scalper.paper import executable_pair
 from app.scalper.strategy import build_candidates
 from app.scalper_lab import LAB_VERSION, STRATEGY_IDS
+from app.scalper_lab import acts
 from app.scalper_lab.context import ResearchObservation, context_at
 from app.scalper_lab.strategies import decide
 
@@ -43,6 +47,8 @@ class LabTrade:
     adverse_vwap_count: int = 0
     adverse_structure_count: int = 0
     premium_flip_count: int = 0
+    acts_adverse_since: dict[str, datetime] = field(default_factory=dict)
+    acts_last_adverse_at: dict[str, datetime] = field(default_factory=dict)
 
     def payload(self) -> dict[str, Any]:
         return json_value({
@@ -80,6 +86,7 @@ class LabResult:
     trades: tuple[dict[str, Any], ...]
     summaries: dict[str, dict[str, Any]]
     comparison: tuple[dict[str, Any], ...]
+    acts_ledger: tuple[dict[str, Any], ...] = ()
 
 
 def _construction_signal(raw, direction: str) -> ScalperSignal:
@@ -109,6 +116,19 @@ def _candidate(raw, decision: dict, context: dict, config: ScalperConfig):
         activity = position.get("activity", {}).get("1m")
         price = position.get("premium_change", {}).get("1m")
         wall_distance = abs(candidate.short_leg.strike - wall["strike"]) if wall else 500
+        if decision["strategy_id"] == acts.STRATEGY_ID:
+            slow = (position.get("activity", {}).get(h) for h in ("3m", "5m"))
+            writing = any(value == "WRITING" for value in slow)
+            slow_delta = [position.get("delta_oi", {}).get(h) for h in ("3m", "5m")]
+            slow_price = [position.get("premium_change", {}).get(h) for h in ("3m", "5m")]
+            return (wall_distance / 50,
+                    0 if writing else 1,
+                    0 if any(value is not None and value > 0 for value in slow_delta) else 1,
+                    0 if any(value is not None and value <= 0 for value in slow_price) else 1,
+                    -float(quote["bid"]), candidate.short_distance_points,
+                    -candidate.construction_evidence["short_quality_score"],
+                    -candidate.premium_retention_ratio,
+                    candidate.spread_width, candidate.candidate_id)
         # Wall relevance is combined with fresh premium/OI behavior and the
         # builder's actual liquidity, book and hedge economics. Max OI alone
         # never decides a short leg.
@@ -184,6 +204,8 @@ def _entry_valid(trade: LabTrade, ctx: dict) -> str | None:
     strategy = trade.strategy_id
     direction = trade.decision["direction"]
     sign = 1 if direction == "BULL" else -1
+    if strategy == acts.STRATEGY_ID:
+        return acts.entry_valid(ctx, direction)
     if strategy in {"VWAP_OI_REJECTION", "ORB_RETEST"}:
         if ctx["vwap"]["status"] != "AVAILABLE":
             return "PENDING_VWAP_UNAVAILABLE"
@@ -275,15 +297,25 @@ def _exit_reason(trade: LabTrade, ctx: dict, debit: float,
         if (five is not None and fifteen is not None
                 and sign * five <= -4 and sign * fifteen <= -8):
             return "TREND_REVERSAL"
+    elif trade.strategy_id == acts.STRATEGY_ID:
+        reason = acts.thesis_exit(trade, ctx)
+        if reason is not None:
+            return reason
 
     pnl = trade.entry_credit - debit
     best = max(trade.best_gross_points, pnl)
     if (best >= trade.entry_credit * config.trailing_activation_pct / 100
             and pnl <= best - trade.entry_credit * config.trailing_giveback_pct / 100):
         return "TRAILING_EXIT"
-    if debit <= trade.entry_credit * (1 - config.profit_capture_pct / 100):
+    profit_pct = (float(acts.PARAMETERS["profit_capture_pct"])
+                  if trade.strategy_id == acts.STRATEGY_ID
+                  else config.profit_capture_pct)
+    if debit <= trade.entry_credit * (1 - profit_pct / 100):
         return "PROFIT_CAPTURE"
-    if (raw_at - trade.entry_timestamp).total_seconds() >= config.time_stop_minutes * 60:
+    stop_minutes = (int(acts.PARAMETERS["time_stop_minutes"])
+                    if trade.strategy_id == acts.STRATEGY_ID
+                    else config.time_stop_minutes)
+    if (raw_at - trade.entry_timestamp).total_seconds() >= stop_minutes * 60:
         return "TIME_STOP"
     return None
 
@@ -312,6 +344,11 @@ def _transition(trade: LabTrade, row: ResearchObservation, ctx: dict,
         trade.state = "OPEN"
         trade.entry_credit, trade.entry_timestamp = pair.value, raw.captured_at
         trade.entry_spot, trade.entry_quotes = raw.nifty_spot, pair.evidence
+        if trade.strategy_id == acts.STRATEGY_ID:
+            trade.decision["thesis"].update(entry_credit=pair.value,
+                                            defined_max_loss=loss,
+                                            entry_short_price=pair.short_price,
+                                            entry_hedge_price=pair.long_price)
         trade.last_mark_debit = pair.value
         return
     if trade.state != "OPEN":
@@ -335,6 +372,17 @@ def _transition(trade: LabTrade, row: ResearchObservation, ctx: dict,
                          "regime": ctx["regime"], "vwap": ctx["vwap"],
                          "wall": _wall_row(trade, ctx), "fast_direction": ctx["fast_direction"],
                          "spread_debit": pair.value}
+    if trade.strategy_id == acts.STRATEGY_ID:
+        trade.exit_thesis.update(alpha=ctx["acts"]["alpha"],
+                                 positioning=ctx["acts"]["positioning"],
+                                 futures_5m_bps=ctx["futures_returns_bps"].get("5m"),
+                                 futures_15m_bps=ctx["futures_returns_bps"].get("15m"),
+                                 spot=ctx["spot"], future=ctx["future"],
+                                 held_wall_strike=(trade.decision["thesis"]["wall"]["strike"]
+                                                   if trade.decision["thesis"].get("wall")
+                                                   else None),
+                                 adverse_since={key: value.isoformat() for key, value
+                                                in trade.acts_adverse_since.items()})
     assert trade.entry_quotes is not None
     trade.outcome = costs.calculate(
         day=raw.captured_at.date(), lot_size=raw.lot_size, lots=config.lots,
@@ -365,32 +413,56 @@ def _summary(strategy: str, observations: int, decisions: list[dict],
     regime = Counter(trade.decision["regime"] for trade in trades)
     rejection = Counter(trade.rejection_reason for trade in trades if trade.rejection_reason)
     blockers = Counter(reason for decision in decisions for reason in decision["blockers"])
-    return {"strategy_id": strategy, "observations": observations,
-            "setups": sum(row["status"] == "WATCH" for row in decisions),
-            "watch_states": sum(row["status"] == "WATCH" for row in decisions),
-            "qualified_entries": sum(row["status"] == "ENTER" and not row["blockers"]
-                                     for row in decisions),
-            "executed_trades": sum(trade.entry_timestamp is not None for trade in trades),
-            "wins": len(wins), "losses": len(losses),
-            "win_rate": len(wins) / len(closed) if closed else None,
-            "gross_pnl": sum(pnls),
-            "net_pnl": sum(_outcome(t)["net_rupees"] for t in closed) if outcomes_complete else None,
-            "accounting_status": "NET_COMPLETE" if outcomes_complete else "GROSS_ONLY",
-            "average_winner": mean(wins) if wins else None,
-            "average_loser": mean(losses) if losses else None,
-            "expectancy_per_trade": mean(pnls) if pnls else None,
-            "profit_factor": sum(wins) / abs(sum(losses)) if losses else None,
-            "profit_factor_status": ("DEFINED" if losses else
-                                     "NO_LOSING_TRADES" if wins else "NO_CLOSED_TRADES"),
-            "max_drawdown": max_drawdown, "worst_trade": min(pnls) if pnls else None,
-            "max_consecutive_losses": worst_streak,
-            "average_holding_seconds": (mean(_holding_seconds(t) for t in closed) if closed else None),
-            "median_holding_seconds": (median(_holding_seconds(t) for t in closed) if closed else None),
-            "direction_split": dict(direction), "vix_regime_split": dict(vix),
-            "market_regime_split": dict(regime),
-            "exit_reason_split": dict(Counter(t.exit_reason for t in closed)),
-            "unresolved_trades": sum(t.state == "UNRESOLVED" for t in trades),
-            "rejection_counts": dict(rejection), "blocker_counts": dict(blockers)}
+    result = {
+        "strategy_id": strategy, "observations": observations,
+        "setups": sum(row["status"] == "WATCH" for row in decisions),
+        "watch_states": sum(row["status"] == "WATCH" for row in decisions),
+        "qualified_entries": sum(row["status"] == "ENTER" and not row["blockers"]
+                                 for row in decisions),
+        "executed_trades": sum(trade.entry_timestamp is not None for trade in trades),
+        "wins": len(wins), "losses": len(losses),
+        "win_rate": len(wins) / len(closed) if closed else None,
+        "gross_pnl": sum(pnls),
+        "net_pnl": sum(_outcome(t)["net_rupees"] for t in closed) if outcomes_complete else None,
+        "accounting_status": "NET_COMPLETE" if outcomes_complete else "GROSS_ONLY",
+        "average_winner": mean(wins) if wins else None,
+        "average_loser": mean(losses) if losses else None,
+        "expectancy_per_trade": mean(pnls) if pnls else None,
+        "profit_factor": sum(wins) / abs(sum(losses)) if losses else None,
+        "profit_factor_status": ("DEFINED" if losses else
+                                 "NO_LOSING_TRADES" if wins else "NO_CLOSED_TRADES"),
+        "max_drawdown": max_drawdown, "worst_trade": min(pnls) if pnls else None,
+        "max_consecutive_losses": worst_streak,
+        "average_holding_seconds": (mean(_holding_seconds(t) for t in closed) if closed else None),
+        "median_holding_seconds": (median(_holding_seconds(t) for t in closed) if closed else None),
+        "direction_split": dict(direction), "vix_regime_split": dict(vix),
+        "market_regime_split": dict(regime),
+        "exit_reason_split": dict(Counter(t.exit_reason for t in closed)),
+        "unresolved_trades": sum(t.state == "UNRESOLVED" for t in trades),
+        "rejection_counts": dict(rejection), "blocker_counts": dict(blockers),
+    }
+    if strategy == acts.STRATEGY_ID:
+        eligible = [row for row in decisions if row["positioning_checks"]]
+        result.update(status_counts={status: sum(row["status"] == status for row in decisions)
+                                     for status in ("NO_SETUP", "WATCH", "ENTER")},
+                      alpha_classification_split=dict(Counter(
+                          row["alpha"]["classification"] for row in decisions)),
+                      decision_regime_split=dict(Counter(row["regime"] for row in decisions)),
+                      positioning_condition_hit_rates={name: (
+                          sum(row["positioning_checks"].get(name, False) for row in eligible)
+                          / len(eligible) if eligible else None)
+                          for name in ("A", "B", "C", "D")})
+    return result
+
+
+def _code_revision() -> tuple[str | None, bool]:
+    root = Path(__file__).resolve().parents[3]
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                            capture_output=True, text=True, check=False)
+    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root,
+                           capture_output=True, text=True, check=False)
+    return (commit.stdout.strip() if commit.returncode == 0 else None,
+            dirty.returncode != 0 or bool(dirty.stdout.strip()))
 
 
 class ScalperLab:
@@ -423,7 +495,11 @@ class ScalperLab:
             ctx = context_at(row, history, self.config.interval_seconds,
                              self.config.max_quote_age_seconds)
             ctx["snapshot_id"] = row.snapshot_id
-            contexts.append(ctx)
+            ctx["future_instrument_id"] = row.snapshot.future_instrument_id
+            ctx["future_expiry"] = row.snapshot.future_expiry
+            ctx["expiry_date"] = row.snapshot.expiry
+            ctx["acts"] = acts.evidence(ctx, row.alpha)
+            contexts.append(json_value(ctx))
             blocked = (row.snapshot.captured_at in (event_blocked_at or set())
                        or any(event.block_entries for event in
                               self.events.events_at(row.snapshot.captured_at)))
@@ -436,7 +512,10 @@ class ScalperLab:
                 decision["snapshot_id"] = row.snapshot_id
                 decision["evidence_snapshot_id"] = row.snapshot_id
                 if decision["status"] == "ENTER":
-                    reason = _risk_blockers(ledger, self.config, row.snapshot.captured_at, blocked)
+                    risk_config = (replace(self.config, max_trades_per_day=min(
+                        self.config.max_trades_per_day, 3))
+                        if strategy == acts.STRATEGY_ID else self.config)
+                    reason = _risk_blockers(ledger, risk_config, row.snapshot.captured_at, blocked)
                     candidate, rejected = _candidate(row.snapshot, decision, ctx, self.config)
                     decision["candidate_rejections"] = rejected
                     if candidate is None:
@@ -470,6 +549,15 @@ class ScalperLab:
                             "bid": short_quote["bid"],
                             "short_quality": candidate.construction_evidence["short_quality_score"],
                             "book_validation": short_quote["validation"]}
+                        if strategy == acts.STRATEGY_ID:
+                            thesis["short_leg_reason"].update(
+                                delta_oi_3m=matching["delta_oi"]["3m"] if matching else None,
+                                delta_oi_5m=matching["delta_oi"]["5m"] if matching else None,
+                                premium_change_3m=(matching["premium_change"]["3m"]
+                                                   if matching else None),
+                                premium_change_5m=(matching["premium_change"]["5m"]
+                                                   if matching else None),
+                                short_premium=short_quote["bid"])
                         thesis["hedge_reason"] = {
                             "strike": candidate.long_leg.strike,
                             "width": candidate.spread_width,
@@ -486,7 +574,13 @@ class ScalperLab:
                                                   "NORMAL" if ctx["vix"] < 20 else
                                                   "ELEVATED" if ctx["vix"] < 30 else "HIGH"),
                                       selected_candidate=candidate.model_dump(mode="json"))
-                        ledger.trades.append(LabTrade(strategy, candidate, decision.copy(),
+                        if strategy == acts.STRATEGY_ID:
+                            thesis.update(short_strike=candidate.short_leg.strike,
+                                          hedge_strike=candidate.long_leg.strike,
+                                          executable_credit=candidate.executable_credit,
+                                          defined_max_loss_per_lot=candidate.defined_max_loss_per_lot)
+                        frozen_decision = deepcopy(decision) if strategy == acts.STRATEGY_ID else decision.copy()
+                        ledger.trades.append(LabTrade(strategy, candidate, frozen_decision,
                                                       row.snapshot_id))
                 decisions.append(decision)
             history.append(row)
@@ -500,7 +594,9 @@ class ScalperLab:
                      ledger.trades) for strategy, ledger in ledgers.items()}
         comparison = tuple(summaries[strategy] for strategy in STRATEGY_IDS)
         dataset_hash = digest([(row.snapshot_id, row.snapshot.model_dump(mode="json"),
-                                row.futures) for row in observations])
+                                row.futures, row.alpha.model_dump(mode="json") if row.alpha else None)
+                               for row in observations])
+        code_commit, code_dirty = _code_revision()
         manifest = {"lab_version": LAB_VERSION, "period": period,
                     "dataset_hash": dataset_hash,
                     "config_hash": digest(self.config.payload()),
@@ -509,7 +605,31 @@ class ScalperLab:
                     "start": observations[0].snapshot.captured_at.isoformat() if observations else None,
                     "end": observations[-1].snapshot.captured_at.isoformat() if observations else None,
                     "future_leakage": False, "execution_model": "NEXT_OBSERVATION_BID_ASK",
-                    "profitability_claim": False}
+                    "profitability_claim": False,
+                    "acts_v1": {"strategy_version": acts.STRATEGY_ID,
+                                "parameters": acts.PARAMETERS,
+                                "code_commit_hash": code_commit,
+                                "code_dirty": code_dirty,
+                                "input_hash": dataset_hash}}
+        acts_trades = ledgers[acts.STRATEGY_ID].trades if acts.STRATEGY_ID in ledgers else []
+        acts_ledger = tuple({
+            "entry_time": trade.entry_timestamp.isoformat() if trade.entry_timestamp else None,
+            "spot": trade.entry_spot, "direction": trade.decision["direction"],
+            "regime": trade.decision["regime"],
+            "alpha_state": trade.decision["alpha"]["classification"],
+            "positioning_checks": trade.decision["positioning_checks"],
+            "pullback_start": trade.decision["thesis"]["pullback_start"],
+            "pullback_duration_seconds": trade.decision["thesis"]["pullback_duration_seconds"],
+            "pullback_anchor": trade.decision["thesis"]["pullback_anchor"],
+            "short_strike": trade.candidate.short_leg.strike,
+            "hedge_strike": trade.candidate.long_leg.strike,
+            "entry_credit": trade.entry_credit,
+            "exit_time": trade.exit_timestamp.isoformat() if trade.exit_timestamp else None,
+            "exit_reason": trade.exit_reason,
+            "gross_pnl": trade.outcome["gross_rupees"] if trade.outcome else None,
+            "state": trade.state,
+        } for trade in acts_trades if trade.entry_timestamp is not None)
         return LabResult(manifest, tuple(contexts), tuple(json_value(d) for d in decisions),
                          tuple(trade.payload() for ledger in ledgers.values()
-                               for trade in ledger.trades), summaries, comparison)
+                               for trade in ledger.trades), summaries, comparison,
+                         tuple(json_value(row) for row in acts_ledger))

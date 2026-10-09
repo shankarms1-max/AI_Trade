@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.scalper_lab import STRATEGY_IDS
+from app.scalper_lab.acts import decide as decide_acts
 
 
 def _sign(direction: str) -> int:
@@ -68,6 +69,8 @@ def decide(strategy: str, ctx: dict, state: dict[str, Any], index: int) -> dict:
     """Update only this agent's watch state using the current causal context."""
     if strategy not in STRATEGY_IDS:
         raise ValueError("LAB_UNKNOWN_STRATEGY")
+    if strategy == "ACTS_V1":
+        return decide_acts(ctx, state)
     if state and index - state.get("started_index", index) > 8:
         _clear(state)
     spot = ctx["spot"]

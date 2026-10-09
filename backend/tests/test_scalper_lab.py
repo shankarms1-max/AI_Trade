@@ -346,6 +346,7 @@ def test_each_strategy_exits_on_its_own_thesis_without_holding_delay():
 
 def test_all_four_replay_ledgers_are_independent_and_deterministic(monkeypatch):
     rows = observed(count=70)
+    monkeypatch.setattr("app.scalper_lab.engine.STRATEGY_IDS", STRATEGY_IDS[:4])
 
     def setup(strategy, ctx, state, index):
         return {"strategy_id": strategy, "timestamp": ctx["timestamp"],
@@ -369,8 +370,8 @@ def test_all_four_replay_ledgers_are_independent_and_deterministic(monkeypatch):
     first = lab.run(rows)
     second = lab.run(rows)
     assert first == second
-    assert {trade["strategy_id"] for trade in first.trades} == set(STRATEGY_IDS)
-    assert all(first.summaries[name]["executed_trades"] == 1 for name in STRATEGY_IDS)
+    assert {trade["strategy_id"] for trade in first.trades} == set(STRATEGY_IDS[:4])
+    assert all(first.summaries[name]["executed_trades"] == 1 for name in STRATEGY_IDS[:4])
     assert all(trade["candidate"]["construction_method"] == "SHORT_LEG_FIRST_V1"
                for trade in first.trades)
     assert all(trade["candidate"]["spread_width"] in (100, 200, 300, 400)
@@ -419,9 +420,9 @@ def test_read_only_sqlite_input_and_new_artifacts_only(engine, tmp_path: Path):
     result = ScalperLab(ScalperConfig.from_settings(settings()),
                         cost_schedule(settings())).run(loaded)
     files = write_result(result, output)
-    assert len(files) == 7
-    assert len((output / "decisions.jsonl").read_text().splitlines()) == 4
-    assert len(json.loads((output / "summary.json").read_text())) == 4
+    assert len(files) == 8
+    assert len((output / "decisions.jsonl").read_text().splitlines()) == 5
+    assert len(json.loads((output / "summary.json").read_text())) == 5
     with pytest.raises(FileExistsError):
         write_result(result, output)
     uri = database.resolve().as_uri() + "?mode=ro"

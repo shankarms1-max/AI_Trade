@@ -7,6 +7,7 @@ from math import isfinite
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.alpha.models import AlphaFeatureSnapshot
 from app.scalper.features import build_features
 from app.scalper.models import ScalperMarketSnapshot, ScalperPriceObservation
 
@@ -20,6 +21,7 @@ class ResearchObservation:
     snapshot_id: int
     snapshot: ScalperMarketSnapshot
     futures: dict[str, Any] | None = None
+    alpha: AlphaFeatureSnapshot | None = None
 
 
 def _identity(quote: Any) -> list[Any]:

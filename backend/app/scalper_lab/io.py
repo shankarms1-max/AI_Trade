@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from bisect import bisect_right
 from datetime import date, datetime, time, timedelta
 import json
 from pathlib import Path
@@ -9,10 +10,12 @@ import sqlite3
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, selectinload
 
+from app.alpha.models import ALPHA_VERSION, AlphaFeatureSnapshot, CalculationMode
+from app.db.models import AlphaFeatureSnapshotRecord
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import ScalperRepository
 from app.scalper_lab.context import ResearchObservation
@@ -102,13 +105,47 @@ def _load_observations(session: Session, start: date, end: date,
             ScalperMarketSnapshotRecord.captured_at < upper).order_by(
                 ScalperMarketSnapshotRecord.captured_at,
                 ScalperMarketSnapshotRecord.id)).all()
+    alphas = _load_alphas(session, lower - timedelta(minutes=3), upper)
+    alpha_times = [alpha.timestamp for alpha in alphas]
     output = []
     for record in records:
         snapshot = ScalperRepository._row_to_snapshot(record)
+        alpha = None
+        index = bisect_right(alpha_times, snapshot.captured_at) - 1
+        while index >= 0 and (snapshot.captured_at - alpha_times[index]).total_seconds() <= 180:
+            candidate = alphas[index]
+            calculated = candidate.feature_calculated_at
+            if (candidate.reference_instrument_id == snapshot.future_instrument_id
+                    and candidate.reference_expiry == snapshot.future_expiry
+                    and candidate.expiry == snapshot.expiry
+                    and calculated is not None and calculated.tzinfo is not None
+                    and calculated <= snapshot.captured_at
+                    and (candidate.response_received_at is None
+                         or (candidate.response_received_at.tzinfo is not None
+                             and candidate.response_received_at <= snapshot.captured_at))):
+                alpha = candidate
+                break
+            index -= 1
         output.append(ResearchObservation(
             record.id, snapshot,
-            (futures or {}).get(snapshot.captured_at.isoformat())))
+            (futures or {}).get(snapshot.captured_at.isoformat()), alpha))
     return output
+
+
+def _load_alphas(session: Session, lower: datetime,
+                 upper: datetime) -> list[AlphaFeatureSnapshot]:
+    """Only original, already-calculated Alpha records may inform a capture."""
+    if not inspect(session.get_bind()).has_table("alpha_feature_snapshots"):
+        return []
+    records = session.scalars(select(AlphaFeatureSnapshotRecord).where(
+        AlphaFeatureSnapshotRecord.timestamp >= lower,
+        AlphaFeatureSnapshotRecord.timestamp < upper,
+        AlphaFeatureSnapshotRecord.alpha_version == ALPHA_VERSION,
+        AlphaFeatureSnapshotRecord.calculation_mode == CalculationMode.LIVE_ORIGINAL.value,
+    ).order_by(AlphaFeatureSnapshotRecord.timestamp,
+               AlphaFeatureSnapshotRecord.id)).all()
+    alphas = [AlphaFeatureSnapshot.model_validate(record.result_json) for record in records]
+    return [alpha for alpha in alphas if alpha.timestamp.tzinfo is not None]
 
 
 def _jsonline(path: Path, rows: tuple[dict, ...]) -> None:
@@ -122,13 +159,14 @@ def write_result(result: LabResult, output: Path) -> dict[str, Path]:
     output.mkdir(parents=True, exist_ok=False)
     paths = {name: output / name for name in (
         "manifest.json", "contexts.jsonl", "decisions.jsonl", "trades.jsonl",
-        "summary.json", "comparison.csv", "comparison.md")}
+        "acts_ledger.jsonl", "summary.json", "comparison.csv", "comparison.md")}
     paths["manifest.json"].write_text(json.dumps(result.manifest, indent=2, sort_keys=True) + "\n")
     paths["summary.json"].write_text(
         json.dumps(result.summaries, indent=2, sort_keys=True, allow_nan=False) + "\n")
     _jsonline(paths["contexts.jsonl"], result.contexts)
     _jsonline(paths["decisions.jsonl"], result.decisions)
     _jsonline(paths["trades.jsonl"], result.trades)
+    _jsonline(paths["acts_ledger.jsonl"], result.acts_ledger)
     fields = ("strategy_id", "observations", "setups", "qualified_entries",
               "executed_trades", "wins", "losses", "win_rate", "gross_pnl",
               "expectancy_per_trade", "profit_factor", "max_drawdown",

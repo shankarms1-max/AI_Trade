@@ -1,6 +1,10 @@
 # Phase 15 credit spread strategy lab
 
-The lab compares four fixed, independent paper strategies on the same ordered Phase
+The fifth frozen strategy, `ACTS_V1`, is specified in
+[ACTS_V1 research](acts-v1-research.md). The four original strategies below
+retain their rules.
+
+The lab compares five fixed, independent paper strategies on the same ordered Phase
 15 snapshots. It is a separate offline package (`app.scalper_lab`) and CLI. It does
 not change the live worker, live signal rules, existing paper journal, Phase 14.2,
 or broker adapter. No order client is imported. SQLite input is opened with
@@ -146,7 +150,7 @@ Indicator history and agent state reset at the validation boundary.
 
 Each run writes `contexts.jsonl` (full OI/PCR/VWAP evidence once per snapshot),
 `decisions.jsonl` (one decision per strategy per snapshot, linked by
-`evidence_snapshot_id`), `trades.jsonl`, a manifest with input/config hashes,
+`evidence_snapshot_id`), `trades.jsonl`, `acts_ledger.jsonl`, a manifest with input/config hashes,
 `summary.json`, and comparison tables in CSV and Markdown. The summary includes
 observations, watches, qualified entries, executions, wins/losses, win rate,
 gross P&L, average winner/loser, expectancy, profit factor, drawdown, worst
