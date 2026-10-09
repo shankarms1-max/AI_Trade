@@ -23,7 +23,7 @@ from app.scalper_lab import STRATEGY_IDS
 from app.scalper_lab.context import (FUTURES_BASIS, ResearchObservation,
                                      context_at)
 from app.scalper_lab.engine import (LabTrade, Ledger, ScalperLab, _candidate,
-                                    _exit_reason, _risk_blockers)
+                                    _code_revision, _exit_reason, _risk_blockers)
 from app.scalper_lab.io import (load_futures_csv, load_local_sqlite,
                                 load_postgresql, write_result)
 from app.scalper_lab.strategies import decide
@@ -50,6 +50,50 @@ def observed(count=70, direction=1):
 
 def context(rows):
     return context_at(rows[-1], rows[:-1])
+
+
+def test_missing_git_produces_deterministic_unknown_revision(monkeypatch):
+    def missing_git(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr("app.scalper_lab.engine.subprocess.run", missing_git)
+    assert _code_revision() == (None, None)
+    lab = ScalperLab(ScalperConfig.from_settings(settings()), cost_schedule(settings()))
+    first = lab.run([]).manifest
+    second = lab.run([]).manifest
+    assert first == second
+    assert first["acts_v1"]["code_commit_hash"] is None
+    assert first["acts_v1"]["code_dirty"] is None
+
+
+def test_missing_repository_metadata_produces_unknown_revision(monkeypatch, tmp_path):
+    source = tmp_path / "backend" / "app" / "scalper_lab" / "engine.py"
+    monkeypatch.setattr("app.scalper_lab.engine.__file__", str(source))
+
+    def unexpected_git(*_args, **_kwargs):
+        raise AssertionError("git should not run without repository metadata")
+
+    monkeypatch.setattr("app.scalper_lab.engine.subprocess.run", unexpected_git)
+    assert _code_revision() == (None, None)
+
+
+@pytest.mark.parametrize("failed_command", ["rev-parse", "status"])
+def test_failed_git_command_produces_unknown_revision(monkeypatch, failed_command):
+    def failed_git(args, **_kwargs):
+        if args[1] == failed_command:
+            return subprocess.CompletedProcess(args, 128, "", "fatal: not a git repository")
+        return subprocess.CompletedProcess(args, 0, "a" * 40 + "\n", "")
+
+    monkeypatch.setattr("app.scalper_lab.engine.subprocess.run", failed_git)
+    assert _code_revision() == (None, None)
+
+
+def test_non_commit_git_output_is_not_used_as_revision(monkeypatch):
+    def invalid_revision(args, **_kwargs):
+        return subprocess.CompletedProcess(args, 0, "not-a-commit\n", "")
+
+    monkeypatch.setattr("app.scalper_lab.engine.subprocess.run", invalid_revision)
+    assert _code_revision() == (None, None)
 
 
 def test_authoritative_futures_volume_and_provenance_are_mandatory():

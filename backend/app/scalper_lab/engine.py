@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
+import re
 from statistics import mean, median
 from typing import Any
 import subprocess
@@ -455,14 +456,25 @@ def _summary(strategy: str, observations: int, decisions: list[dict],
     return result
 
 
-def _code_revision() -> tuple[str | None, bool]:
+def _code_revision() -> tuple[str | None, bool | None]:
     root = Path(__file__).resolve().parents[3]
-    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
-                            capture_output=True, text=True, check=False)
-    dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root,
-                           capture_output=True, text=True, check=False)
-    return (commit.stdout.strip() if commit.returncode == 0 else None,
-            dirty.returncode != 0 or bool(dirty.stdout.strip()))
+    try:
+        if not (root / ".git").exists():
+            return None, None
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
+                                capture_output=True, text=True, check=False)
+        if commit.returncode != 0 or not isinstance(commit.stdout, str):
+            return None, None
+        revision = commit.stdout.strip()
+        if re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", revision) is None:
+            return None, None
+        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root,
+                               capture_output=True, text=True, check=False)
+        if dirty.returncode != 0 or not isinstance(dirty.stdout, str):
+            return None, None
+    except OSError:
+        return None, None
+    return revision, bool(dirty.stdout.strip())
 
 
 class ScalperLab:
