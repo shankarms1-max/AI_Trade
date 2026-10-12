@@ -7,9 +7,9 @@ strategy lab, ACTS_V1, or a broker order adapter. It can run alongside the
 existing scalper when `SCALPER_ENABLED=true`.
 
 The process captures at IST seconds `00`, `15`, `30`, and `45` on weekdays,
-only within the configured Phase 15 window, from `SCALPER_START_TIME`
-through the `SCALPER_FORCED_EXIT_TIME` 15-second bucket (defaults
-09:20:00–15:20:00).
+from 09:15:00 through the `SCALPER_FORCED_EXIT_TIME` 15-second bucket
+(default 15:20:00). The separate live scalper still uses `SCALPER_START_TIME`
+(default 09:20:00).
 Configured collector holidays are excluded. Overlapping and late jobs are
 skipped; a failed capture does not stop the next scheduled capture.
 

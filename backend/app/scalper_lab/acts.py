@@ -226,7 +226,7 @@ def decide(ctx: dict[str, Any], state: dict[str, Any]) -> dict[str, Any]:
     blockers: list[str] = []
     if direction is None:
         blockers.append("ACTS_DIRECTIONAL_REGIME_REQUIRED")
-    if relation == "UNAVAILABLE":
+    if alpha["status"] != "AVAILABLE":
         blockers.append("ALPHA_UNAVAILABLE")
     elif relation == "VETO":
         blockers.append("STRONG_OPPOSITE_ALPHA_VETO")

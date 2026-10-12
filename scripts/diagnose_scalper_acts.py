@@ -60,6 +60,10 @@ def diagnose(contexts: list[dict[str, Any]],
         counts["observations"] += 1
         if "ACTS_DIRECTIONAL_REGIME_REQUIRED" in acts_decision.get("blockers", []):
             counts["acts_directional_regime_blocker"] += 1
+        if "ALPHA_UNAVAILABLE" in acts_decision.get("blockers", []):
+            counts["alpha_unavailable_blocker"] += 1
+            if alpha == "AVAILABLE":
+                counts["available_alpha_mislabeled_unavailable"] += 1
         for name, value in (("futures_5m_bps", five),
                             ("futures_15m_bps", fifteen),
                             ("range_position", position)):
@@ -94,6 +98,11 @@ def diagnose(contexts: list[dict[str, Any]],
             counts["opening_range_complete"] += 1
         spot_relation = _relation(spot, midpoint)
         future_relation = _relation(future, midpoint)
+        vwap = ctx.get("vwap") or {}
+        if vwap.get("status") == "AVAILABLE":
+            counts["vwap_gate_applicable"] += 1
+        else:
+            counts["vwap_gate_not_applicable"] += 1
         if spot_relation in {"ABOVE", "BELOW"}:
             counts[f"spot_{spot_relation.lower()}_opening_midpoint"] += 1
         if future_relation in {"ABOVE", "BELOW"}:
@@ -107,6 +116,17 @@ def diagnose(contexts: list[dict[str, Any]],
                             (position >= boundary if sign > 0 else position <= boundary))
             if passes_range:
                 counts[f"range_{direction.lower()}_pass"] += 1
+            if spot_relation == ("ABOVE" if sign > 0 else "BELOW"):
+                counts[f"opening_midpoint_{direction.lower()}_pass"] += 1
+            slope = vwap.get("slope_bps_per_minute")
+            value = vwap.get("value")
+            vwap_pass = (vwap.get("status") != "AVAILABLE" or
+                         (future is not None and value is not None and slope is not None
+                          and sign * (future - value) > 0 and sign * slope >= 0))
+            if vwap.get("status") == "AVAILABLE":
+                counts[f"vwap_{direction.lower()}_pass"] += int(vwap_pass)
+            else:
+                counts[f"vwap_{direction.lower()}_not_applicable"] += 1
             base = (five is not None and fifteen is not None and position is not None
                     and complete and midpoint is not None and spot is not None
                     and sign * five >= 4 and sign * fifteen >= 8
@@ -114,6 +134,8 @@ def diagnose(contexts: list[dict[str, Any]],
                     and sign * (spot - midpoint) > 0)
             if base:
                 counts[f"pre_vwap_{direction.lower()}_pass"] += 1
+                if vwap_pass:
+                    counts[f"all_gates_{direction.lower()}_pass"] += 1
         if actual in {"BULL", "BEAR"}:
             counts[f"full_{actual.lower()}_regime_before_alpha"] += 1
         if trend_direction in {"BULL", "BEAR"} and actual != trend_direction:
@@ -154,6 +176,22 @@ def diagnose(contexts: list[dict[str, Any]],
             "opening_high": high, "opening_low": low, "opening_midpoint": midpoint,
             "spot": spot, "spot_to_opening_midpoint": spot_relation,
             "future_to_opening_midpoint": future_relation,
+            "gate_results": {
+                direction: {
+                    "futures_5m": five is not None and sign * five >= 4,
+                    "futures_15m": fifteen is not None and sign * fifteen >= 8,
+                    "range_position": (position is not None and
+                                       (position >= boundary if sign > 0
+                                        else position <= boundary)),
+                    "opening_range_complete": complete,
+                    "opening_midpoint": spot_relation == ("ABOVE" if sign > 0 else "BELOW"),
+                    "vwap": ("NOT_APPLICABLE" if vwap.get("status") != "AVAILABLE"
+                             else future is not None and vwap.get("value") is not None
+                             and vwap.get("slope_bps_per_minute") is not None
+                             and sign * (future - vwap["value"]) > 0
+                             and sign * vwap["slope_bps_per_minute"] >= 0),
+                } for direction, sign, boundary in (("BULL", 1, .55),
+                                                    ("BEAR", -1, .45))},
             "vwap": ctx.get("vwap"), "phase15_regime": ctx.get("regime"),
             "acts_regime": actual or "RANGE", "acts_alpha_status": alpha,
             "acts_regime_evidence": acts_input,
@@ -176,7 +214,9 @@ def diagnose(contexts: list[dict[str, Any]],
                         if strength(row, 1) != float("-inf")),
                        key=lambda row: (-max(strength(row, 1), strength(row, -1)),
                                         row["timestamp"]))[:10]
-    keys = ("acts_directional_regime_blocker", "acts_input_mismatch_futures_5m_bps",
+    keys = ("acts_directional_regime_blocker", "alpha_unavailable_blocker",
+            "available_alpha_mislabeled_unavailable",
+            "acts_input_mismatch_futures_5m_bps",
             "acts_input_mismatch_futures_15m_bps",
             "acts_input_mismatch_range_position",
             "valid_nifty_future", "valid_future_identity",
@@ -185,10 +225,15 @@ def diagnose(contexts: list[dict[str, Any]],
             "futures_15m_bull_pass", "futures_15m_bear_pass",
             "valid_range_position", "range_bull_pass", "range_bear_pass",
             "valid_opening_midpoint", "opening_range_complete",
+            "opening_midpoint_bull_pass", "opening_midpoint_bear_pass",
+            "vwap_gate_applicable", "vwap_gate_not_applicable",
+            "vwap_bull_pass", "vwap_bear_pass",
+            "vwap_bull_not_applicable", "vwap_bear_not_applicable",
             "spot_above_opening_midpoint",
             "spot_below_opening_midpoint", "full_bull_regime_before_alpha",
             "full_bear_regime_before_alpha", "pre_vwap_bull_pass",
-            "pre_vwap_bear_pass", "trend_bull_acts_other", "trend_bear_acts_other",
+            "pre_vwap_bear_pass", "all_gates_bull_pass", "all_gates_bear_pass",
+            "trend_bull_acts_other", "trend_bear_acts_other",
             "same_future_contract_5m", "same_future_contract_15m",
             "future_contract_change_5m", "future_contract_change_15m")
     summary = {"observations": len(contexts),
@@ -203,6 +248,10 @@ def diagnose(contexts: list[dict[str, Any]],
                "acts_decision_regime_split": dict(sorted(decision_split.items())),
                "trend_pullback_direction_split": dict(sorted(trend_split.items())),
                "alpha_status_split": dict(sorted(alpha_split.items())),
+               "first_trend_acts_divergence": next(
+                   (row for row in details
+                    if row["trend_pullback_direction"] in {"BULL", "BEAR"}
+                    and row["acts_regime"] != row["trend_pullback_direction"]), None),
                "strongest_candidates": strongest}
     return summary, details
 

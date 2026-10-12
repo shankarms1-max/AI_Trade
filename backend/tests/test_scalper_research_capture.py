@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.scalper.config import ScalperConfig
 from app.scalper.models import (ScalperEvent, ScalperMarketSnapshotRecord,
                                 ScalperOptionQuoteRecord, ScalperTrade)
 from app.scalper.research_capture import (IST, MODE, ResearchSnapshotCollector,
@@ -146,6 +147,26 @@ def test_capture_skips_outside_window_weekends_and_holidays(engine, market_snaps
             ScalperMarketSnapshotRecord)) == 0
 
 
+def test_research_capture_begins_at_0915(engine, market_snapshot):
+    market = _market(market_snapshot)
+    opening = market.timestamp_ist.replace(hour=9, minute=15, second=0)
+    quote = market.options[0].model_copy(update={
+        "source_market_timestamp": opening - timedelta(seconds=2)})
+    market = market.model_copy(update={"timestamp_ist": opening,
+                                       "request_started_at": opening - timedelta(seconds=1),
+                                       "response_received_at": opening,
+                                       "options": [quote, *market.options[1:]]})
+    collector = ResearchSnapshotCollector(
+        ResearchSnapshotRepository(engine), lambda: market,
+        start=worker.RESEARCH_START_TIME, end=time(15, 20))
+
+    assert collector.capture_once(opening - timedelta(seconds=15)) is None
+    assert collector.capture_once(opening) is not None
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(
+            ScalperMarketSnapshotRecord)) == 1
+
+
 def test_capture_is_independent_of_strategy_and_order_methods(
         engine, market_snapshot, monkeypatch):
     market = _market(market_snapshot)
@@ -190,6 +211,7 @@ def test_worker_schedules_exact_fifteen_second_research_cadence(
 
     jobs = []
     disposed = []
+    windows = []
 
     class FakeEngine:
         def dispose(self):
@@ -208,8 +230,16 @@ def test_worker_schedules_exact_fifteen_second_research_cadence(
         def start(self):
             pass
 
+    original_collector = worker.ResearchSnapshotCollector
+
+    def track_collector(*args, **kwargs):
+        windows.append((kwargs["start"], kwargs["end"]))
+        return original_collector(*args, **kwargs)
+
+    monkeypatch.setattr(worker, "ResearchSnapshotCollector", track_collector)
     monkeypatch.setattr(worker, "get_settings", lambda: settings().model_copy(
         update={"scalper_enabled": scalper_enabled,
+                "scalper_start_time": time(9, 20),
                 "database_url": SecretStr("sqlite:///research-test")}))
     monkeypatch.setattr(worker, "configure_logging", lambda *_: None)
     monkeypatch.setattr(worker, "build_engine", lambda *_: FakeEngine())
@@ -217,6 +247,9 @@ def test_worker_schedules_exact_fifteen_second_research_cadence(
     monkeypatch.setattr(worker, "BlockingScheduler", FakeScheduler)
     assert worker.main(["--mode", MODE]) == 0
     assert disposed == [True]
+    assert windows == [(time(9, 15), time(15, 20))]
+    assert ScalperConfig.from_settings(settings(
+        scalper_start_time=time(9, 20))).start_time == time(9, 20)
     assert len(jobs) == 1
     trigger, options = jobs[0]
     now = datetime(2099, 10, 1, 10, 0, 1, tzinfo=IST)
@@ -224,6 +257,10 @@ def test_worker_schedules_exact_fifteen_second_research_cadence(
     second = trigger.get_next_fire_time(first, first)
     assert first is not None and second is not None
     assert (second - first).total_seconds() == 15
+    opening = datetime(2099, 10, 1, 9, 14, 59, tzinfo=IST)
+    first_opening = trigger.get_next_fire_time(None, opening)
+    assert first_opening == datetime(2099, 10, 1, 9, 15, tzinfo=IST)
+    assert capture_allowed(first_opening, *windows[0], frozenset())
     assert options["max_instances"] == 1
     assert options["coalesce"] is True
 

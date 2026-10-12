@@ -47,6 +47,12 @@ def test_diagnostic_exposes_opening_range_gate_vs_trend_pullback():
     assert summary["counts"]["opening_range_complete"] == 1
     assert summary["counts"]["full_bear_regime_before_alpha"] == 1
     assert summary["counts"]["trend_bear_acts_other"] == 1
+    assert summary["counts"]["opening_midpoint_bear_pass"] == 2
+    assert summary["counts"]["vwap_gate_not_applicable"] == 2
+    assert summary["counts"]["all_gates_bear_pass"] == 1
+    assert summary["first_trend_acts_divergence"]["timestamp"] == at
+    assert not details[0]["gate_results"]["BEAR"]["opening_range_complete"]
+    assert details[0]["gate_results"]["BEAR"]["vwap"] == "NOT_APPLICABLE"
     assert summary["counts"]["acts_input_mismatch_futures_5m_bps"] == 0
     assert summary["missing_fields"]["opening_range_incomplete"] == 1
     assert summary["alpha_status_split"] == {"ALPHA_UNAVAILABLE": 2}
@@ -71,6 +77,25 @@ def test_diagnostic_marks_missing_futures_and_contract_change():
     assert summary["counts"]["future_contract_change_5m"] == 1
     assert summary["missing_fields"]["futures_5m"] == 1
     assert details[1]["futures_contract_continuity"]["5m"] == "CHANGED_CONTRACT"
+
+
+def test_diagnostic_distinguishes_available_alpha_from_unavailable_blocker():
+    ctx = _context(1, "2026-10-08T09:30:00+05:30",
+                   complete=False, direction=None)
+    ctx["acts"]["alpha"] = {"status": "AVAILABLE", "classification": "BEAR"}
+    ctx["vwap"] = {"status": "AVAILABLE", "value": 24930.0,
+                   "slope_bps_per_minute": -1.0}
+    decision = {"snapshot_id": 1, "strategy_id": "ACTS_V1", "regime": "RANGE",
+                "blockers": ["ACTS_DIRECTIONAL_REGIME_REQUIRED"]}
+
+    summary, details = diagnose([ctx], [decision])
+
+    assert summary["alpha_status_split"] == {"AVAILABLE": 1}
+    assert summary["counts"]["alpha_unavailable_blocker"] == 0
+    assert summary["counts"]["available_alpha_mislabeled_unavailable"] == 0
+    assert summary["counts"]["vwap_gate_applicable"] == 1
+    assert summary["counts"]["vwap_bear_pass"] == 1
+    assert details[0]["gate_results"]["BEAR"]["vwap"] is True
 
 
 def test_incomplete_opening_range_blocks_acts_but_not_trend_pullback():

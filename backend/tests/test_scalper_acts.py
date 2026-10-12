@@ -145,6 +145,33 @@ def test_alpha_missing_or_future_calculated_fails_closed():
     assert "ALPHA_UNAVAILABLE" not in neutral_decision["blockers"]
 
 
+def test_range_reports_alpha_blocker_only_for_unavailable_evidence():
+    rows = qualified_rows(-1)
+    ctx = acts_context(rows)
+    ctx["structure"]["opening_range_complete"] = False
+    ctx["acts"] = acts.evidence(ctx, rows[-1].alpha)
+    assert ctx["acts"]["alpha"]["status"] == "AVAILABLE"
+    assert ctx["acts"]["direction"] is None
+
+    available_state = {"direction": "BEAR", "stage": "PULLBACK"}
+    available = acts.decide(ctx, available_state)
+    ctx["acts"] = acts.evidence(ctx, None)
+    unavailable_state = {"direction": "BEAR", "stage": "PULLBACK"}
+    unavailable = acts.decide(ctx, unavailable_state)
+
+    assert available["blockers"] == ["ACTS_DIRECTIONAL_REGIME_REQUIRED"]
+    assert unavailable["blockers"] == ["ACTS_DIRECTIONAL_REGIME_REQUIRED",
+                                       "ALPHA_UNAVAILABLE"]
+    assert available_state == unavailable_state == {}
+    for decision in (available, unavailable):
+        assert decision["status"] == "NO_SETUP"
+        assert decision["direction"] is None
+        assert decision["regime"] == "RANGE"
+        assert decision["trigger"] is None
+        assert decision["thesis"] is None
+        assert decision["watch_state"] == {}
+
+
 def test_sqlite_loader_uses_only_matching_already_calculated_alpha(engine):
     row = observed(10)[-1]
     raw = row.snapshot

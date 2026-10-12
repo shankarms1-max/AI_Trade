@@ -1,5 +1,5 @@
 """Explicit Phase 15 research-only market-data collector (no strategy worker)."""
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 import argparse
 import sys
@@ -20,6 +20,7 @@ from app.scalper.research_capture import (INTERVAL_SECONDS, IST, MODE,  # noqa: 
                                           ResearchSnapshotRepository)
 
 logger = get_logger(__name__)
+RESEARCH_START_TIME = time(9, 15)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -42,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     collector = ResearchSnapshotCollector(
         ResearchSnapshotRepository(engine),
         make_live_snapshot_builder(market_settings),
-        start=settings.scalper_start_time,
+        start=RESEARCH_START_TIME,
         end=settings.scalper_forced_exit_time,
         holidays=settings.configured_holidays)
 
@@ -65,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         EVENT_JOB_MAX_INSTANCES)
     logger.info("SCALPER_RESEARCH_STARTED mode=%s interval_seconds=%d "
                 "start=%s final_bucket=%s", MODE, INTERVAL_SECONDS,
-                settings.scalper_start_time, settings.scalper_forced_exit_time)
+                RESEARCH_START_TIME, settings.scalper_forced_exit_time)
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
