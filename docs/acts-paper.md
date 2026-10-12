@@ -3,7 +3,7 @@
 The ACTS paper worker is independent of the Phase 15 scalper worker and the
 Phase 14 paper journal. It captures Kotak market data into the existing Phase
 15 snapshot and quote tables, computes the existing frozen ACTS_V1 decision,
-and writes only `acts_paper_cursor`, `acts_paper_trades`, and
+and writes `acts_paper_cursor`, `acts_paper_trades`, and
 `acts_paper_events` for paper decisions and fills. It imports no broker order
 adapter. The worker refuses a snapshot builder with an order method.
 ACTS capture buckets carry their own `ACTS_PAPER` mode, so a concurrent
@@ -12,17 +12,21 @@ quotes or enter its historical context.
 
 Run migration `0018_acts_paper` before starting the worker. Set
 `ACTS_PAPER_ENABLED=true` only in the dedicated paper worker environment.
-`SCALPER_ENABLED` may remain either true or false. The optional
-`ACTS_ALPHA_FILE` path must be visible inside that worker, or pass
-`--alpha-file`. The CSV uses the existing Phase 14 Alpha export format and is
-reloaded for each observation. The existing causal matcher rejects stale,
-future, invalid, or identity-mismatched Alpha. Missing Alpha leaves ACTS in
-`NO_SETUP` or `WATCH`; it cannot open a paper trade.
+`SCALPER_ENABLED` may remain either true or false. The same Kotak capture
+supplies a local three-minute raw observation to the existing Phase 14.1
+Alpha service. It stores `phase14_1_v1` / `LIVE_ORIGINAL` / `FUTURE` evidence
+in this Phase 15 database. This dedicated capture does not require enabling
+the separate Phase 14 `ALPHA_ENGINE_ENABLED` pipeline. ACTS uses the existing
+causal matcher against those local rows; stale, future, invalid, or
+identity-mismatched Alpha cannot open a paper trade. The 800/300
+trading-minute lookbacks require local
+history to warm up. Historical strategy-lab replay retains its separate
+`--alpha-file` option; the live paper worker uses no CSV.
 
 Start the worker with:
 
 ```sh
-python /app/worker/acts_paper_worker.py --mode PAPER --alpha-file /app/data/alpha.csv
+python /app/worker/acts_paper_worker.py --mode PAPER
 ```
 
 Read its status and gross paper P&L with:

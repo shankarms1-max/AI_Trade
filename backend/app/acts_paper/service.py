@@ -4,14 +4,15 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timedelta
 import json
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.engine import CursorResult
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
+from app.acts_paper.alpha import ACTS_ALPHA_SOURCE
 from app.core.logging import get_logger
 from app.data.models import OptionContractSnapshot
 from app.research.manifest import canonical, digest, json_value
@@ -22,7 +23,7 @@ from app.scalper.paper import cost_schedule, executable_pair
 from app.scalper.research_capture import ACTS_PAPER_MODE
 from app.scalper.repository import IST, ScalperRepository
 from app.scalper_lab import acts
-from app.scalper_lab.alpha_bridge import load_alpha_file
+from app.scalper_lab.alpha_bridge import load_local_alpha
 from app.scalper_lab.context import ResearchObservation, context_at
 from app.scalper_lab.engine import LabTrade, Ledger, _candidate, _exit_reason, _risk_blockers
 
@@ -105,11 +106,9 @@ def verify_acts_paper_journal(sessions: sessionmaker[Session]) -> None:
 class ActsPaperService:
     """Only database projections and observed bid/ask paper fills; no broker client."""
 
-    def __init__(self, sessions: sessionmaker[Session], settings: Any,
-                 alpha_file: Path | None = None) -> None:
+    def __init__(self, sessions: sessionmaker[Session], settings: Any) -> None:
         self.sessions = sessions
         self.settings = settings
-        self.alpha_file = alpha_file
         base = ScalperConfig.from_settings(settings)
         self.config = replace(base, lots=1, allowed_widths=(100, 200, 300, 400),
                               max_trades_per_day=min(base.max_trades_per_day, 3))
@@ -155,12 +154,11 @@ class ActsPaperService:
         return ResearchObservation(snapshot_id, raw)
 
     def _alpha(self, observation: ResearchObservation) -> ResearchObservation:
-        if self.alpha_file is None:
-            return observation
         try:
-            matched, _ = load_alpha_file([observation], self.alpha_file)
+            matched, _ = load_local_alpha([observation], self.sessions,
+                                          raw_source=ACTS_ALPHA_SOURCE)
             return matched[0]
-        except (OSError, ValueError) as exc:
+        except (SQLAlchemyError, ValueError) as exc:
             logger.warning("ACTS_ALPHA_UNAVAILABLE error_type=%s", type(exc).__name__)
             return observation
 

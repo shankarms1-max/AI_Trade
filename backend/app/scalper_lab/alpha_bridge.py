@@ -15,13 +15,15 @@ from pydantic import ValidationError
 from sqlalchemy import create_engine, select
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.alpha.engine import joint_direction
 from app.alpha.models import (ALPHA_VERSION, AlphaFeatureSnapshot, AlphaHypothesis,
                               AlphaValidity, CalculationMode)
-from app.db.models import AlphaFeatureSnapshotRecord
+from app.db.models import AlphaFeatureSnapshotRecord, MarketSnapshotRecord
 from app.scalper_lab import acts
 from app.scalper_lab.context import ResearchObservation
+from app.scalper.repository import IST
 
 MAX_AGE = timedelta(seconds=int(acts.PARAMETERS["alpha_max_age_seconds"]))
 
@@ -38,20 +40,22 @@ def _aware(value: datetime | None) -> bool:
     return value is not None and value.tzinfo is not None and value.utcoffset() is not None
 
 
-def _parse(record: Any) -> _AlphaRow:
+def _parse(record: Any, *, local_sqlite: bool = False) -> _AlphaRow:
+    timestamp = (record.timestamp.replace(tzinfo=IST)
+                 if local_sqlite and not _aware(record.timestamp) else record.timestamp)
     payload = record.result_json
     if (isinstance(payload, dict) and "alpha_version" in payload
             and any(not payload.get(field) for field in (
                 "reference_instrument_id", "reference_expiry", "expiry"))):
-        return _AlphaRow(record.id, record.timestamp, None,
+        return _AlphaRow(record.id, timestamp, None,
                          "ALPHA_IDENTITY_INCOMPLETE")
     try:
         alpha = AlphaFeatureSnapshot.model_validate(payload)
     except (ValidationError, TypeError, ValueError):
-        return _AlphaRow(record.id, record.timestamp, None, "INVALID_ALPHA")
+        return _AlphaRow(record.id, timestamp, None, "INVALID_ALPHA")
     reason = None
-    if (not _aware(record.timestamp) or not _aware(alpha.timestamp)
-            or alpha.timestamp != record.timestamp or alpha.expiry != record.expiry
+    if (not _aware(timestamp) or not _aware(alpha.timestamp)
+            or alpha.timestamp != timestamp or alpha.expiry != record.expiry
             or alpha.alpha_version != record.alpha_version
             or alpha.calculation_mode.value != record.calculation_mode
             or alpha.price_source != record.price_source):
@@ -73,7 +77,7 @@ def _parse(record: Any) -> _AlphaRow:
               alpha.response_received_at, alpha.source_market_timestamp,
               alpha.reference_source_timestamp))):
         reason = "INVALID_ALPHA"
-    return _AlphaRow(record.id, record.timestamp, alpha, reason)
+    return _AlphaRow(record.id, timestamp, alpha, reason)
 
 
 def _reason(row: _AlphaRow, observation: ResearchObservation) -> str | None:
@@ -101,9 +105,10 @@ def _reason(row: _AlphaRow, observation: ResearchObservation) -> str | None:
 
 
 def _read_rows(connection: Connection, lower: datetime,
-               upper: datetime) -> list[_AlphaRow]:
+               upper: datetime, *, local_sqlite: bool = False,
+               raw_source: str | None = None) -> list[_AlphaRow]:
     """One indexed range read, with no cross-database join or ORM write session."""
-    records = connection.execute(select(
+    query = select(
         AlphaFeatureSnapshotRecord.id, AlphaFeatureSnapshotRecord.timestamp,
         AlphaFeatureSnapshotRecord.expiry, AlphaFeatureSnapshotRecord.alpha_version,
         AlphaFeatureSnapshotRecord.calculation_mode,
@@ -112,8 +117,30 @@ def _read_rows(connection: Connection, lower: datetime,
     ).where(AlphaFeatureSnapshotRecord.timestamp >= lower,
             AlphaFeatureSnapshotRecord.timestamp <= upper).order_by(
                 AlphaFeatureSnapshotRecord.timestamp,
-                AlphaFeatureSnapshotRecord.id)).all()
-    return [_parse(record) for record in records]
+                AlphaFeatureSnapshotRecord.id)
+    if raw_source is not None:
+        query = query.join(MarketSnapshotRecord,
+                           AlphaFeatureSnapshotRecord.market_snapshot_id ==
+                           MarketSnapshotRecord.id).where(
+                               MarketSnapshotRecord.source == raw_source)
+    records = connection.execute(query).all()
+    return [_parse(record, local_sqlite=local_sqlite) for record in records]
+
+
+def load_local_alpha(observations: list[ResearchObservation],
+                     sessions: sessionmaker[Session], *, raw_source: str
+                     ) -> tuple[list[ResearchObservation], dict[str, Any]]:
+    """Match only the Phase 15 database's persisted Alpha with the same causal rules."""
+    if not observations:
+        return _match([], [], source="LOCAL_DB")
+    lower = min(row.snapshot.captured_at for row in observations) - MAX_AGE
+    upper = max(row.snapshot.captured_at for row in observations)
+    with sessions() as session:
+        connection = session.connection()
+        rows = _read_rows(connection, lower, upper,
+                          local_sqlite=connection.dialect.name == "sqlite",
+                          raw_source=raw_source)
+    return _match(observations, rows, source="LOCAL_DB")
 
 
 def _match(observations: list[ResearchObservation], rows: list[_AlphaRow], *,

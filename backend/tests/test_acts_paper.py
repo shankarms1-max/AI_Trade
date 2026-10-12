@@ -9,9 +9,13 @@ from pydantic import SecretStr
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from app.acts_paper.alpha import ACTS_ALPHA_SOURCE, alpha_bucket
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
 from app.acts_paper.service import ActsPaperService, verify_acts_paper_journal
+from app.alpha.repository import AlphaRepository
+from app.data.models import MarketSnapshot, OptionContractSnapshot
 from app.db.base import Base
+from app.db.repositories import SnapshotRepository
 from app.db.session import build_session_factory
 from app.paper.models import PaperEvent, PaperTrade
 from app.research.manifest import canonical, digest, json_value
@@ -19,6 +23,7 @@ from app.scalper.models import ScalperEvent, ScalperTrade
 from app.scalper.paper import executable_pair
 from app.scalper.research_capture import ACTS_PAPER_MODE, ResearchSnapshotRepository
 from app.scalper_lab import acts
+from app.scalper_lab.alpha_bridge import load_alpha_file
 from app.scalper_lab.context import ResearchObservation
 from app.scalper_lab.engine import LabTrade, Ledger, _candidate, _risk_blockers
 from tests.test_scalper import settings
@@ -28,16 +33,38 @@ from tests.test_scalper_alpha_file import _csv
 from worker import acts_paper_worker as worker
 
 
-def _service(engine, alpha_file=None):
+def _service(engine):
     sessions = build_session_factory(engine)
     with sessions.begin() as session:
         session.add(ActsPaperCursor(id=1, sequence=0, head_hash="GENESIS",
                                     lock_version=0, watch_json="{}", latest_json="{}"))
-    return ActsPaperService(sessions, settings(acts_paper_enabled=True), alpha_file)
+    return ActsPaperService(sessions, settings(acts_paper_enabled=True))
 
 
 def _capture(engine, raw):
     return ResearchSnapshotRepository(engine, mode=ACTS_PAPER_MODE).save(raw).snapshot_id
+
+
+def _persist_alpha(engine, row, classification="BULL", *, calculated_shift=0):
+    raw = row.snapshot
+    market = MarketSnapshot(
+        timestamp_ist=raw.captured_at, nifty_spot=raw.nifty_spot,
+        nifty_future=raw.nifty_future,
+        future_instrument_id=raw.future_instrument_id,
+        future_expiry=raw.future_expiry, atm_strike=raw.atm_strike,
+        expiry=raw.expiry, lot_size=raw.lot_size, source=ACTS_ALPHA_SOURCE,
+        request_started_at=raw.request_started_at,
+        response_received_at=raw.response_received_at,
+        options=[OptionContractSnapshot.model_validate(quote.model_dump())
+                 for quote in raw.quotes])
+    sessions = build_session_factory(engine)
+    raw_id = SnapshotRepository(sessions).save_market_snapshot(
+        market, alpha_bucket(raw.captured_at)).snapshot_id
+    alpha = alpha_for(row, classification,
+                      calculated_shift=calculated_shift).model_copy(update={
+                          "snapshot_id": raw_id})
+    AlphaRepository(sessions).upsert(alpha)
+    return alpha
 
 
 def _trade_rows(engine):
@@ -152,8 +179,7 @@ def test_acts_capture_and_history_are_isolated_from_other_15s_streams(engine):
     assert prices[0].nifty_spot == raw.nifty_spot
 
 
-def test_actsv1_csv_refresh_reaches_one_paper_entry_without_old_journals(
-        engine, tmp_path):
+def test_actsv1_local_alpha_reaches_one_paper_entry_without_old_journals(engine):
     rows = qualified_rows(1, 74)
     peak = rows[64].snapshot.nifty_spot
     values = {65: peak - 2, 66: peak - 3, 67: peak - 4,
@@ -162,12 +188,11 @@ def test_actsv1_csv_refresh_reaches_one_paper_entry_without_old_journals(
     for index, value in values.items():
         rows[index] = replace(rows[index], snapshot=rows[index].snapshot.model_copy(
             update={"nifty_spot": value}))
-    alpha_file = tmp_path / "alpha.csv"
-    service = _service(engine, alpha_file)
+    service = _service(engine)
     statuses = []
     for index, row in enumerate(rows):
         if index == 65:
-            _csv(alpha_file, [_record(alpha_for(row, "BULL"))])
+            _persist_alpha(engine, row, "BULL")
         snapshot_id = _capture(engine, row.snapshot)
         statuses.append(service.process_snapshot(snapshot_id))
     trades = _trade_rows(engine)
@@ -193,23 +218,55 @@ def test_actsv1_csv_refresh_reaches_one_paper_entry_without_old_journals(
         for table in (PaperTrade, PaperEvent, ScalperTrade, ScalperEvent):
             assert session.scalar(select(func.count()).select_from(table)) == 0
     verify_acts_paper_journal(service.sessions)
-    restarted = ActsPaperService(service.sessions, settings(acts_paper_enabled=True),
-                                 alpha_file)
+    restarted = ActsPaperService(service.sessions, settings(acts_paper_enabled=True))
     assert restarted.status(rows[-1].snapshot.captured_at)["current_state"] == "OPEN"
 
 
-def test_alpha_file_absence_and_refresh_do_not_crash(engine, tmp_path):
-    path = tmp_path / "alpha.csv"
-    service = _service(engine, path)
+def test_local_alpha_absence_and_arrival_do_not_crash(engine):
+    service = _service(engine)
     rows = qualified_rows(1, 2)
     first = _capture(engine, rows[0].snapshot)
     assert service.process_snapshot(first) == "NO_SETUP"
-    _csv(path, [_record(alpha_for(rows[1], "BULL"))])
+    _persist_alpha(engine, rows[1], "BULL")
     second = _capture(engine, rows[1].snapshot)
     assert service.process_snapshot(second) == "NO_SETUP"
     status = service.status(rows[1].snapshot.captured_at)
     assert status["latest_observation"]["alpha_state"] == "BULL"
     verify_acts_paper_journal(service.sessions)
+
+
+def test_local_alpha_causal_freshness_and_no_phase14_connection(engine, monkeypatch):
+    service = _service(engine)
+    row = qualified_rows()[0]
+    _persist_alpha(engine, row, calculated_shift=30)
+    monkeypatch.setattr("app.scalper_lab.alpha_bridge.create_engine",
+                        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                            AssertionError("external database contacted")))
+
+    too_early = service._alpha(ResearchObservation(
+        2, _next(row.snapshot, seconds=15)))
+    eligible = service._alpha(ResearchObservation(
+        3, _next(row.snapshot, seconds=45)))
+    stale = service._alpha(ResearchObservation(
+        4, _next(row.snapshot, seconds=181)))
+
+    assert too_early.alpha is None
+    assert eligible.alpha is not None
+    assert eligible.alpha.calculation_mode.value == "LIVE_ORIGINAL"
+    assert eligible.alpha.price_source == "FUTURE"
+    assert stale.alpha is None
+
+
+def test_historical_replay_alpha_file_support_is_unchanged(tmp_path):
+    row = qualified_rows()[0]
+    path = tmp_path / "alpha.csv"
+    _csv(path, [_record(alpha_for(row, "BULL"))])
+
+    observations, diagnostics = load_alpha_file([row], path)
+
+    assert diagnostics["alpha_source"] == "FILE"
+    assert diagnostics["matched_observations"] == 1
+    assert observations[0].alpha is not None
 
 
 @pytest.mark.parametrize("reason", ["PROFIT_CAPTURE", "SPREAD_STOP",
@@ -325,16 +382,14 @@ def test_same_observations_replay_to_same_journal_and_pnl(engine, tmp_path):
 @pytest.mark.parametrize("reason", ["SUSTAINED_STRUCTURE_BREAK",
                                     "SUSTAINED_STRONG_ALPHA_REVERSAL"])
 def test_confirmed_thesis_reversal_persists_across_observations(
-        engine, tmp_path, reason):
+        engine, reason):
     service, raw, candidate, _ = _seed_position(engine)
     if reason == "SUSTAINED_STRONG_ALPHA_REVERSAL":
-        path = tmp_path / "alpha.csv"
         source = qualified_rows(1, 70)[-1]
         first_at = raw.captured_at + timedelta(seconds=15)
         alpha_row = replace(source, snapshot=source.snapshot.model_copy(update={
             "captured_at": first_at}))
-        _csv(path, [_record(alpha_for(alpha_row, "STRONG_BEAR"))])
-        service.alpha_file = path
+        _persist_alpha(engine, alpha_row, "STRONG_BEAR")
     wall = _trade_rows(engine)[0][1]["decision"]["thesis"]["wall"]
     for index in range(1, 6):
         later = _next(raw, seconds=index * 15, candidate=candidate)
@@ -416,12 +471,21 @@ def test_paper_worker_uses_market_data_only_and_fifteen_second_schedule(monkeypa
         def process_snapshot(self, snapshot_id):
             calls.append(("process", snapshot_id))
 
+    class FakeLocalAlpha:
+        def __init__(self, *_args):
+            pass
+
+        def observe(self, market):
+            calls.append(("alpha", market))
+
     class FakeCollector:
-        def __init__(self, *_args, **kwargs):
+        def __init__(self, _repository, builder, **kwargs):
+            self.builder = builder
             calls.append(("window", kwargs["start"], kwargs["end"]))
 
         def capture_once(self, _now):
-            return SimpleNamespace(snapshot_id=123)
+            self.builder()
+            return SimpleNamespace(snapshot_id=123, duplicate=False)
 
     class FakeScheduler:
         def __init__(self, **_kwargs):
@@ -445,15 +509,20 @@ def test_paper_worker_uses_market_data_only_and_fifteen_second_schedule(monkeypa
     monkeypatch.setattr(worker, "build_engine", lambda *_: FakeEngine())
     monkeypatch.setattr(worker, "build_session_factory", lambda *_: None)
     monkeypatch.setattr(worker, "ActsPaperService", FakeService)
+    monkeypatch.setattr(worker, "LocalActsAlpha", FakeLocalAlpha)
     monkeypatch.setattr(worker, "ResearchSnapshotCollector", FakeCollector)
     monkeypatch.setattr(worker, "ResearchSnapshotRepository", lambda *_args,
                         **_kwargs: None)
     monkeypatch.setattr(worker, "make_live_snapshot_builder", lambda *_args,
-                        **_kwargs: lambda: None)
+                        **_kwargs: lambda: SimpleNamespace(source="KOTAK_NEO"))
     monkeypatch.setattr(worker, "BlockingScheduler", FakeScheduler)
 
     assert worker.main(["--mode", "PAPER"]) == 0
     assert ("window", time(9, 15), time(15, 20)) in calls
+    assert any(isinstance(item, tuple) and item[0] == "alpha" for item in calls)
+    assert calls.index(("process", 123)) > next(
+        index for index, item in enumerate(calls)
+        if isinstance(item, tuple) and item[0] == "alpha")
     assert ("process", 123) in calls
     assert calls[-1] == "dispose"
 

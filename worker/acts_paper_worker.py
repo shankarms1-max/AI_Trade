@@ -11,10 +11,13 @@ from types import FunctionType
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from apscheduler.schedulers.blocking import BlockingScheduler  # type: ignore[import-untyped]  # noqa: E402
+from apscheduler.schedulers.blocking import (  # type: ignore[import-untyped]  # noqa: E402
+    BlockingScheduler,
+)
 from apscheduler.triggers.cron import CronTrigger  # type: ignore[import-untyped]  # noqa: E402
 
 from app.acts_paper.service import ActsPaperService  # noqa: E402
+from app.acts_paper.alpha import LocalActsAlpha  # noqa: E402
 from app.collector.factory import make_live_snapshot_builder  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.logging import configure_logging, get_logger  # noqa: E402
@@ -36,7 +39,6 @@ def _paper_only_builder(builder: object) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["PAPER"], required=True)
-    parser.add_argument("--alpha-file", type=Path)
     parser.add_argument("--status", action="store_true")
     args = parser.parse_args(argv)
     settings = get_settings()
@@ -51,27 +53,40 @@ def main(argv: list[str] | None = None) -> int:
     engine = build_engine(settings.database_url.get_secret_value())
     try:
         sessions = build_session_factory(engine)
-        alpha_file = args.alpha_file or (Path(settings.acts_alpha_file)
-                                         if settings.acts_alpha_file else None)
-        service = ActsPaperService(sessions, settings, alpha_file)
+        service = ActsPaperService(sessions, settings)
         if args.status:
             print(json.dumps(service.status(datetime.now(IST)), indent=2, sort_keys=True))
             return 0
+        local_alpha = LocalActsAlpha(sessions, settings)
         market_settings = settings.model_copy(update={
             "kotak_strike_range": settings.scalper_strike_range})
         builder = make_live_snapshot_builder(
             market_settings, required_contract_provider=service.required_contracts)
         _paper_only_builder(builder)
+        market_observation = [None]
+
+        def capture_market():
+            market = builder()
+            market_observation[0] = market
+            return market
+
         collector = ResearchSnapshotCollector(
-            ResearchSnapshotRepository(engine, mode=ACTS_PAPER_MODE), builder,
+            ResearchSnapshotRepository(engine, mode=ACTS_PAPER_MODE), capture_market,
             start=time(9, 15),
             end=settings.scalper_forced_exit_time,
             holidays=settings.configured_holidays)
 
         def run() -> None:
             try:
+                market_observation[0] = None
                 captured = collector.capture_once(datetime.now(IST))
                 if captured is not None:
+                    if not captured.duplicate and market_observation[0] is not None:
+                        try:
+                            local_alpha.observe(market_observation[0])
+                        except Exception as exc:
+                            logger.error("ACTS_LOCAL_ALPHA_FAILED error_type=%s",
+                                         type(exc).__name__)
                     service.process_snapshot(captured.snapshot_id)
             except Exception as exc:
                 logger.error("ACTS_PAPER_CYCLE_FAILED error_type=%s", type(exc).__name__)
