@@ -657,3 +657,4 @@ from app.scalper.models import (  # noqa: F401, E402
     ScalperCursor, ScalperEvent, ScalperMarketSnapshotRecord,
     ScalperOptionQuoteRecord, ScalperTrade,
 )
+from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade  # noqa: F401, E402

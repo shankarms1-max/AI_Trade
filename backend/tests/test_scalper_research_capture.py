@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
+from app.data.models import RequiredContractCapture
 from app.scalper.config import ScalperConfig
 from app.scalper.models import (ScalperEvent, ScalperMarketSnapshotRecord,
                                 ScalperOptionQuoteRecord, ScalperTrade)
@@ -89,6 +90,25 @@ def test_capture_writes_only_snapshot_and_exact_option_rows(engine, market_snaps
                                      source.ask_quantity, source.depth_unit,
                                      source.volume, source.open_interest)
     assert first.source_market_timestamp.replace(tzinfo=IST) == source.source_market_timestamp
+
+
+def test_capture_includes_required_held_contract_quotes(engine, market_snapshot):
+    market = _market(market_snapshot)
+    held = market.options[0].model_copy(update={
+        "strike": 27_000, "trading_symbol": "NIFTY99OCT27000CE",
+        "instrument_token": "nse_fo|HELD27000"})
+    market = market.model_copy(update={
+        "required_contracts": RequiredContractCapture(requested=[held], quotes=[held])})
+
+    result = _collector(engine, market).capture_once(market.timestamp_ist)
+
+    assert result is not None and result.quote_count == len(market.options) + 1
+    with Session(engine) as session:
+        rows = session.scalars(select(ScalperOptionQuoteRecord).where(
+            ScalperOptionQuoteRecord.instrument_token == "nse_fo|HELD27000")).all()
+    assert len(rows) == 1
+    assert float(rows[0].bid) == held.bid
+    assert float(rows[0].ask) == held.ask
 
 
 def test_repeated_capture_and_restart_are_bucket_idempotent(engine, market_snapshot):

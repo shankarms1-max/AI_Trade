@@ -235,18 +235,21 @@ def _options(current: ResearchObservation, history: list[ResearchObservation],
 
 
 def context_at(current: ResearchObservation, history: list[ResearchObservation],
-               interval: int = 15, max_age: int = 30) -> dict[str, Any]:
+               interval: int = 15, max_age: int = 30, *,
+               session_prices: list[ScalperPriceObservation] | None = None) -> dict[str, Any]:
     """One shared context, computed once from rows strictly before current."""
     snap = current.snapshot
     day = snap.captured_at.astimezone(IST).date()
     history = [row for row in history if row.snapshot.captured_at.astimezone(IST).date() == day]
     if any(row.snapshot.captured_at >= snap.captured_at for row in history):
         raise ValueError("LAB_FUTURE_OBSERVATION")
-    prices = [ScalperPriceObservation(
+    prices = (session_prices if session_prices is not None else [ScalperPriceObservation(
         captured_at=row.snapshot.captured_at, nifty_spot=row.snapshot.nifty_spot,
         nifty_future=row.snapshot.nifty_future,
         future_instrument_id=row.snapshot.future_instrument_id,
-        future_expiry=row.snapshot.future_expiry) for row in history]
+        future_expiry=row.snapshot.future_expiry) for row in history])
+    if any(row.captured_at >= snap.captured_at for row in prices):
+        raise ValueError("LAB_FUTURE_OBSERVATION")
     fast_window = [row.snapshot for row in history[-11:]]
     features = build_features([*fast_window, snap],
                               expected_interval_seconds=interval,

@@ -20,6 +20,7 @@ from app.scalper.models import (ScalperMarketSnapshot, ScalperMarketSnapshotReco
 
 IST = ZoneInfo("Asia/Kolkata")
 MODE = "RESEARCH_ONLY"
+ACTS_PAPER_MODE = "ACTS_PAPER"
 INTERVAL_SECONDS = 15
 logger = get_logger(__name__)
 
@@ -56,18 +57,22 @@ class ResearchCaptureResult:
 class ResearchSnapshotRepository:
     """Core inserts are restricted to the two Phase 15 evidence tables."""
 
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, mode: str = MODE) -> None:
+        if mode not in {MODE, ACTS_PAPER_MODE}:
+            raise ValueError("SCALPER_RESEARCH_CAPTURE_MODE_INVALID")
         self.engine = engine
+        self.mode = mode
 
     def save(self, snapshot: ScalperMarketSnapshot) -> ResearchCaptureResult:
         bucket = capture_bucket(snapshot.captured_at)
-        key = digest({"mode": MODE, "bucket": bucket.isoformat()})
+        key = digest({"mode": self.mode, "bucket": bucket.isoformat()})
         try:
             with self.engine.begin() as connection:
                 existing = connection.scalar(select(ScalperMarketSnapshotRecord.id).where(
                     ScalperMarketSnapshotRecord.capture_key == key))
                 if existing is not None:
-                    return ResearchCaptureResult(existing, len(snapshot.quotes), True)
+                    return ResearchCaptureResult(existing, len(snapshot.quotes), True,
+                                                 self.mode)
                 values = {
                     "capture_key": key,
                     "captured_at": snapshot.captured_at,
@@ -86,7 +91,7 @@ class ResearchSnapshotRepository:
                     # These required columns are intentionally unevaluated.
                     "feature_json": "{}",
                     "signal_json": "{}",
-                    "context_json": canonical({"mode": MODE, "status": "CAPTURED",
+                    "context_json": canonical({"mode": self.mode, "status": "CAPTURED",
                                                "bucket": bucket.isoformat()}),
                 }
                 inserted = connection.execute(insert(ScalperMarketSnapshotRecord).values(
@@ -115,7 +120,8 @@ class ResearchSnapshotRepository:
                         "volume": quote.volume,
                         "open_interest": quote.open_interest,
                     } for quote in snapshot.quotes])
-                return ResearchCaptureResult(snapshot_id, len(snapshot.quotes), False)
+                return ResearchCaptureResult(snapshot_id, len(snapshot.quotes), False,
+                                             self.mode)
         except IntegrityError:
             # Another research process may have won this 15-second bucket.
             with self.engine.connect() as connection:
@@ -123,7 +129,7 @@ class ResearchSnapshotRepository:
                     ScalperMarketSnapshotRecord.capture_key == key))
             if existing is None:
                 raise
-            return ResearchCaptureResult(existing, len(snapshot.quotes), True)
+            return ResearchCaptureResult(existing, len(snapshot.quotes), True, self.mode)
 
 
 class ResearchSnapshotCollector:
@@ -148,10 +154,18 @@ class ResearchSnapshotCollector:
             logger.warning("SCALPER_RESEARCH_CAPTURE_SKIPPED reason=overlap mode=%s", MODE)
             return None
         try:
-            snapshot = to_scalper_snapshot(self.snapshot_builder())
+            market = self.snapshot_builder()
+            if market.required_contracts is not None:
+                # Supplement only this research stream with exact held contracts.
+                # The live scalper adapter and its execution path stay untouched.
+                extra = [quote for quote in market.required_contracts.quotes
+                         if quote.expiry == market.expiry]
+                market = market.model_copy(update={
+                    "options": [*market.options, *extra]})
+            snapshot = to_scalper_snapshot(market)
             result = self.repository.save(snapshot)
             logger.info("SCALPER_RESEARCH_CAPTURE status=%s mode=%s snapshot_id=%d "
-                        "quotes=%d duplicate=%s", "CAPTURED", MODE,
+                        "quotes=%d duplicate=%s", "CAPTURED", result.mode,
                         result.snapshot_id, result.quote_count,
                         str(result.duplicate).lower())
             return result

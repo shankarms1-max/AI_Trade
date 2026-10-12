@@ -245,6 +245,10 @@ class Settings(BaseSettings):
     pipeline_decision_only: bool = False
     forward_paper_enabled: bool = False
 
+    # Independent Phase 15 ACTS_V1 paper journal; disabled unless explicitly selected.
+    acts_paper_enabled: bool = False
+    acts_alpha_file: str | None = None
+
     # Phase 15 isolated fast paper scalper. It has its own stream and journal.
     scalper_enabled: bool = False
     scalper_interval_seconds: int = Field(default=15, ge=10, le=60)

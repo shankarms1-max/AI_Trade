@@ -46,7 +46,7 @@ def test_continuity_migration_preserves_existing_snapshot(tmp_path, postgres):
             tables = inspect(connection).get_table_names()
             columns = {name: [column["name"] for column in inspect(connection).get_columns(name)]
                        for name in tables}
-        command.upgrade(config, "head")
+        command.upgrade(config, "0017_contract_continuity")
         with engine.begin() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
                 "0017_contract_continuity")

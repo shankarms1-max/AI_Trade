@@ -140,10 +140,14 @@ class ScalperRepository:
             return None if row is None else self._row_to_snapshot(row)
 
     def history(self, *, before=None, inclusive=True, since=None,
-                limit: int | None = 1000) -> list[ScalperMarketSnapshot]:
+                limit: int | None = 1000,
+                capture_mode: str | None = None) -> list[ScalperMarketSnapshot]:
         with self.sessions() as session:
             query = select(ScalperMarketSnapshotRecord).options(
                 selectinload(ScalperMarketSnapshotRecord.quotes))
+            if capture_mode is not None:
+                query = query.where(ScalperMarketSnapshotRecord.context_json.like(
+                    f'%"mode":"{capture_mode}"%'))
             if since is not None:
                 query = query.where(ScalperMarketSnapshotRecord.captured_at >= since)
             if before is not None:
@@ -162,13 +166,16 @@ class ScalperRepository:
                     ScalperMarketSnapshotRecord.captured_at.desc()).limit(limit)).all()
             return [ScalperSignal.model_validate_json(value) for value in reversed(rows)]
 
-    def price_history(self, *, since, before) -> list[ScalperPriceObservation]:
+    def price_history(self, *, since, before,
+                      capture_mode: str | None = None) -> list[ScalperPriceObservation]:
         """Indexed session-bounded projection: no option rows or feature/signal JSON."""
         record = ScalperMarketSnapshotRecord
         query = select(record.captured_at, record.nifty_spot, record.nifty_future,
                        record.future_instrument_id, record.future_expiry).where(
             record.captured_at >= since, record.captured_at < before
         ).order_by(record.captured_at, record.id)
+        if capture_mode is not None:
+            query = query.where(record.context_json.like(f'%"mode":"{capture_mode}"%'))
         with self.sessions() as session:
             return [ScalperPriceObservation(
                 captured_at=_aware(row.captured_at), nifty_spot=float(row.nifty_spot),
