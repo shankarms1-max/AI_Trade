@@ -88,6 +88,7 @@ class LabResult:
     summaries: dict[str, dict[str, Any]]
     comparison: tuple[dict[str, Any], ...]
     acts_ledger: tuple[dict[str, Any], ...] = ()
+    alpha_bridge: dict[str, Any] | None = None
 
 
 def _construction_signal(raw, direction: str) -> ScalperSignal:
@@ -485,7 +486,8 @@ class ScalperLab:
             self.config.event_configuration_json)
 
     def run(self, observations: list[ResearchObservation], *,
-            period: str = "DIRECT", event_blocked_at: set[datetime] | None = None) -> LabResult:
+            period: str = "DIRECT", event_blocked_at: set[datetime] | None = None,
+            alpha_bridge: dict[str, Any] | None = None) -> LabResult:
         if any(left.snapshot.captured_at >= right.snapshot.captured_at
                for left, right in zip(observations, observations[1:])):
             raise ValueError("LAB_OBSERVATIONS_NOT_STRICTLY_ORDERED")
@@ -604,6 +606,22 @@ class ScalperLab:
         summaries = {strategy: _summary(strategy, len(observations),
                      [d for d in decisions if d["strategy_id"] == strategy],
                      ledger.trades) for strategy, ledger in ledgers.items()}
+        if alpha_bridge is not None:
+            acts_decisions = [row for row in decisions
+                              if row["strategy_id"] == acts.STRATEGY_ID]
+            states = Counter(row["alpha_state"] for row in acts_decisions)
+            acts_summary = summaries[acts.STRATEGY_ID]
+            acts_summary.update(alpha_bridge=alpha_bridge,
+                                alpha_unavailable_count=sum(
+                                    row["alpha"]["status"] == "ALPHA_UNAVAILABLE"
+                                    for row in acts_decisions),
+                                strong_opposite_veto_count=sum(
+                                    "STRONG_OPPOSITE_ALPHA_VETO" in row["blockers"]
+                                    for row in acts_decisions),
+                                supportive_count=(states["SUPPORTIVE"]
+                                                  + states["STRONG_SUPPORTIVE"]),
+                                neutral_count=states["NEUTRAL"],
+                                contradictory_count=states["CONTRADICTORY"])
         comparison = tuple(summaries[strategy] for strategy in STRATEGY_IDS)
         dataset_hash = digest([(row.snapshot_id, row.snapshot.model_dump(mode="json"),
                                 row.futures, row.alpha.model_dump(mode="json") if row.alpha else None)
@@ -623,6 +641,8 @@ class ScalperLab:
                                 "code_commit_hash": code_commit,
                                 "code_dirty": code_dirty,
                                 "input_hash": dataset_hash}}
+        if alpha_bridge is not None:
+            manifest["alpha_bridge"] = alpha_bridge
         acts_trades = ledgers[acts.STRATEGY_ID].trades if acts.STRATEGY_ID in ledgers else []
         acts_ledger = tuple({
             "entry_time": trade.entry_timestamp.isoformat() if trade.entry_timestamp else None,
@@ -644,4 +664,4 @@ class ScalperLab:
         return LabResult(manifest, tuple(contexts), tuple(json_value(d) for d in decisions),
                          tuple(trade.payload() for ledger in ledgers.values()
                                for trade in ledger.trades), summaries, comparison,
-                         tuple(json_value(row) for row in acts_ledger))
+                         tuple(json_value(row) for row in acts_ledger), alpha_bridge)

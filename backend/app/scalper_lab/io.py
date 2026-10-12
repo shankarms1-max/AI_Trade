@@ -62,7 +62,8 @@ def load_futures_csv(path: Path | None) -> dict[str, dict[str, Any]]:
 
 
 def load_local_sqlite(path: Path, start: date, end: date,
-                      futures: dict[str, dict[str, Any]] | None = None) -> list[ResearchObservation]:
+                      futures: dict[str, dict[str, Any]] | None = None, *,
+                      alpha_meta: dict[str, Any] | None = None) -> list[ResearchObservation]:
     """SQLite mode=ro ensures even an accidental INSERT cannot mutate evidence."""
     if end < start:
         raise ValueError("LAB_DATE_RANGE_INVALID")
@@ -72,13 +73,14 @@ def load_local_sqlite(path: Path, start: date, end: date,
     engine = create_engine("sqlite+pysqlite://", creator=lambda: sqlite3.connect(uri, uri=True))
     try:
         with Session(engine) as session:
-            return _load_observations(session, start, end, futures)
+            return _load_observations(session, start, end, futures, alpha_meta)
     finally:
         engine.dispose()
 
 
 def load_postgresql(database_url: str, start: date, end: date,
-                    futures: dict[str, dict[str, Any]] | None = None) -> list[ResearchObservation]:
+                    futures: dict[str, dict[str, Any]] | None = None, *,
+                    alpha_meta: dict[str, Any] | None = None) -> list[ResearchObservation]:
     """Read Phase 15 evidence inside a PostgreSQL read-only transaction."""
     if make_url(database_url).get_backend_name() != "postgresql":
         raise ValueError("LAB_POSTGRESQL_URL_REQUIRED")
@@ -88,13 +90,14 @@ def load_postgresql(database_url: str, start: date, end: date,
             with connection.begin():
                 connection.exec_driver_sql("SET TRANSACTION READ ONLY")
                 with Session(connection) as session:
-                    return _load_observations(session, start, end, futures)
+                    return _load_observations(session, start, end, futures, alpha_meta)
     finally:
         engine.dispose()
 
 
 def _load_observations(session: Session, start: date, end: date,
-                       futures: dict[str, dict[str, Any]] | None) -> list[ResearchObservation]:
+                       futures: dict[str, dict[str, Any]] | None,
+                       alpha_meta: dict[str, Any] | None = None) -> list[ResearchObservation]:
     if end < start:
         raise ValueError("LAB_DATE_RANGE_INVALID")
     lower = datetime.combine(start, time.min, tzinfo=IST)
@@ -106,6 +109,9 @@ def _load_observations(session: Session, start: date, end: date,
                 ScalperMarketSnapshotRecord.captured_at,
                 ScalperMarketSnapshotRecord.id)).all()
     alphas = _load_alphas(session, lower - timedelta(minutes=3), upper)
+    if alpha_meta is not None:
+        alpha_meta.update(alpha_source="SAME_DB" if alphas else "NONE",
+                          alpha_rows_loaded=len(alphas))
     alpha_times = [alpha.timestamp for alpha in alphas]
     output = []
     for record in records:
@@ -160,6 +166,10 @@ def write_result(result: LabResult, output: Path) -> dict[str, Path]:
     paths = {name: output / name for name in (
         "manifest.json", "contexts.jsonl", "decisions.jsonl", "trades.jsonl",
         "acts_ledger.jsonl", "summary.json", "comparison.csv", "comparison.md")}
+    if result.alpha_bridge is not None:
+        paths["alpha_bridge.json"] = output / "alpha_bridge.json"
+        paths["alpha_bridge.json"].write_text(
+            json.dumps(result.alpha_bridge, indent=2, sort_keys=True) + "\n")
     paths["manifest.json"].write_text(json.dumps(result.manifest, indent=2, sort_keys=True) + "\n")
     paths["summary.json"].write_text(
         json.dumps(result.summaries, indent=2, sort_keys=True, allow_nan=False) + "\n")
