@@ -4,7 +4,11 @@ from __future__ import annotations
 from bisect import bisect_left, bisect_right
 from collections import Counter
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+import csv
+import json
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from pydantic import ValidationError
@@ -112,7 +116,8 @@ def _read_rows(connection: Connection, lower: datetime,
     return [_parse(record) for record in records]
 
 
-def _match(observations: list[ResearchObservation], rows: list[_AlphaRow]
+def _match(observations: list[ResearchObservation], rows: list[_AlphaRow], *,
+           source: str = "EXTERNAL_DB"
            ) -> tuple[list[ResearchObservation], dict[str, Any]]:
     ordered = sorted(rows, key=lambda row: (row.timestamp, row.id))
     times = [row.timestamp for row in ordered]
@@ -143,7 +148,7 @@ def _match(observations: list[ResearchObservation], rows: list[_AlphaRow]
             matched += 1
         result.append(replace(observation, alpha=selected))
     diagnostics: dict[str, Any] = {
-        "alpha_source": "EXTERNAL_DB",
+        "alpha_source": source,
         "rejection_count_scope": "ONE_REASON_PER_UNMATCHED_OBSERVATION",
         "alpha_rows_loaded": len(ordered),
         "alpha_rows_valid": sum(row.reason is None for row in ordered),
@@ -185,6 +190,39 @@ def load_external_alpha(observations: list[ResearchObservation],
     except SQLAlchemyError:
         raise RuntimeError("LAB_ALPHA_SOURCE_READ_FAILED") from None
     return _match(observations, rows)
+
+
+_CSV_COLUMNS = frozenset({"id", "timestamp", "expiry", "alpha_version",
+                          "calculation_mode", "price_source", "result_json"})
+
+
+def load_alpha_file(observations: list[ResearchObservation], path: Path
+                    ) -> tuple[list[ResearchObservation], dict[str, Any]]:
+    """Parse a local Phase 14 CSV export into the unchanged causal matcher."""
+    rows: list[_AlphaRow] = []
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None or not _CSV_COLUMNS <= set(reader.fieldnames):
+            raise ValueError("LAB_ALPHA_FILE_COLUMNS_REQUIRED")
+        for record in reader:
+            try:
+                timestamp = datetime.fromisoformat(record["timestamp"])
+                if not _aware(timestamp):
+                    raise ValueError("naive timestamp")
+                try:
+                    payload = json.loads(record["result_json"])
+                except json.JSONDecodeError:
+                    payload = None
+                parsed = SimpleNamespace(
+                    id=int(record["id"]), timestamp=timestamp,
+                    expiry=date.fromisoformat(record["expiry"]),
+                    alpha_version=record["alpha_version"],
+                    calculation_mode=record["calculation_mode"],
+                    price_source=record["price_source"], result_json=payload)
+            except (TypeError, ValueError, KeyError):
+                raise ValueError("LAB_ALPHA_FILE_ROW_INVALID") from None
+            rows.append(_parse(parsed))
+    return _match(observations, rows, source="FILE")
 
 
 def same_db_diagnostics(observations: list[ResearchObservation],

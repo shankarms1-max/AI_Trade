@@ -19,7 +19,8 @@ from app.core.config import Settings  # noqa: E402
 from app.scalper.config import ScalperConfig  # noqa: E402
 from app.scalper.paper import cost_schedule  # noqa: E402
 from app.scalper_lab.engine import ScalperLab  # noqa: E402
-from app.scalper_lab.alpha_bridge import (load_external_alpha,  # noqa: E402
+from app.scalper_lab.alpha_bridge import (load_alpha_file,  # noqa: E402
+                                          load_external_alpha,
                                           same_db_diagnostics)
 from app.scalper_lab.io import (load_futures_csv, load_local_sqlite,  # noqa: E402
                                 load_postgresql, write_result)
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
                           help="PostgreSQL URL; opened in a read-only transaction")
     parser.add_argument("--alpha-database-url",
                         help="optional separate PostgreSQL Alpha source; read-only")
+    parser.add_argument("--alpha-file", type=Path,
+                        help="local Phase 14 alpha_feature_snapshots CSV export")
     parser.add_argument("--futures-csv", type=Path,
                         help="optional broker futures quote export with real volume and VWAP")
     parser.add_argument("--output", required=True, type=Path,
@@ -89,13 +92,16 @@ def main(argv: list[str] | None = None) -> int:
             assert database_url is not None
             observations = load_postgresql(database_url, start, end, futures,
                                            alpha_meta=alpha_meta)
-        if alpha_database_url is not None:
+        if args.alpha_file is not None:
+            observations, alpha_report = load_alpha_file(observations, args.alpha_file)
+        elif alpha_database_url is not None:
             observations, alpha_report = load_external_alpha(
                 observations, alpha_database_url)
         else:
             alpha_report = same_db_diagnostics(observations, alpha_meta)
         result = lab.run(observations, period=period,
-                         alpha_bridge=alpha_report if alpha_database_url is not None else None)
+                         alpha_bridge=(alpha_report if args.alpha_file is not None
+                                       or alpha_database_url is not None else None))
         directory = args.output / period.lower()
         write_result(result, directory)
         results.append({"period": period, "observations": len(observations),
