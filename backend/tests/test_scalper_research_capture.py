@@ -173,7 +173,7 @@ def test_capture_is_independent_of_strategy_and_order_methods(
             ScalperMarketSnapshotRecord)) == 1
 
 
-def test_worker_requires_explicit_mode_and_refuses_live_scalper(monkeypatch):
+def test_worker_requires_database_url(monkeypatch):
     from tests.test_scalper import settings
 
     monkeypatch.setattr(worker, "get_settings", settings)
@@ -183,7 +183,9 @@ def test_worker_requires_explicit_mode_and_refuses_live_scalper(monkeypatch):
     assert worker.main(["--mode", MODE]) == 2
 
 
-def test_worker_schedules_exact_fifteen_second_research_cadence(monkeypatch):
+@pytest.mark.parametrize("scalper_enabled", [False, True])
+def test_worker_schedules_exact_fifteen_second_research_cadence(
+        monkeypatch, scalper_enabled):
     from tests.test_scalper import settings
 
     jobs = []
@@ -207,7 +209,7 @@ def test_worker_schedules_exact_fifteen_second_research_cadence(monkeypatch):
             pass
 
     monkeypatch.setattr(worker, "get_settings", lambda: settings().model_copy(
-        update={"scalper_enabled": False,
+        update={"scalper_enabled": scalper_enabled,
                 "database_url": SecretStr("sqlite:///research-test")}))
     monkeypatch.setattr(worker, "configure_logging", lambda *_: None)
     monkeypatch.setattr(worker, "build_engine", lambda *_: FakeEngine())

@@ -32,9 +32,6 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     configure_logging(settings.log_level, settings.log_dir,
                       settings.log_max_bytes, settings.log_backup_count)
-    if settings.scalper_enabled:
-        logger.error("SCALPER_RESEARCH_REFUSED reason=SCALPER_ENABLED mode=%s", MODE)
-        return 2
     if settings.database_url is None:
         logger.error("SCALPER_RESEARCH_REFUSED reason=DATABASE_URL_REQUIRED mode=%s", MODE)
         return 2

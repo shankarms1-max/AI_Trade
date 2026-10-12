@@ -3,8 +3,8 @@
 `worker/scalper_research_collector.py` is a separate, explicitly selected
 market-data process. It uses the existing Kotak read-only client and option
 chain capture. It does not instantiate `ScalperService`, the paper engine, the
-strategy lab, ACTS_V1, or a broker order adapter. `SCALPER_ENABLED` must remain
-false; the command refuses to start if it is true.
+strategy lab, ACTS_V1, or a broker order adapter. It can run alongside the
+existing scalper when `SCALPER_ENABLED=true`.
 
 The process captures at IST seconds `00`, `15`, `30`, and `45` on weekdays,
 only within the configured Phase 15 window, from `SCALPER_START_TIME`
