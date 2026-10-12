@@ -17,13 +17,13 @@ from app.data.models import MarketSnapshot
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper import SCALPER_VERSION
+from app.scalper.capture import to_scalper_snapshot
 from app.scalper.config import ScalperConfig
 from app.scalper.features import build_features
 from app.scalper.decisions import assess_entry
 from app.scalper.models import (ScalperCursor, ScalperEvent, ScalperFeatures,
                                 ScalperMarketSnapshot, ScalperMarketSnapshotRecord,
-                                ScalperOptionQuote, ScalperSignal, ScalperTrade,
-                                ScalperCandidate)
+                                ScalperSignal, ScalperTrade, ScalperCandidate)
 from app.scalper.paper import cost_schedule, executable_pair, exit_trigger
 from app.scalper.repository import ScalperRepository
 from app.scalper.risk import ScalperRiskState
@@ -32,38 +32,6 @@ from app.scalper.signals import build_signal
 logger = get_logger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
 ACTIVE = ("PENDING_ENTRY", "OPEN", "UNRESOLVED")
-
-
-def to_scalper_snapshot(snapshot: MarketSnapshot) -> ScalperMarketSnapshot:
-    """Strictly adapt read-only broker data; incomplete identities fail capture."""
-    if snapshot.lot_size is None:
-        raise ValueError("SCALPER_CONFIRMED_LOT_SIZE_REQUIRED")
-    if any(not item.instrument_token for item in snapshot.options):
-        raise ValueError("SCALPER_INCOMPLETE_QUOTE_IDENTITY")
-    captured = snapshot.response_received_at or snapshot.timestamp_ist
-    started = snapshot.request_started_at or snapshot.timestamp_ist
-    quotes = [ScalperOptionQuote(
-        expiry=item.expiry, strike=item.strike,
-        option_type=item.option_type.value, exchange=item.exchange,
-        trading_symbol=item.trading_symbol,
-        instrument_token=item.instrument_token or "",
-        source_market_timestamp=item.source_market_timestamp,
-        bid=item.bid, ask=item.ask, bid_quantity=item.bid_quantity,
-        ask_quantity=item.ask_quantity, depth_unit=item.depth_unit,
-        tick_size=item.tick_size, ltp=item.ltp, volume=item.volume,
-        open_interest=item.open_interest)
-        for item in snapshot.options]
-    source_times = [item.source_market_timestamp for item in quotes
-                    if item.source_market_timestamp is not None]
-    return ScalperMarketSnapshot(
-        captured_at=captured, request_started_at=started,
-        response_received_at=captured,
-        source_market_timestamp=max(source_times) if source_times else None,
-        nifty_spot=snapshot.nifty_spot, nifty_future=snapshot.nifty_future,
-        future_instrument_id=snapshot.future_instrument_id,
-        future_expiry=snapshot.future_expiry, india_vix=snapshot.india_vix,
-        lot_size=snapshot.lot_size, atm_strike=snapshot.atm_strike,
-        expiry=snapshot.expiry, source=snapshot.source, quotes=quotes)
 
 
 class ScalperPaperEngine:
