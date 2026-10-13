@@ -12,7 +12,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
-from app.acts_paper.alpha import ACTS_ALPHA_SOURCE
+from app.acts_paper.alpha import ACTS_ALPHA_SOURCE, ActsAlphaRepository
+from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
+from app.alpha.engine import config_from_settings
 from app.core.logging import get_logger
 from app.data.models import OptionContractSnapshot
 from app.research.manifest import canonical, digest, json_value
@@ -116,6 +118,7 @@ class ActsPaperService:
         self.events = ConfiguredMarketEventProvider.from_json(
             self.config.event_configuration_json)
         self.repository = ScalperRepository(sessions)
+        self.alpha_config = config_from_settings(settings)
         self.policy_hash = digest(json_value({
             "strategy_version": acts.STRATEGY_ID, "parameters": acts.PARAMETERS,
             "config": self.config.payload(), "costs": self.costs.payload(),
@@ -305,6 +308,8 @@ class ActsPaperService:
             raise LookupError("ACTS_SNAPSHOT_NOT_FOUND")
         observation = self._alpha(self._observation(snapshot_id, raw))
         ctx = self._context(observation)
+        alpha_info = alpha_readiness(observation, self.sessions, self.alpha_config)
+        regime_info = regime_readiness(ctx)
         with self.sessions.begin() as session:
             changed = session.execute(update(ActsPaperCursor).where(
                 ActsPaperCursor.id == 1).values(
@@ -396,6 +401,8 @@ class ActsPaperService:
             latest = {"snapshot_id": snapshot_id, "timestamp": raw.captured_at,
                       "status": status, "decision_regime": decision["regime"],
                       "alpha_state": decision["alpha"]["classification"],
+                      "alpha_diagnostics": alpha_info,
+                      "regime_diagnostics": regime_info,
                       "direction": decision["direction"],
                       "primary_blocker": decision["blockers"][0]
                       if decision["blockers"] else None}
@@ -439,10 +446,19 @@ class ActsPaperService:
                           and active[0] == "OPEN" else None)
             entries = sum(doc.get("entry_timestamp") is not None
                           for _, _, doc in today)
+            latest = json.loads(cursor.latest_json)
+            history_at = ((latest.get("alpha_diagnostics") or {}).get("alpha_timestamp")
+                          or latest.get("timestamp"))
+            history_report: dict[str, Any] = {}
+            if history_at:
+                history_repo = ActsAlphaRepository(self.sessions, self.alpha_config)
+                history_repo.load_history_before(datetime.fromisoformat(history_at))
+                history_report = history_repo.last_history_report
             return json_value({
                 "enabled": self.settings.acts_paper_enabled,
                 "mode": "PAPER", "strategy_version": acts.STRATEGY_ID,
-                "latest_observation": json.loads(cursor.latest_json),
+                "latest_observation": latest,
+                "alpha_history": history_report,
                 "watch_state": json.loads(cursor.watch_json),
                 "current_state": active[0] if active else
                 json.loads(cursor.latest_json).get("status", "NO_SETUP"),

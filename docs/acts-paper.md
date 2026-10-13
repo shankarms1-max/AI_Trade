@@ -19,9 +19,23 @@ in this Phase 15 database. This dedicated capture does not require enabling
 the separate Phase 14 `ALPHA_ENGINE_ENABLED` pipeline. ACTS uses the existing
 causal matcher against those local rows; stale, future, invalid, or
 identity-mismatched Alpha cannot open a paper trade. The 800/300
-trading-minute lookbacks require local
-history to warm up. Historical strategy-lab replay retains its separate
-`--alpha-file` option; the live paper worker uses no CSV.
+trading-minute lookbacks use eligible Phase 15 research captures as causal
+prior history. No historical rows are copied into `market_snapshots`.
+Historical strategy-lab replay retains its separate `--alpha-file` option;
+the live paper worker uses no CSV.
+
+Warm-up selects one capture from each completed three-minute bucket. Existing
+local Alpha raw captures take precedence, followed by `ACTS_PAPER` and
+`RESEARCH_ONLY` captures with verifiable read-only capture keys. A legacy row
+must carry an explicit `LEGACY_RESEARCH` / `KOTAK_NEO_READ_ONLY` provenance
+marker and complete option price, volume, OI, timestamp, and identity fields.
+Older strategy-evaluated rows labelled `OTHER` do not qualify automatically.
+The earliest capture in each mode and bucket is considered. If it fails field
+checks, the next mode may supply that bucket. The current bucket, all later
+captures, and rows persisted after the Alpha observation are excluded. The
+history query uses the configured lookbacks and a fixed row limit; option
+quotes are loaded only for chosen buckets every three minutes, never on the
+15-second decision path.
 
 Start the worker with:
 
@@ -34,6 +48,17 @@ Read its status and gross paper P&L with:
 ```sh
 python /app/worker/acts_paper_worker.py --mode PAPER --status
 ```
+
+`latest_observation.alpha_diagnostics` distinguishes warming, invalid,
+stale, identity-mismatched, and available Alpha. `alpha_history` reports the
+reconstructed history span, trading minutes, row count, and capture-mode
+split. `latest_observation.regime_diagnostics` shows the observed spot,
+future, 3/5/15-minute returns, structure, opening range, VWAP, each ACTS
+directional gate, and the main reason a regime remained RANGE. The 3-minute
+threshold is context-only; ACTS_V1 still gates on its frozen 5- and
+15-minute thresholds. Alpha readiness booleans describe whether the full
+configured lookback is represented within one sampling bucket; they do not
+add an entry gate or change the Alpha engine's validity rules.
 
 The scheduler captures every 15 seconds from 09:15 through 15:20 IST on
 market weekdays, excluding configured holidays. A decision marked `ENTER`
