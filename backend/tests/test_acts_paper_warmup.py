@@ -8,8 +8,11 @@ from app.acts_paper.alpha import (ActsAlphaRepository, LocalActsAlpha, alpha_buc
                                   is_alpha_warmup_eligible,
                                   research_to_market_snapshot)
 from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
+from app.acts_paper.alpha_history_diagnostic import diagnose_alpha_history
+from app.alpha.engine import AlphaConfig, build_alpha_features
+from app.alpha.price_alpha import horizon_log_return
 from app.alpha.models import ALPHA_VERSION, AlphaValidity, CalculationMode
-from app.alpha.volume_alpha import interval_volume
+from app.alpha.volume_alpha import VolumeState, interval_volume
 from app.data.models import MarketSnapshot
 from app.db.models import AlphaFeatureSnapshotRecord, MarketSnapshotRecord
 from app.db.session import build_session_factory
@@ -72,7 +75,8 @@ def test_research_adapter_preserves_exact_inputs_without_fabrication(
     assert converted.timestamp_ist == market.timestamp_ist
     assert converted.request_started_at == market.request_started_at
     assert converted.response_received_at == market.response_received_at
-    assert converted.source_market_timestamp == market.source_market_timestamp
+    # The scalper aggregate timestamp belongs to option quotes, not the future.
+    assert converted.source_market_timestamp is None
     assert converted.nifty_spot == market.nifty_spot
     assert converted.nifty_future == market.nifty_future
     assert converted.future_instrument_id == market.future_instrument_id
@@ -95,6 +99,51 @@ def test_research_adapter_preserves_exact_inputs_without_fabrication(
     assert quote.previous_open_interest is None
     assert quote.change_in_open_interest is None
     assert quote.delta is None and quote.gamma is None
+
+
+def test_option_timestamp_cannot_stale_the_futures_reference(engine, market_snapshot):
+    base = _market(market_snapshot)
+    start = base.timestamp_ist.replace(minute=15, second=0, microsecond=0)
+    earlier = _at(base, start)
+    later = _at(base, start + timedelta(minutes=6), volume_extra=30)
+    first_id = _save(engine, earlier)
+    last_id = _save(engine, later)
+    with Session(engine) as session:
+        records = session.scalars(select(ScalperMarketSnapshotRecord).options(
+            selectinload(ScalperMarketSnapshotRecord.quotes)).where(
+                ScalperMarketSnapshotRecord.id.in_([first_id, last_id])).order_by(
+                    ScalperMarketSnapshotRecord.captured_at)).all()
+        assert len(records) == 2
+        # Simulate an aggregate timestamp sourced from unrelated stale options.
+        records[1].source_market_timestamp = start - timedelta(minutes=20)
+        converted = [research_to_market_snapshot(row) for row in records]
+    config = LocalActsAlpha(build_session_factory(engine),
+                            settings(acts_paper_enabled=True)).config
+    assert horizon_log_return(converted[1], converted[:1], "FUTURE").value is not None
+    assert converted[1].source_market_timestamp is None
+    assert converted[1].options[0].source_market_timestamp == (
+        later.options[0].source_market_timestamp)
+    assert diagnose_alpha_history(converted[1], converted[:1], config)[
+        "current_horizon_reason"] is None
+    stale = converted[1].model_copy(update={"source_market_timestamp":
+                                    start - timedelta(minutes=20)})
+    assert diagnose_alpha_history(stale, converted[:1], config)[
+        "current_horizon_reason"] == "STALE_REFERENCE_PRICE"
+
+
+def test_incompatible_futures_and_stale_option_history_stay_rejected(market_snapshot):
+    base = _market(market_snapshot)
+    start = base.timestamp_ist.replace(minute=15, second=0, microsecond=0)
+    earlier = _at(base, start)
+    later = _at(base, start + timedelta(minutes=6), volume_extra=30)
+    wrong_future = earlier.model_copy(update={"future_instrument_id": "OTHER_FUTURE"})
+    wrong_expiry = earlier.model_copy(update={
+        "future_expiry": earlier.future_expiry + timedelta(days=30)})
+    assert horizon_log_return(later, [wrong_future], "FUTURE").reason == "HORIZON_UNAVAILABLE"
+    assert horizon_log_return(later, [wrong_expiry], "FUTURE").reason == "HORIZON_UNAVAILABLE"
+    stale_quote = later.options[0].model_copy(update={
+        "source_market_timestamp": start - timedelta(minutes=20)})
+    assert interval_volume(stale_quote, earlier, later).state == VolumeState.STALE
 
 
 def test_volume_interval_survives_research_conversion(engine, market_snapshot):
@@ -144,6 +193,8 @@ def test_history_priority_causality_and_restart(engine, market_snapshot):
     assert history[0].nifty_spot == prior.nifty_spot + 1
     assert [row.timestamp_ist for row in history] == [prior.timestamp_ist]
     assert repository.last_history_report["history_provenance_split"]["ACTS_PAPER"] == 1
+    assert repository.last_history_option_aggregate_times == {
+        prior.timestamp_ist: prior.options[0].source_market_timestamp}
     assert restarted.last_history_report == repository.last_history_report
     with Session(engine) as session:
         assert tuple(session.scalars(select(ScalperMarketSnapshotRecord.id).where(
@@ -296,6 +347,81 @@ def test_original_alpha_warms_across_300_and_800_trading_minutes(
             MarketSnapshotRecord)) == 2
         assert session.scalar(select(func.count()).select_from(
             AlphaFeatureSnapshotRecord)) == 2
+
+
+def test_169_causal_three_minute_rows_make_alpha2_ready_without_rule_changes(
+        market_snapshot):
+    base = _market(market_snapshot)
+    pair = [quote for quote in base.options if quote.strike == 25050]
+    earlier_pair = [quote for quote in base.options if quote.strike == 25000]
+    assert len(pair) == len(earlier_pair) == 2
+    history = []
+    absolute = 0
+    for opening, count in ((datetime(2026, 10, 12, 12, 38,
+                                     tzinfo=base.timestamp_ist.tzinfo), 55),
+                           (datetime(2026, 10, 13, 9, 15,
+                                     tzinfo=base.timestamp_ist.tzinfo), 114)):
+        for index in range(count):
+            at = opening + timedelta(minutes=index * 3)
+            selected_pair = earlier_pair if absolute < 150 else pair
+            quotes = [quote.model_copy(update={
+                "ltp": (100 if quote.option_type.value == "CE" else 95)
+                + (absolute * (7 if quote.option_type.value == "CE" else 5)) % 13,
+                "volume": 500 + index * 30,
+                "open_interest": 1000 + index,
+                "source_market_timestamp": at - timedelta(seconds=2),
+            }) for quote in selected_pair]
+            history.append(base.model_copy(update={
+                "timestamp_ist": at, "request_started_at": at - timedelta(seconds=1),
+                "response_received_at": at, "source_market_timestamp": None,
+                "nifty_future": 25040 + absolute * 0.02 + (absolute % 7) * 2,
+                "options": quotes,
+            }))
+            absolute += 1
+    current_at = history[-1].timestamp_ist + timedelta(minutes=3)
+    current = history[-1].model_copy(update={
+        "timestamp_ist": current_at, "request_started_at": current_at,
+        "response_received_at": current_at,
+        "nifty_future": history[-1].nifty_future + 2,
+        "options": [quote.model_copy(update={
+            "volume": quote.volume + 30,
+            "source_market_timestamp": current_at - timedelta(seconds=2),
+        }) for quote in history[-1].options],
+    })
+    diagnostic = diagnose_alpha_history(current, history, AlphaConfig())
+    result = build_alpha_features(1, current, history, [], AlphaConfig())
+    old_mapping = [point.model_copy(update={
+        "source_market_timestamp": point.timestamp_ist - timedelta(minutes=20)})
+        if index < 150 else point for index, point in enumerate(history)]
+    old_diagnostic = diagnose_alpha_history(current, old_mapping, AlphaConfig())
+    old_result = build_alpha_features(1, current, old_mapping, [], AlphaConfig())
+    assert len(history) == 169
+    assert old_diagnostic["alpha1_rank"]["accepted"] == old_result.rank_observations_alpha1
+    assert old_diagnostic["alpha2_rank"]["accepted"] == old_result.rank_observations_alpha2
+    assert old_diagnostic["alpha1_rank"]["rejected"] == {
+        "horizon_STALE_REFERENCE_PRICE": 150,
+        "horizon_HORIZON_UNAVAILABLE": 2,
+    }
+    assert old_diagnostic["alpha2_rank"]["rejected"] == {
+        "horizon_STALE_REFERENCE_PRICE": 81,
+        "horizon_HORIZON_UNAVAILABLE": 2,
+        "underlying_volatility_unavailable": 5,
+    }
+    assert old_result.rank_observations_alpha1 == 17
+    assert old_result.rank_observations_alpha2 == 12
+    assert diagnostic["alpha1_rank"]["accepted"] == 165
+    assert diagnostic["alpha2_rank"]["accepted"] == 99
+    assert diagnostic["alpha1_rank"]["rejected"] == {"horizon_HORIZON_UNAVAILABLE": 4}
+    assert diagnostic["alpha2_rank"]["rejected"] == {"option_price_history_short": 1}
+    assert diagnostic["alpha2_rank"]["accepted"] == result.rank_observations_alpha2
+    assert diagnostic["alpha1_rank"]["accepted"] == result.rank_observations_alpha1
+    assert diagnostic["volatility_returns"]["accepted"] == result.volatility_observation_count
+    assert diagnostic["volume_intervals"]["CE"]["accepted"] >= 5
+    assert diagnostic["volume_intervals"]["PE"]["accepted"] >= 5
+    assert result.volume_baseline_observations == 18
+    assert result.volatility_return_observations == 19
+    assert result.alpha_2 is not None
+    assert result.validity_state == AlphaValidity.VALID
 
 
 def test_status_reports_alpha_and_exact_regime_inputs_without_changing_decision(engine):

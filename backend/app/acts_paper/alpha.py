@@ -122,7 +122,12 @@ def research_to_market_snapshot(record: ScalperMarketSnapshotRecord) -> MarketSn
         timestamp_ist=_as_ist(record.captured_at),
         request_started_at=_aware(record.request_started_at),
         response_received_at=_aware(record.response_received_at),
-        source_market_timestamp=_aware(record.source_market_timestamp),
+        # Phase 15's aggregate timestamp is the latest OPTION quote timestamp
+        # (to_scalper_snapshot), not the futures LTP's market timestamp. Passing
+        # it as the futures reference age makes Phase 14.1 reject valid returns.
+        # The broker supplies no futures source timestamp; leave it unavailable.
+        # Each option keeps its own exact source timestamp below.
+        source_market_timestamp=None,
         snapshot_persisted_at=_aware(record.created_at, utc=True),
         nifty_spot=float(record.nifty_spot),
         nifty_future=None if record.nifty_future is None else float(record.nifty_future),
@@ -166,6 +171,9 @@ class ActsAlphaRepository(AlphaRepository):
         self.research_scan_limit = self.history_limit * 12 * 3 + 256
         self.config = config
         self.last_history_report: dict[str, Any] = {}
+        # Retain provenance for read-only before/after diagnostics. These option
+        # timestamps must never become futures reference timestamps in Alpha.
+        self.last_history_option_aggregate_times: dict[datetime, datetime | None] = {}
 
     def _capture_candidates(self, session: Session, timestamp: datetime
                             ) -> dict[datetime, dict[str, HistoryRecord]]:
@@ -247,6 +255,7 @@ class ActsAlphaRepository(AlphaRepository):
                         unresolved.remove(bucket)
             history: list[MarketSnapshot] = []
             split: Counter[str] = Counter()
+            option_aggregate_times: dict[datetime, datetime | None] = {}
             for bucket in sorted(chosen):
                 mode, selected_row = chosen[bucket]
                 if isinstance(selected_row, MarketSnapshotRecord):
@@ -257,6 +266,10 @@ class ActsAlphaRepository(AlphaRepository):
                 if converted.timestamp_ist < timestamp:
                     history.append(converted)
                     split[mode] += 1
+                    if isinstance(selected_row, ScalperMarketSnapshotRecord):
+                        option_aggregate_times[converted.timestamp_ist] = _aware(
+                            selected_row.source_market_timestamp)
+            self.last_history_option_aggregate_times = option_aggregate_times
             coverage, _, _ = window_coverage(
                 history, timestamp, LookbackClockMode.TRADING_MINUTES,
                 holidays=self.config.holiday_dates)
