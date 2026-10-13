@@ -1,4 +1,4 @@
-"""Causal ACTS_V1 paper execution over the isolated Phase 15 capture stream."""
+"""Versioned ACTS paper execution over the isolated Phase 15 capture stream."""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
+from app.acts_paper import acts_v2
 from app.acts_paper.alpha import ACTS_ALPHA_SOURCE, ActsAlphaRepository
 from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
 from app.alpha.engine import config_from_settings
@@ -42,7 +43,8 @@ def _lab_trade(row: ActsPaperTrade) -> LabTrade | None:
     doc = json.loads(row.document)
     if doc.get("candidate") is None:
         return None
-    trade = LabTrade(acts.STRATEGY_ID, ScalperCandidate.model_validate(doc["candidate"]),
+    trade = LabTrade(doc.get("strategy_version", acts.STRATEGY_ID),
+                     ScalperCandidate.model_validate(doc["candidate"]),
                      doc["decision"], row.decision_snapshot_id,
                      state={"PENDING_PAPER_ENTRY": "PENDING_ENTRY",
                             "UNRESOLVED_EXPOSURE": "UNRESOLVED"}.get(row.state, row.state),
@@ -119,10 +121,22 @@ class ActsPaperService:
             self.config.event_configuration_json)
         self.repository = ScalperRepository(sessions)
         self.alpha_config = config_from_settings(settings)
-        self.policy_hash = digest(json_value({
+        self.strategy_id = settings.acts_paper_strategy_version
+        if self.strategy_id not in {acts.STRATEGY_ID, acts_v2.STRATEGY_ID}:
+            raise ValueError("ACTS_PAPER_STRATEGY_VERSION_INVALID")
+        self.v2_config = (acts_v2.ActsV2Config.from_settings(settings)
+                          if self.strategy_id == acts_v2.STRATEGY_ID else None)
+        self.v1_policy_hash = digest(json_value({
             "strategy_version": acts.STRATEGY_ID, "parameters": acts.PARAMETERS,
             "config": self.config.payload(), "costs": self.costs.payload(),
             "execution_mode": "PAPER", "lots": 1}))
+        self.policy_hash = (self.v1_policy_hash if self.v2_config is None else
+                            digest(json_value({
+                                "strategy_version": acts_v2.STRATEGY_ID,
+                                "parameters": self.v2_config.payload(),
+                                "config": self.config.payload(),
+                                "costs": self.costs.payload(),
+                                "execution_mode": "PAPER", "lots": 1})))
         verify_acts_paper_journal(sessions)
 
     def _emit(self, session: Session, cursor: ActsPaperCursor, kind: str,
@@ -132,7 +146,9 @@ class ActsPaperService:
         document = json.loads(trade.document) if trade else None
         payload = json_value({
             "event_type": kind, "execution_mode": "PAPER",
-            "strategy_version": acts.STRATEGY_ID, "snapshot_id": snapshot_id,
+            "strategy_version": (document.get("strategy_version", acts.STRATEGY_ID)
+                                 if document else self.strategy_id),
+            "snapshot_id": snapshot_id,
             "market_timestamp": raw.captured_at,
             "source_market_timestamp": raw.source_market_timestamp,
             "ingestion_timestamp": raw.response_received_at,
@@ -206,7 +222,10 @@ class ActsPaperService:
         doc = json.loads(trade.document)
         if trade.state == "UNRESOLVED_EXPOSURE":
             return
-        if doc["policy_hash"] != self.policy_hash:
+        expected_hash = (self.v1_policy_hash if doc.get("strategy_version") == acts.STRATEGY_ID
+                         else self.policy_hash if doc.get("strategy_version") ==
+                         self.strategy_id else None)
+        if doc["policy_hash"] != expected_hash:
             doc["unresolved_reason"] = "ACTS_PAPER_POLICY_CHANGED"
             self._save(trade, doc, "UNRESOLVED_EXPOSURE")
             self._emit(session, cursor, "ACTS_UNRESOLVED", snapshot_id, raw,
@@ -224,7 +243,11 @@ class ActsPaperService:
                       candidate.short_leg.expiry else
                       "KILL_SWITCH_ACTIVE" if self.config.kill_switch else
                       "MARKET_EVENT_BLOCKED" if blocked else
-                      failure or acts.entry_valid(ctx, doc["decision"]["direction"]))
+                      failure or (acts_v2.entry_valid(
+                          ctx, doc["decision"]["direction"], self.v2_config)
+                          if doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                          and self.v2_config is not None else
+                          acts.entry_valid(ctx, doc["decision"]["direction"])))
             if reason is None:
                 assert pair is not None
                 loss = (candidate.spread_width - pair.value) * raw.lot_size
@@ -334,27 +357,65 @@ class ActsPaperService:
             for trade in active:
                 self._transition(session, cursor, snapshot_id, raw, ctx, trade, blocked)
             watch = json.loads(cursor.watch_json)
-            decision = acts.decide(ctx, watch)
-            decision["snapshot_id"] = snapshot_id
-            status = decision["status"]
-            if status == "ENTER":
-                self._emit(session, cursor, "ACTS_READY", snapshot_id, raw,
-                           decision=decision)
-                candidate, rejected = _candidate(raw, decision, ctx, self.config)
-                decision["candidate_rejections"] = rejected
+            candidate = None
+            rejected: dict[str, int] = {}
+            if self.v2_config is not None:
+                if watch.get("strategy_version") != acts_v2.STRATEGY_ID:
+                    watch.clear()
+                _, direction, _ = acts_v2.market_state(ctx, watch, self.v2_config)
+                if direction is not None:
+                    candidate, rejected = _candidate(
+                        raw, {"strategy_id": self.strategy_id, "direction": direction},
+                        ctx, self.config)
                 ledger = Ledger(trades=[lab for item in self._trades(session)
                                         if (lab := _lab_trade(item)) is not None])
                 reasons = _risk_blockers(ledger, self.config, raw.captured_at, blocked)
-                if candidate is None:
-                    reasons.extend(["NO_EXECUTABLE_CANDIDATE", *sorted(rejected)])
-                if candidate is not None and raw.captured_at.date() >= candidate.short_leg.expiry:
+                if (candidate is not None
+                        and raw.captured_at.date() >= candidate.short_leg.expiry):
                     reasons.append("EXPIRY_DAY_ENTRY_FORBIDDEN")
                 if candidate is not None and candidate.defined_max_loss_per_lot > (
                         self.config.max_loss_per_trade):
                     reasons.append("MAX_LOSS_PER_TRADE_EXCEEDED")
-                decision["blockers"] = list(dict.fromkeys([*decision["blockers"], *reasons]))
+                decision = acts_v2.decide(ctx, watch, candidate, rejected,
+                                          reasons, self.v2_config)
+            else:
+                decision = acts.decide(ctx, watch)
+            decision["snapshot_id"] = snapshot_id
+            status = decision["status"]
+            if status == "ENTER":
+                if self.v2_config is None:
+                    self._emit(session, cursor, "ACTS_READY", snapshot_id, raw,
+                               decision=decision)
+                    candidate, rejected = _candidate(raw, decision, ctx, self.config)
+                    decision["candidate_rejections"] = rejected
+                    ledger = Ledger(trades=[lab for item in self._trades(session)
+                                            if (lab := _lab_trade(item)) is not None])
+                    reasons = _risk_blockers(ledger, self.config, raw.captured_at, blocked)
+                    if candidate is None:
+                        reasons.extend(["NO_EXECUTABLE_CANDIDATE", *sorted(rejected)])
+                    if (candidate is not None
+                            and raw.captured_at.date() >= candidate.short_leg.expiry):
+                        reasons.append("EXPIRY_DAY_ENTRY_FORBIDDEN")
+                    if candidate is not None and candidate.defined_max_loss_per_lot > (
+                            self.config.max_loss_per_trade):
+                        reasons.append("MAX_LOSS_PER_TRADE_EXCEEDED")
+                    decision["blockers"] = list(dict.fromkeys([*decision["blockers"], *reasons]))
+                else:
+                    reasons = []
+                    self._emit(session, cursor, "ACTS_READY", snapshot_id, raw,
+                               decision=decision)
+                assert candidate is not None or reasons
+                attribution = (dict(
+                    market_state=decision["market_state"],
+                    opportunity_score=decision["opportunity_score"],
+                    score_band=decision["score_band"],
+                    score_components=decision["score_components"],
+                    hard_blockers=decision["hard_blockers"],
+                    entry_reason=decision["entry_reason"],
+                    candidate_rejections=rejected)
+                    if self.v2_config is not None else {})
                 doc = json_value({
-                    "strategy_version": acts.STRATEGY_ID,
+                    "strategy_version": self.strategy_id,
                     "policy_hash": self.policy_hash,
                     "decision_timestamp": raw.captured_at,
                     "decision_snapshot_id": snapshot_id,
@@ -366,6 +427,7 @@ class ActsPaperService:
                     "resumption_evidence": {"trigger": decision["trigger"],
                                             "timestamp": raw.captured_at},
                     "decision": decision,
+                    **attribution,
                     "candidate": candidate,
                     "short_contract": candidate.short_leg if candidate else None,
                     "hedge_contract": candidate.long_leg if candidate else None,
@@ -379,7 +441,7 @@ class ActsPaperService:
                     "structural_reference": (decision["thesis"].get("wall") or {}).get(
                         "strike") if decision["thesis"] else None})
                 trade = ActsPaperTrade(
-                    id=digest([acts.STRATEGY_ID, snapshot_id,
+                    id=digest([self.strategy_id, snapshot_id,
                                candidate.candidate_id if candidate else "REJECTED"]),
                     decision_snapshot_id=snapshot_id,
                     state="ENTRY_REJECTED" if reasons else "PENDING_PAPER_ENTRY",
@@ -391,13 +453,17 @@ class ActsPaperService:
                                raw, trade, reason=reasons[0])
                     status = "ENTRY_REJECTED"
                 else:
+                    assert candidate is not None
                     self._emit(session, cursor, "ACTS_PENDING_PAPER_ENTRY", snapshot_id,
                                raw, trade, candidate_id=candidate.candidate_id)
                     status = "PENDING_PAPER_ENTRY"
             else:
+                details: dict[str, Any] = (
+                    {"decision": decision} if self.v2_config is not None else {})
                 self._emit(session, cursor, "ACTS_WATCH" if status == "WATCH" else
                            "ACTS_NO_SETUP", snapshot_id, raw,
-                           reason=decision["blockers"][0] if decision["blockers"] else None)
+                           reason=decision["blockers"][0] if decision["blockers"] else None,
+                           **details)
             latest = {"snapshot_id": snapshot_id, "timestamp": raw.captured_at,
                       "status": status, "decision_regime": decision["regime"],
                       "alpha_state": decision["alpha"]["classification"],
@@ -406,12 +472,23 @@ class ActsPaperService:
                       "direction": decision["direction"],
                       "primary_blocker": decision["blockers"][0]
                       if decision["blockers"] else None}
+            if self.v2_config is not None:
+                latest.update(
+                    strategy_version=self.strategy_id,
+                    market_state=decision["market_state"],
+                    opportunity_score=decision["opportunity_score"],
+                    score_band=decision["score_band"],
+                    score_components=decision["score_components"],
+                    hard_blockers=decision["hard_blockers"],
+                    candidate_rejections=decision["candidate_rejections"],
+                    entry_reason=decision["entry_reason"])
             cursor.watch_json = canonical(watch)
             cursor.latest_json = canonical(latest)
             cursor.snapshot_id = snapshot_id
             cursor.observed_at = raw.captured_at.isoformat()
+            details = {"decision": decision} if self.v2_config is not None else {}
             self._emit(session, cursor, "ACTS_OBSERVATION", snapshot_id, raw,
-                       watch=watch, latest=latest)
+                       watch=watch, latest=latest, **details)
             return status
 
     def required_contracts(self) -> list[OptionContractSnapshot]:
@@ -456,7 +533,7 @@ class ActsPaperService:
                 history_report = history_repo.last_history_report
             return json_value({
                 "enabled": self.settings.acts_paper_enabled,
-                "mode": "PAPER", "strategy_version": acts.STRATEGY_ID,
+                "mode": "PAPER", "strategy_version": self.strategy_id,
                 "latest_observation": latest,
                 "alpha_history": history_report,
                 "watch_state": json.loads(cursor.watch_json),
@@ -465,7 +542,13 @@ class ActsPaperService:
                 "open_spread": active[1].get("candidate") if active else None,
                 "today_acts_trades": [{
                     "trade_id": trade_id, "state": state,
+                    "strategy_version": doc.get("strategy_version", acts.STRATEGY_ID),
                     "direction": doc["direction"],
+                    "market_state": doc.get("market_state"),
+                    "opportunity_score": doc.get("opportunity_score"),
+                    "score_band": doc.get("score_band"),
+                    "entry_reason": doc.get("entry_reason"),
+                    "exit_reason": doc.get("exit_reason"),
                     "decision_timestamp": doc["decision_timestamp"],
                     "entry_timestamp": doc.get("entry_timestamp"),
                     "exit_timestamp": doc.get("exit_timestamp"),

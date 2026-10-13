@@ -245,8 +245,29 @@ class Settings(BaseSettings):
     pipeline_decision_only: bool = False
     forward_paper_enabled: bool = False
 
-    # Independent Phase 15 ACTS_V1 paper journal; disabled unless explicitly selected.
+    # Independent Phase 15 ACTS paper journal; disabled unless explicitly selected.
     acts_paper_enabled: bool = False
+    acts_paper_strategy_version: str = "ACTS_V2"
+    acts_v2_score_weights_json: str = (
+        '{"momentum_15m":12,"momentum_5m":8,"momentum_3m":4,'
+        '"momentum_resumption":4,"structure_range":10,"structure_opening":6,'
+        '"structure_breakout":2,"alpha_1":8,"alpha_2":8,'
+        '"positioning":16,"participation_volume":4,"participation_wall":4,'
+        '"execution_spread":6,"execution_depth":4,"execution_credit":4}')
+    acts_v2_alpha_factors_json: str = (
+        '{"strong_support":1,"support":0.75,"neutral":0.5,'
+        '"unavailable":0.25,"opposite":0.125,"strong_opposite":0}')
+    acts_v2_watch_score: int = Field(default=40, ge=0, le=100)
+    acts_v2_tradeable_score: int = Field(default=55, ge=0, le=100)
+    acts_v2_strong_score: int = Field(default=70, ge=0, le=100)
+    acts_v2_very_strong_score: int = Field(default=85, ge=0, le=100)
+    acts_v2_trend_15m_bps: float = Field(default=8, gt=0)
+    acts_v2_trend_5m_bps: float = Field(default=4, gt=0)
+    acts_v2_pullback_3m_bps: float = Field(default=2, gt=0)
+    acts_v2_resumption_3m_bps: float = Field(default=2, gt=0)
+    acts_v2_setup_lifetime_seconds: int = Field(default=180, ge=15)
+    acts_v2_opposite_positioning_penalty: float = Field(default=2, ge=0)
+    acts_v2_veto_strong_opposite_alpha: bool = False
 
     # Phase 15 isolated fast paper scalper. It has its own stream and journal.
     scalper_enabled: bool = False

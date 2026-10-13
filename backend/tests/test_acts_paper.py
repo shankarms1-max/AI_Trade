@@ -33,12 +33,16 @@ from tests.test_scalper_alpha_file import _csv
 from worker import acts_paper_worker as worker
 
 
+def _v1_settings():
+    return settings(acts_paper_enabled=True, acts_paper_strategy_version="ACTS_V1")
+
+
 def _service(engine):
     sessions = build_session_factory(engine)
     with sessions.begin() as session:
         session.add(ActsPaperCursor(id=1, sequence=0, head_hash="GENESIS",
                                     lock_version=0, watch_json="{}", latest_json="{}"))
-    return ActsPaperService(sessions, settings(acts_paper_enabled=True))
+    return ActsPaperService(sessions, _v1_settings())
 
 
 def _capture(engine, raw):
@@ -218,7 +222,7 @@ def test_actsv1_local_alpha_reaches_one_paper_entry_without_old_journals(engine)
         for table in (PaperTrade, PaperEvent, ScalperTrade, ScalperEvent):
             assert session.scalar(select(func.count()).select_from(table)) == 0
     verify_acts_paper_journal(service.sessions)
-    restarted = ActsPaperService(service.sessions, settings(acts_paper_enabled=True))
+    restarted = ActsPaperService(service.sessions, _v1_settings())
     assert restarted.status(rows[-1].snapshot.captured_at)["current_state"] == "OPEN"
 
 
@@ -422,7 +426,7 @@ def test_missing_exact_hedge_never_fabricates_a_fill(engine, pending):
 def test_restart_restores_open_contracts_and_rejects_tampered_journal(engine):
     service, raw, candidate, _ = _seed_position(engine)
     restarted = ActsPaperService(service.sessions,
-                                 settings(acts_paper_enabled=True))
+                                 _v1_settings())
     held = restarted.required_contracts()
     assert {item.instrument_token for item in held} == {
         candidate.short_leg.instrument_token, candidate.long_leg.instrument_token}
@@ -431,7 +435,7 @@ def test_restart_restores_open_contracts_and_rejects_tampered_journal(engine):
         connection.exec_driver_sql(
             "UPDATE acts_paper_events SET payload = '{}' WHERE sequence = 1")
     with pytest.raises(RuntimeError, match="ACTS_PAPER_JOURNAL_INVALID"):
-        ActsPaperService(service.sessions, settings(acts_paper_enabled=True))
+        ActsPaperService(service.sessions, _v1_settings())
 
 
 def test_restart_rejects_cursor_detached_from_last_observation(engine):
@@ -442,7 +446,7 @@ def test_restart_rejects_cursor_detached_from_last_observation(engine):
         connection.exec_driver_sql(
             "UPDATE acts_paper_cursor SET latest_json = '{}' WHERE id = 1")
     with pytest.raises(RuntimeError, match="ACTS_PAPER_CURSOR_PROJECTION_INVALID"):
-        ActsPaperService(service.sessions, settings(acts_paper_enabled=True))
+        ActsPaperService(service.sessions, _v1_settings())
 
 
 def test_paper_worker_disabled_independently_of_live_scalper(monkeypatch):

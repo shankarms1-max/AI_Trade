@@ -118,7 +118,7 @@ def _candidate(raw, decision: dict, context: dict, config: ScalperConfig):
         activity = position.get("activity", {}).get("1m")
         price = position.get("premium_change", {}).get("1m")
         wall_distance = abs(candidate.short_leg.strike - wall["strike"]) if wall else 500
-        if decision["strategy_id"] == acts.STRATEGY_ID:
+        if decision["strategy_id"] in {acts.STRATEGY_ID, "ACTS_V2"}:
             slow = (position.get("activity", {}).get(h) for h in ("3m", "5m"))
             writing = any(value == "WRITING" for value in slow)
             slow_delta = [position.get("delta_oi", {}).get(h) for h in ("3m", "5m")]
@@ -299,7 +299,7 @@ def _exit_reason(trade: LabTrade, ctx: dict, debit: float,
         if (five is not None and fifteen is not None
                 and sign * five <= -4 and sign * fifteen <= -8):
             return "TREND_REVERSAL"
-    elif trade.strategy_id == acts.STRATEGY_ID:
+    elif trade.strategy_id in {acts.STRATEGY_ID, "ACTS_V2"}:
         reason = acts.thesis_exit(trade, ctx)
         if reason is not None:
             return reason
@@ -310,12 +310,12 @@ def _exit_reason(trade: LabTrade, ctx: dict, debit: float,
             and pnl <= best - trade.entry_credit * config.trailing_giveback_pct / 100):
         return "TRAILING_EXIT"
     profit_pct = (float(acts.PARAMETERS["profit_capture_pct"])
-                  if trade.strategy_id == acts.STRATEGY_ID
+                  if trade.strategy_id in {acts.STRATEGY_ID, "ACTS_V2"}
                   else config.profit_capture_pct)
     if debit <= trade.entry_credit * (1 - profit_pct / 100):
         return "PROFIT_CAPTURE"
     stop_minutes = (int(acts.PARAMETERS["time_stop_minutes"])
-                    if trade.strategy_id == acts.STRATEGY_ID
+                    if trade.strategy_id in {acts.STRATEGY_ID, "ACTS_V2"}
                     else config.time_stop_minutes)
     if (raw_at - trade.entry_timestamp).total_seconds() >= stop_minutes * 60:
         return "TIME_STOP"

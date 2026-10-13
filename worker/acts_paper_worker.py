@@ -1,4 +1,4 @@
-"""Explicit ACTS_V1 paper-only worker over Kotak market-data captures."""
+"""Explicit, versioned ACTS paper-only worker over Kotak market-data captures."""
 from __future__ import annotations
 
 from datetime import datetime, time
