@@ -5,7 +5,7 @@ singleton cursor serializes workers across processes; journal keys and decision
 uniqueness also protect restart/retry paths. No external client is constructed.
 """
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import json
 from time import perf_counter
 from types import SimpleNamespace
@@ -34,6 +34,22 @@ from app.strategy.models import CreditSpreadCandidate
 
 IST = ZoneInfo("Asia/Kolkata")
 ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "UNRESOLVED_EXPOSURE")
+
+
+def unresolved_blocks_exposure(document, as_of_date: date) -> bool:
+    """Unknown exposure blocks through verified expiry; malformed evidence fails closed."""
+    try:
+        candidate = CreditSpreadCandidate.model_validate(document["candidate"])
+        if not all(ContractIdentity.of(leg).valid() for leg in (candidate.short_leg, candidate.long_leg)):
+            return True
+    except (KeyError, TypeError, ValueError):
+        return True
+    return as_of_date <= candidate.expiry
+
+
+def blocks_paper_exposure(state, document, as_of_date: date) -> bool:
+    return state in ("PENDING_PAPER_ENTRY", "OPEN") or (
+        state == "UNRESOLVED_EXPOSURE" and unresolved_blocks_exposure(document, as_of_date))
 
 
 def execution_mode(settings):
@@ -114,14 +130,16 @@ class PaperEngine:
             return "OFF_CADENCE_OBSERVATION"
         return None
 
-    def emit(self, session, cursor, kind, snapshot_id, raw, trade=None, **details):
+    def emit(self, session, cursor, kind, snapshot_id, raw, trade=None, *, event_policy_hash=None, **details):
         key = f"{snapshot_id}:{trade.id if trade else 'SESSION'}:{kind}"
         if session.scalar(select(PaperEvent.sequence).where(PaperEvent.event_key == key)):
             raise ValueError("DUPLICATE_PAPER_TRANSITION")
         document = json.loads(trade.document) if trade else None
-        payload = json_value(dict(event_type=kind, execution_mode="PAPER", snapshot_id=snapshot_id,
+        payload = json_value(dict(
+            event_type=kind, execution_mode="PAPER", snapshot_id=snapshot_id,
             market_snapshot_timestamp=raw.timestamp_ist, event_timestamp=self.clock(),
-            information_timestamp=information_time(raw), policy_hash=self.policy_hash,
+            information_timestamp=information_time(raw),
+            policy_hash=self.policy_hash if event_policy_hash is None else event_policy_hash,
             trade_id=trade.id if trade else None, state=trade.state if trade else None,
             trade_document=document, **details))
         cursor.sequence += 1
@@ -168,7 +186,18 @@ class PaperEngine:
             for row in session.scalars(select(PaperTrade).where(PaperTrade.state.in_(ACTIVE))).all():
                 doc = json.loads(row.document)
                 if row.state == "UNRESOLVED_EXPOSURE":
-                    continue  # Terminal research classification; exposure continues blocking entries.
+                    if not unresolved_blocks_exposure(doc, at.date()) and "exposure_release" not in doc:
+                        release = dict(candidate_expiry=doc["candidate"]["expiry"],
+                                       release_snapshot_id=snapshot_id, release_date=at.date().isoformat(),
+                                       release_market_timestamp=at.isoformat(),
+                                       reason="CANDIDATE_EXPIRY_PASSED", exit_price_inferred=False,
+                                       pnl_inferred=False, profitability_claim=False)
+                        doc.update(exposure_release=release, profitability_claim=False)
+                        self.save(row, doc)
+                        self.emit(session, cursor, "UNRESOLVED_EXPOSURE_EXPIRED", snapshot_id, raw, row,
+                                  exposure_release=release, event_policy_hash=doc["policy_hash"],
+                                  profitability_claim=False)
+                    continue  # Still unresolved; expiry release never creates a trade outcome.
                 candidate = CreditSpreadCandidate.model_validate(doc["candidate"])
                 previous = datetime.fromisoformat(doc["last_observation"])
                 delta = (at-previous).total_seconds()
@@ -286,7 +315,9 @@ class PaperEngine:
                 return None
             if cursor.snapshot_id != snapshot_id:
                 raise ValueError("PAPER_PRE_OBSERVATION_REQUIRED")
-            if session.scalar(select(PaperTrade.id).where(PaperTrade.state.in_(ACTIVE)).limit(1)):
+            day = raw.timestamp_ist.astimezone(IST).date()
+            if any(blocks_paper_exposure(row.state, json.loads(row.document), day) for row in
+                   session.scalars(select(PaperTrade).where(PaperTrade.state.in_(ACTIVE)))):
                 return None
             result = session.scalar(select(StrategyCandidateSetRecord).where(
                 StrategyCandidateSetRecord.market_snapshot_id == snapshot_id,
@@ -307,7 +338,6 @@ class PaperEngine:
                 return None
             chosen = max(approved, key=lambda item: (item.result_json.get("selection_score") or 0, -item.id))
             candidate = CreditSpreadCandidate.model_validate(by_id[chosen.result_json["candidate_reference"]])
-            day = raw.timestamp_ist.astimezone(IST).date()
             state = self.state(session, day)
             reason = None
             if day >= candidate.expiry:
@@ -372,10 +402,11 @@ class PaperEngine:
         entries = [doc for _, doc in documents if doc.get("entry_timestamp", "")[:10] == str(day)]
         outcomes = [doc.get("final_outcome", {}) for state, doc in documents
                     if state == "CLOSED" and doc.get("exit_timestamp", "")[:10] == str(day)]
-        incomplete = any(state == "UNRESOLVED_EXPOSURE" for state, _ in documents) or any(
+        incomplete = any(state == "UNRESOLVED_EXPOSURE" and unresolved_blocks_exposure(doc, day)
+                         for state, doc in documents) or any(
             item.get("net_rupees") is None for item in outcomes)
         keys = frozenset(strategy_fingerprint(CreditSpreadCandidate.model_validate(doc["candidate"]), day)
-                         for state, doc in documents if state in ACTIVE)
+                         for state, doc in documents if blocks_paper_exposure(state, doc, day))
         return RiskState(len(entries), sum(item.get("net_rupees") or 0 for item in outcomes), keys,
                          False, True, "SHADOW", not incomplete)
 
@@ -384,11 +415,22 @@ class PaperEngine:
             return self.state(session, trading_date)
 
 
-def assert_no_paper_exposure(sessions):
+def assert_no_paper_exposure(sessions, as_of_date=None, *, snapshot_id=None):
     with sessions() as session:
         # Keep capture/decision-only deployments compatible with schema 0014.
-        if inspect(session.connection()).has_table("paper_trades") and session.scalar(
-                select(PaperTrade.id).where(PaperTrade.state.in_(ACTIVE)).limit(1)):
+        if not inspect(session.connection()).has_table("paper_trades"):
+            return
+        if snapshot_id is not None:
+            if as_of_date is not None:
+                raise ValueError("PAPER_EXPOSURE_DATE_AMBIGUOUS")
+            at = session.scalar(select(MarketSnapshotRecord.timestamp_ist).where(
+                MarketSnapshotRecord.id == snapshot_id))
+            if at is None:
+                raise LookupError("PAPER_SNAPSHOT_NOT_FOUND")
+            as_of_date = (at.replace(tzinfo=IST) if at.tzinfo is None else at.astimezone(IST)).date()
+        day = as_of_date if as_of_date is not None else datetime.now(IST).date()
+        if any(blocks_paper_exposure(row.state, json.loads(row.document), day) for row in
+               session.scalars(select(PaperTrade).where(PaperTrade.state.in_(ACTIVE)))):
             raise ValueError("MODE_CHANGE_REQUIRES_NO_FORWARD_PAPER_EXPOSURE")
 
 

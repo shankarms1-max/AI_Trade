@@ -45,6 +45,8 @@ class MarketSnapshotRecord(Base):
     atm_strike: Mapped[Decimal] = mapped_column(PRICE, nullable=False)
     expiry: Mapped[date] = mapped_column(Date, nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
+    required_contracts_json: Mapped[dict | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

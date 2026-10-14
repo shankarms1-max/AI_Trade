@@ -79,7 +79,7 @@ def build_pipeline_orchestrator(
         if paper is not None:
             return paper.observe(snapshot_id)
         # A mode change cannot silently strand durable forward-paper exposure.
-        assert_no_paper_exposure(session_factory)
+        assert_no_paper_exposure(session_factory, snapshot_id=snapshot_id)
         if settings.pipeline_decision_only:
             return decision_only_update(snapshot_id)
         return update_open_trades(shadow_repository, snapshot_id, shadow_config(settings))

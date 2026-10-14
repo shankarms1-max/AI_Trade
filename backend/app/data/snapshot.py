@@ -4,7 +4,8 @@ from zoneinfo import ZoneInfo
 
 from app.broker.base import MarketDataBroker
 from app.core.logging import get_logger
-from app.data.models import MarketSnapshot, OptionContractSnapshot
+from app.data.models import MarketSnapshot, OptionContractSnapshot, RequiredContractCapture
+from app.research.quotes import ContractIdentity
 
 logger = get_logger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
@@ -53,6 +54,7 @@ def build_market_snapshot(
     broker: MarketDataBroker,
     strike_step: int = 50,
     strikes_each_side: int = 10,
+    required_contracts: list[OptionContractSnapshot] | None = None,
 ) -> MarketSnapshot:
     try:
         request_started_at = datetime.now(IST)
@@ -64,6 +66,21 @@ def build_market_snapshot(
         )
         logger.info("OPTION_CHAIN_FILTERED contracts=%d", len(contracts))
         contracts = broker.enrich_option_quotes(contracts)
+        continuity = None
+        if required_contracts:
+            present = {ContractIdentity.of(item) for item in contracts}
+            required = {ContractIdentity.of(item): item for item in required_contracts}
+            missing = sorted((item for key, item in required.items() if key not in present),
+                             key=lambda item: (item.expiry, item.strike, item.option_type.value,
+                                               item.exchange, item.instrument_token or ""))
+            captured = broker.capture_required_option_quotes(missing) if missing else []
+            expected = {ContractIdentity.of(item) for item in missing}
+            identities = [ContractIdentity.of(item) for item in captured]
+            if len(set(identities)) != len(identities) or not set(identities) <= expected:
+                raise ValueError("PAPER_CONTINUITY_AMBIGUOUS_BROKER_QUOTES")
+            continuity = RequiredContractCapture(requested=missing, quotes=sorted(
+                captured, key=lambda item: (item.expiry, item.strike, item.option_type.value,
+                                            item.exchange, item.instrument_token or "")))
         future_id, future_expiry = broker.get_nifty_future_identity()
         future_price = broker.get_nifty_future()
         vix = broker.get_india_vix()
@@ -82,6 +99,7 @@ def build_market_snapshot(
             expiry=expiry,
             source="KOTAK_NEO",
             options=contracts,
+            required_contracts=continuity,
         )
     except Exception:
         logger.exception("SNAPSHOT_FAILED")

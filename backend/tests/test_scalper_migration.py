@@ -125,7 +125,7 @@ def test_postgresql_empty_upgrade_and_phase15_transition():
 
         reset_schema()
         config = migration_config()
-        command.upgrade(config, "head")
+        command.upgrade(config, "0016_scalper")
         with scoped_engine.connect() as connection:
             assert connection.execute(text(
                 "SELECT version_num FROM alembic_version"

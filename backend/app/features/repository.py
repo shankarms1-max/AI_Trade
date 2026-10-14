@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload, sessionmaker
 
-from app.data.models import MarketSnapshot, OptionContractSnapshot
+from app.data.models import MarketSnapshot, OptionContractSnapshot, RequiredContractCapture
 from app.db.models import MarketFeatureSnapshotRecord, MarketSnapshotRecord
 from app.features.models import FEATURE_VERSION, MarketFeatureSnapshot
 
@@ -43,6 +43,8 @@ def raw_record_to_model(record: MarketSnapshotRecord, *, normalize_research_time
         atm_strike=float(record.atm_strike),
         expiry=record.expiry,
         source=record.source,
+        required_contracts=(RequiredContractCapture.model_validate(record.required_contracts_json)
+                            if record.required_contracts_json is not None else None),
         options=[
             OptionContractSnapshot(
                 strike=float(item.strike),
