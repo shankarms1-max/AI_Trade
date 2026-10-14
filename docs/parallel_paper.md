@@ -28,6 +28,11 @@ ACTS keeps its existing capture and worker unchanged. The new mode is
 the fixed option-volume basket are requested through the existing continuity
 provider. Missing exact legs never receive an inferred or LTP fill.
 
+Parallel capture defaults to seconds `05,20,35,50`, offset from ACTS's unchanged
+`00,15,30,45`. Set `PARALLEL_PAPER_CAPTURE_OFFSET_SECONDS` to an integer from 0
+through 14 to select the offset; the four seconds are offset + 0/15/30/45.
+The cadence remains exactly 15 seconds, with no additional calls or retries.
+
 There was no reusable candle aggregator in the capture architecture. One shared
 builder now creates sampled futures OHLC bars, anchored at 09:15, with a default
 3-minute interval. Prices are the actual 15-second futures observations, not
@@ -100,7 +105,7 @@ trade ownership and cursor/projection agreement. Per-strategy transactions roll
 back on failure; healthy strategies continue and capture continues while a failed
 strategy waits for retry. Duplicate observations do not create another trade.
 
-Defaults per new strategy are one position, six entries/day, three consecutive
+Defaults per new strategy are one position, six entries/day, six consecutive
 losses, ₹50,000 daily gross loss limit, 09:15–14:45 entry window, 60-second exit
 cooldown and 180-second loss cooldown. Other execution/risk/exit settings reuse
 the existing `SCALPER_*` controls. Exits are standardized spread stop, maximum
@@ -128,7 +133,7 @@ are rejected. For example:
   "volume_baseline_bars": 20,
   "volume_min_ratio": 1.2,
   "risk": {
-    "ORB_15": {"max_trades_per_day": 6, "max_consecutive_losses": 3},
+    "ORB_15": {"max_trades_per_day": 6, "max_consecutive_losses": 6},
     "EMA_PULLBACK": {"daily_loss_limit": 50000, "entry_end": "14:45:00"}
   }
 }
@@ -138,6 +143,10 @@ The complete effective policy and its deterministic hash are stored in journal
 evidence and trades. Changing one strategy's risk or technical parameters leaves
 unrelated strategies' policies unchanged. Preserve parameters for the intended
 30–40-session experiment; these initial defaults have not been optimized.
+The six-loss default is included in future execution-policy hashes; historical
+stored policies and journal hashes remain unchanged. An explicit per-strategy
+`max_consecutive_losses` override still takes precedence. Capture offset is
+scheduling configuration and does not change execution-policy hashes.
 
 ## Evidence and reporting
 

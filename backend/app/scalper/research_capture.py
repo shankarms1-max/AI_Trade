@@ -157,7 +157,7 @@ class ResearchSnapshotCollector:
                                self.end, self.holidays):
             return None
         if not self._lock.acquire(blocking=False):
-            logger.warning("SCALPER_RESEARCH_CAPTURE_SKIPPED reason=overlap mode=%s", MODE)
+            logger.warning("SCALPER_RESEARCH_CAPTURE_SKIPPED reason=overlap mode=%s", self.repository.mode)
             return None
         try:
             market = self.snapshot_builder()
@@ -177,7 +177,7 @@ class ResearchSnapshotCollector:
             return result
         except Exception as exc:
             logger.error("SCALPER_RESEARCH_CAPTURE status=FAILED mode=%s error_type=%s",
-                         MODE, type(exc).__name__)
+                         self.repository.mode, type(exc).__name__)
             raise
         finally:
             self._lock.release()

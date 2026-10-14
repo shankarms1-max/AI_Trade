@@ -271,6 +271,7 @@ class Settings(BaseSettings):
 
     # Separate paper experiments; no changes to ACTS configuration or state.
     parallel_paper_enabled: bool = False
+    parallel_paper_capture_offset_seconds: int = Field(default=5, ge=0, lt=15)
     parallel_paper_config_json: str = "{}"
 
     # Phase 15 isolated fast paper scalper. It has its own stream and journal.

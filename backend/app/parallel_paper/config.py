@@ -17,7 +17,7 @@ CAPTURE_MODE = "PARALLEL_PAPER"
 class StrategyRisk(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     max_trades_per_day: int = Field(default=6, ge=0, le=100)
-    max_consecutive_losses: int = Field(default=3, ge=1, le=20)
+    max_consecutive_losses: int = Field(default=6, ge=1, le=20)
     daily_loss_limit: float = Field(default=50000, gt=0, allow_inf_nan=False)
     entry_start: time = time(9, 15)
     entry_end: time = time(14, 45)

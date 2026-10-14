@@ -4,6 +4,7 @@ from pathlib import Path
 import json
 import os
 import sys
+from unittest.mock import Mock
 from uuid import uuid4
 
 import pytest
@@ -16,7 +17,7 @@ from app.data.models import RequiredContractCapture
 from app.scalper.config import ScalperConfig
 from app.scalper.models import (ScalperEvent, ScalperMarketSnapshotRecord,
                                 ScalperOptionQuoteRecord, ScalperTrade)
-from app.scalper.research_capture import (IST, MODE, ResearchSnapshotCollector,
+from app.scalper.research_capture import (ACTS_PAPER_MODE, IST, MODE, PARALLEL_PAPER_MODE, ResearchSnapshotCollector,
                                           ResearchSnapshotRepository, capture_allowed)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -40,6 +41,50 @@ def _collector(engine, market):
     return ResearchSnapshotCollector(
         ResearchSnapshotRepository(engine), lambda: market,
         start=time(9, 20), end=time(15, 20))
+
+
+@pytest.mark.parametrize("mode", [MODE, ACTS_PAPER_MODE, PARALLEL_PAPER_MODE])
+def test_capture_failure_logs_actual_repository_mode(engine, market_snapshot, monkeypatch, mode):
+    market = _market(market_snapshot)
+    calls = []
+    log_error = Mock()
+    monkeypatch.setattr("app.scalper.research_capture.logger.error", log_error)
+
+    def failing_builder():
+        calls.append(1)
+        raise RuntimeError("capture unavailable")
+
+    collector = ResearchSnapshotCollector(
+        ResearchSnapshotRepository(engine, mode=mode), failing_builder,
+        start=time(9, 15), end=time(15, 20))
+    with pytest.raises(RuntimeError, match="capture unavailable"):
+        collector.capture_once(market.timestamp_ist)
+    assert calls == [1]
+    log_error.assert_called_once_with(
+        "SCALPER_RESEARCH_CAPTURE status=FAILED mode=%s error_type=%s", mode, "RuntimeError")
+    assert not collector._lock.locked()
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(ScalperMarketSnapshotRecord)) == 0
+
+
+@pytest.mark.parametrize("mode", [MODE, ACTS_PAPER_MODE, PARALLEL_PAPER_MODE])
+def test_capture_overlap_logs_actual_repository_mode(engine, market_snapshot, monkeypatch, mode):
+    market = _market(market_snapshot)
+    log_warning = Mock()
+    monkeypatch.setattr("app.scalper.research_capture.logger.warning", log_warning)
+
+    def forbidden_builder():
+        raise AssertionError("overlapping capture must not call Kotak")
+
+    collector = ResearchSnapshotCollector(
+        ResearchSnapshotRepository(engine, mode=mode), forbidden_builder,
+        start=time(9, 15), end=time(15, 20))
+    collector._lock.acquire()
+    try:
+        assert collector.capture_once(market.timestamp_ist) is None
+    finally:
+        collector._lock.release()
+    log_warning.assert_called_once_with("SCALPER_RESEARCH_CAPTURE_SKIPPED reason=overlap mode=%s", mode)
 
 
 def test_capture_writes_only_snapshot_and_exact_option_rows(engine, market_snapshot):

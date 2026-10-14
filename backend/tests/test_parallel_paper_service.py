@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, P
 from app.parallel_paper.report import report, statistics
 from app.parallel_paper.service import ParallelPaperService, verify_journals
 from app.research.manifest import canonical, digest, json_value
+from app.scalper.config import ScalperConfig
 from app.scalper.models import ScalperCandidate, ScalperEvent, ScalperTrade
 from app.scalper.research_capture import ResearchSnapshotRepository
 from app.scalper.strategy import build_candidates
@@ -336,9 +337,40 @@ def test_strategy_configuration_hashes_do_not_contaminate_other_experiments(engi
     assert all(changed.hashes[name] == paper.hashes[name] for name in ("ORB_30", "ORB_60", "EMA_PULLBACK"))
 
 
-def test_worker_keeps_capturing_and_processing_healthy_strategies_when_one_fails(engine, monkeypatch):
+def test_parallel_risk_defaults_overrides_and_policy_hashes(engine):
+    paper = service(engine)
+    previous = ParallelPaperService(paper.sessions, settings(parallel_paper_config_json=json.dumps({
+        "risk": {name: {"max_consecutive_losses": 3} for name in STRATEGIES}})))
+    overridden = ParallelPaperService(paper.sessions, settings(parallel_paper_config_json=json.dumps({
+        "risk": {"ORB_15": {"max_consecutive_losses": 3}}})))
+    offset_changed = ParallelPaperService(paper.sessions, settings(parallel_paper_capture_offset_seconds=14))
+    for name in STRATEGIES:
+        config = paper.configs[name]
+        assert config.max_consecutive_losses == 6
+        assert config.max_trades_per_day == 6
+        assert config.max_open_positions == 1
+        assert config.hard_daily_loss == 50000
+        assert config.cooldown_after_exit_seconds == 60
+        assert config.cooldown_after_loss_seconds == 180
+        old_payload = previous.configs[name].payload()
+        assert config.payload() == {**old_payload, "max_consecutive_losses": 6}
+        assert previous.hashes[name] != paper.hashes[name]
+        assert overridden.hashes[name] == (previous if name == "ORB_15" else paper).hashes[name]
+    assert offset_changed.hashes == paper.hashes
+    assert ScalperConfig.from_settings(settings()).max_consecutive_losses == 3
+
+
+@pytest.mark.parametrize("offset", [-1, 15, 60, 5.5])
+def test_invalid_capture_offsets_are_rejected(offset):
+    with pytest.raises(ValidationError, match="parallel_paper_capture_offset_seconds"):
+        settings(parallel_paper_capture_offset_seconds=offset)
+
+
+@pytest.mark.parametrize("offset", [None, 0, 14])
+def test_worker_keeps_capturing_and_processing_healthy_strategies_when_one_fails(engine, monkeypatch, offset):
     calls = []
-    configuration = settings(parallel_paper_enabled=True).model_copy(update={
+    overrides = {} if offset is None else {"parallel_paper_capture_offset_seconds": offset}
+    configuration = settings(parallel_paper_enabled=True, **overrides).model_copy(update={
         "database_url": SecretStr(str(engine.url))})
     monkeypatch.setattr(worker, "get_settings", lambda: configuration)
     monkeypatch.setattr(worker, "configure_logging", lambda *_: None)
@@ -373,7 +405,17 @@ def test_worker_keeps_capturing_and_processing_healthy_strategies_when_one_fails
         def __init__(self, **_):
             pass
 
-        def add_job(self, job, *_args, **_kwargs):
+        def add_job(self, job, trigger, **kwargs):
+            expected_offset = 5 if offset is None else offset
+            assert str(trigger.fields[-1]) == ",".join(str(expected_offset + n * 15) for n in range(4))
+            assert kwargs["max_instances"] == 1 and kwargs["coalesce"] is True
+            first = trigger.get_next_fire_time(None, START)
+            assert first == START + timedelta(seconds=expected_offset)
+            current = first
+            for _ in range(8):
+                following = trigger.get_next_fire_time(current, current)
+                assert following - current == timedelta(seconds=15)
+                current = following
             self.job = job
 
         def start(self):

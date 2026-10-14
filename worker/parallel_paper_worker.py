@@ -77,11 +77,12 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as exc:
                 logger.error("PARALLEL_PAPER_CAPTURE_FAILED error_type=%s", type(exc).__name__)
 
+        seconds = ",".join(str(second) for second in range(settings.parallel_paper_capture_offset_seconds, 60, 15))
         scheduler = BlockingScheduler(timezone=IST)
-        scheduler.add_job(run, CronTrigger(day_of_week="mon-fri", hour="9-15", second="0,15,30,45", timezone=IST),
+        scheduler.add_job(run, CronTrigger(day_of_week="mon-fri", hour="9-15", second=seconds, timezone=IST),
                           id="parallel_paper_capture", max_instances=1, coalesce=True, misfire_grace_time=14)
-        logger.info("PARALLEL_PAPER_STARTED mode=PAPER interval_seconds=15 bar_minutes=%d",
-                    service.experiment.bar_minutes)
+        logger.info("PARALLEL_PAPER_STARTED mode=PAPER interval_seconds=15 capture_seconds=%s bar_minutes=%d",
+                    seconds, service.experiment.bar_minutes)
         try:
             scheduler.start()
         except (KeyboardInterrupt, SystemExit):

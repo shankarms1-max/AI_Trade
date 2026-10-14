@@ -496,6 +496,7 @@ def test_paper_worker_uses_market_data_only_and_fifteen_second_schedule(monkeypa
             pass
 
         def add_job(self, run, trigger, **_kwargs):
+            assert str(trigger.fields[-1]) == "0,15,30,45"
             first = trigger.get_next_fire_time(
                 None, datetime(2099, 10, 1, 9, 14, 59,
                                tzinfo=worker.IST))
