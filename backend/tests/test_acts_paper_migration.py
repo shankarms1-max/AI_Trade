@@ -20,7 +20,7 @@ def test_acts_paper_migration_is_additive(tmp_path):
         with engine.begin() as connection:
             before = {name: [column["name"] for column in inspect(connection).get_columns(name)]
                       for name in inspect(connection).get_table_names()}
-        command.upgrade(config, "head")
+        command.upgrade(config, "0018_acts_paper")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
                 "0018_acts_paper")
@@ -60,7 +60,7 @@ def test_acts_paper_postgres16_migration_is_additive():
         with engine.connect() as connection:
             before = {name: [column["name"] for column in inspect(connection).get_columns(name)]
                       for name in inspect(connection).get_table_names()}
-        command.upgrade(config, "head")
+        command.upgrade(config, "0018_acts_paper")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == (
                 "0018_acts_paper")

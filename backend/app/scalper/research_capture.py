@@ -21,6 +21,7 @@ from app.scalper.models import (ScalperMarketSnapshot, ScalperMarketSnapshotReco
 IST = ZoneInfo("Asia/Kolkata")
 MODE = "RESEARCH_ONLY"
 ACTS_PAPER_MODE = "ACTS_PAPER"
+PARALLEL_PAPER_MODE = "PARALLEL_PAPER"
 INTERVAL_SECONDS = 15
 logger = get_logger(__name__)
 
@@ -57,11 +58,16 @@ class ResearchCaptureResult:
 class ResearchSnapshotRepository:
     """Core inserts are restricted to the two Phase 15 evidence tables."""
 
-    def __init__(self, engine: Engine, *, mode: str = MODE) -> None:
-        if mode not in {MODE, ACTS_PAPER_MODE}:
+    def __init__(self, engine: Engine, *, mode: str = MODE,
+                 capture_evidence: dict[str, str] | None = None) -> None:
+        if mode not in {MODE, ACTS_PAPER_MODE, PARALLEL_PAPER_MODE}:
             raise ValueError("SCALPER_RESEARCH_CAPTURE_MODE_INVALID")
         self.engine = engine
         self.mode = mode
+        if capture_evidence and (mode != PARALLEL_PAPER_MODE or capture_evidence != {
+                "volume_capture": "KOTAK_REST_ALL_LAST_VOLUME"}):
+            raise ValueError("SCALPER_RESEARCH_CAPTURE_EVIDENCE_INVALID")
+        self.capture_evidence = dict(capture_evidence or {})
 
     def save(self, snapshot: ScalperMarketSnapshot) -> ResearchCaptureResult:
         bucket = capture_bucket(snapshot.captured_at)
@@ -92,7 +98,7 @@ class ResearchSnapshotRepository:
                     "feature_json": "{}",
                     "signal_json": "{}",
                     "context_json": canonical({"mode": self.mode, "status": "CAPTURED",
-                                               "bucket": bucket.isoformat()}),
+                                               "bucket": bucket.isoformat(), **self.capture_evidence}),
                 }
                 inserted = connection.execute(insert(ScalperMarketSnapshotRecord).values(
                     **values))

@@ -1118,3 +1118,7 @@ timestamps and depth remain nullable where Kotak does not supply them, so many
 historical alternatives can honestly remain `NOT_EVALUABLE`.
 
 Phase 14.2 adds opt-in, versioned intraday credit-spread economics. Directional strength, survival, carry, expected move, DTE and gamma context are separate from hard risk. Both new flags default to false. See [the implementation and validation report](docs/phase14_2_report.md) for formulas, configuration, migration, validation and the required offline replay before Phase 15.
+
+Independent Phase 15 paper experiments (ORB 15/30/60, EMA pullback and
+Supertrend/RSI/option volume) are opt-in and leave ACTS V2 unchanged. See
+[parallel paper operation and frozen defaults](docs/parallel_paper.md).

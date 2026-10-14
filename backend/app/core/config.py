@@ -269,6 +269,10 @@ class Settings(BaseSettings):
     acts_v2_opposite_positioning_penalty: float = Field(default=2, ge=0)
     acts_v2_veto_strong_opposite_alpha: bool = False
 
+    # Separate paper experiments; no changes to ACTS configuration or state.
+    parallel_paper_enabled: bool = False
+    parallel_paper_config_json: str = "{}"
+
     # Phase 15 isolated fast paper scalper. It has its own stream and journal.
     scalper_enabled: bool = False
     scalper_interval_seconds: int = Field(default=15, ge=10, le=60)
