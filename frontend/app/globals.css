@@ -96,3 +96,17 @@ tr:last-child td { border-bottom:0; } tbody tr:hover { background:#101d29; }
 .phase15-details{padding:10px 4px;white-space:normal}.phase15-rejections{font-size:12px;color:var(--secondary);margin-bottom:9px}
 .phase15-details .table-wrap table{min-width:1100px}.phase15-details .empty{min-height:48px}
 @media(max-width:900px){.phase15-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.phase15-head{align-items:flex-start;flex-direction:column}.phase15-badges{flex-wrap:wrap}}
+@media(max-width:760px){
+  .shell{padding-top:env(safe-area-inset-top);padding-right:max(10px,env(safe-area-inset-right));padding-bottom:max(25px,env(safe-area-inset-bottom));padding-left:max(10px,env(safe-area-inset-left))}
+  .topnav{top:env(safe-area-inset-top);max-width:100%;min-width:0}
+  .brand,.navlinks{min-width:0;max-width:100%}
+  .navlinks{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  .navlink{display:inline-flex;align-items:center;flex:0 0 auto;min-height:44px;white-space:nowrap}
+  .system-indicator,.read-only{white-space:nowrap}
+  .phase15-monitor,.phase15-details,.phase15-monitor .table-wrap{min-width:0;max-width:100%}
+  .phase15-monitor .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .phase15-expand{min-height:44px;padding:8px 4px}
+  .phase15-asof,.phase15-head{overflow-wrap:anywhere}
+  .terminal-error button{min-height:44px}
+}
+@media(max-width:480px){.phase15-metrics .metric:last-child{grid-column:1/-1}}

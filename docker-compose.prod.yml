@@ -116,7 +116,9 @@ services:
     image: caddy:2.8-alpine
     restart: unless-stopped
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS must be set to an HTTPS hostname}
+      APP_AUTH_USER: ${APP_AUTH_USER:?APP_AUTH_USER must be set}
+      APP_AUTH_HASH: ${APP_AUTH_HASH:?APP_AUTH_HASH must be set}
       TZ: ${TZ:-Asia/Kolkata}
     ports:
       - "80:80"

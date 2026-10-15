@@ -51,19 +51,23 @@ describe("frontend route isolation", () => {
     expect(screen.queryByText("Legacy dashboard works")).not.toBeInTheDocument();
   });
 
-  it("keeps route errors generic and offers a retry", () => {
-    const retry = vi.fn();
-    render(<ErrorPage error={new Error("secret token") } retry={retry}/>);
+  it("keeps route errors generic and calls the reset callback", () => {
+    const reset = vi.fn();
+    render(<ErrorPage error={new Error("secret token")} reset={reset}/>);
     expect(screen.getByText("PAGE UNAVAILABLE")).toBeInTheDocument();
     expect(screen.queryByText("secret token")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry page" }));
-    expect(retry).toHaveBeenCalledOnce();
+    expect(reset).toHaveBeenCalledOnce();
   });
 
-  it("keeps root errors generic and renders its own document shell", () => {
-    const html = renderToStaticMarkup(<GlobalError error={new Error("secret token")} retry={() => {}}/>);
+  it("keeps root errors generic, renders its own shell, and calls reset", () => {
+    const reset = vi.fn();
+    const html = renderToStaticMarkup(<GlobalError error={new Error("secret token")} reset={reset}/>);
     expect(html).toContain("<html");
     expect(html).toContain("TERMINAL UNAVAILABLE");
     expect(html).not.toContain("secret token");
+    render(<GlobalError error={new Error("secret token")} reset={reset}/>);
+    fireEvent.click(screen.getByRole("button", { name: "Retry application" }));
+    expect(reset).toHaveBeenCalledOnce();
   });
 });
