@@ -402,6 +402,13 @@ def open_acts(engine):
     from app.scalper.models import ScalperCandidate
     selected = ScalperCandidate.model_validate(candidate)
     initial = _next(history[-1].snapshot, candidate=selected)
+    # This labelled synthetic chain needs the 25,650 CE hedge for a 400-point
+    # opposite spread at the bullish fixture's 25,207 spot. Never relax the
+    # production builder or fall back to the old narrower hedge for these tests.
+    call = next(quote for quote in initial.quotes if quote.option_type == "CE")
+    initial = initial.model_copy(update={"quotes": [*initial.quotes, call.model_copy(update={
+        "strike": 25650, "instrument_token": "25650CE", "trading_symbol": "NIFTY25650CE",
+        "bid": 15, "ask": 16, "ltp": 15.5})]})
     paper.process_snapshot(_capture(engine, initial))
     assert stored(paper, ActsPaperTrade)[0] == "OPEN"
     return paper, initial, selected

@@ -56,7 +56,7 @@ class ExperimentConfig(BaseModel):
         limits = self.risk.get(strategy, StrategyRisk())
         if not limits.entry_start < limits.entry_end < base.forced_exit_time:
             raise ValueError("PARALLEL_PAPER_SESSION_TIMES_INVALID")
-        return replace(base, lots=1, max_open_positions=1,
+        return replace(base, lots=1, max_open_positions=1, allowed_widths=(400,),
                        start_time=limits.entry_start, entry_end_time=limits.entry_end,
                        max_trades_per_day=limits.max_trades_per_day,
                        max_consecutive_losses=limits.max_consecutive_losses,

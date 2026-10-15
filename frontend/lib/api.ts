@@ -1,4 +1,4 @@
-import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, Phase15Summary, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
+import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, Phase15Summary, Phase15TradePage, Phase15JournalFilters, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -11,6 +11,14 @@ const optional = async <T>(path: string): Promise<T | null> => { try { return aw
 export const api = {
   dashboard: () => request<DashboardData>("/api/dashboard/latest"),
   phase15Summary: () => request<Phase15Summary>("/api/phase15/summary"),
+  phase15Positions: (offset = 0) => request<Phase15TradePage>(`/api/phase15/positions?limit=100&offset=${offset}`),
+  phase15Journal: (filters: Phase15JournalFilters = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ limit: 100, ...filters })) {
+      if (value != null && value !== "") params.set(key, String(value));
+    }
+    return request<Phase15TradePage>(`/api/phase15/journal?${params}`);
+  },
   snapshots: (limit = 50) => request<MarketSnapshot[]>(`/api/snapshots?limit=${limit}`),
   snapshot: (id: number) => optional<MarketSnapshot>(`/api/snapshots/${id}`),
   regimes: (limit = 50) => request<MarketRegime[]>(`/api/regime?limit=${limit}`),

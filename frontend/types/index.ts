@@ -36,6 +36,30 @@ export interface Phase15Summary {
     combined_gross_pnl: number | null; open_positions: number | null; trades_today: number | null };
   strategies: Phase15Strategy[];
 }
+export interface Phase15PaperTrade extends Omit<Phase15Trade, "mirror_diagnostics" | "false_breakout"> {
+  strategy_id: string; display_name: string; spread_width: number | null;
+  lot_size: number | null; lots: number | null; accounting_status: "GROSS_ONLY";
+  policy_hash: string | null; policy_allowed_widths: number[];
+  rejection_reason: string | null; unresolved_reason: string | null;
+  latest_mark_timestamp: string | null; mark_available: boolean; mark_unavailable_reason: string | null;
+  opportunity_score: number | null; score_band: string | null;
+  candidate_rejections: Record<string, number>;
+  mirror_diagnostics: Array<{ name: string; observed_at: string; mark_available?: boolean;
+    gross_points?: number | null; gross_pnl?: number | null; opportunity_score?: number; score_band?: string }>;
+  entry_quotes: Record<string, Phase15Quote>; exit_quotes: Record<string, Phase15Quote>;
+  latest_mark_quotes: Record<string, Phase15Quote>; false_breakout_first_at: string | null;
+}
+export interface Phase15Quote {
+  exchange?: string | null; instrument_token?: string | null; trading_symbol?: string | null; expiry?: string | null; strike?: number | null;
+  option_type?: string | null; side?: string | null; fill_price?: number | null; bid?: number | null; ask?: number | null;
+  bid_quantity?: number | null; ask_quantity?: number | null; depth_unit?: string | null; source_market_timestamp?: string | null; tick_size?: number | null;
+}
+export interface Phase15TradePage {
+  mode: "PAPER"; as_of: string; accounting_status: "GROSS_ONLY"; date: string | null;
+  date_basis: "DECISION_OBSERVATION_IST"; items: Phase15PaperTrade[];
+  limit: number; offset: number; has_more: boolean;
+}
+export interface Phase15JournalFilters { date?: string; strategy?: string; state?: string; limit?: number; offset?: number }
 export type RegimeName = "BULLISH" | "BEARISH" | "RANGE" | "NO_TRADE";
 
 export interface OptionContract { id: number; strike: number; option_type: "CE" | "PE"; expiry: string; trading_symbol: string; instrument_token: string; exchange?: string | null; source_market_timestamp?: string | null; bid_quantity?: number | null; ask_quantity?: number | null; depth_unit?: "UNKNOWN" | "UNITS" | "LOTS"; tick_size?: number | null; ltp: number | null; open_interest: number | null; previous_open_interest: number | null; change_in_open_interest: number | null; volume: number | null; bid: number | null; ask: number | null; }
