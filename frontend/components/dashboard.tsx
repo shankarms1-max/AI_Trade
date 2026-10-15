@@ -7,7 +7,6 @@ import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
 import { AlphaHistoryChart, BreakdownChart, EquityChart, OIChart, PnlChart } from "@/components/charts";
 import { SessionOverview } from "@/components/session-overview";
-import { Phase15Monitor } from "@/components/phase15-monitor";
 import type { AlphaFeature, DashboardData, RiskDecision } from "@/types";
 
 function ScalperSection({ data }: { data: DashboardData }) {
@@ -87,7 +86,6 @@ export function Dashboard() {
   if (loading && !data) return <main><div className="loading">LOADING RESEARCH TERMINAL</div></main>;
   return <main>
     <div className="page-head"><div><h1>Market Research Dashboard</h1><p>Deterministic NIFTY options research · Asia/Kolkata</p></div>{error && <Badge value="FAILED"/>}</div>
-    <Phase15Monitor/>
     {!data ? <><SectionError>MARKET DATA UNAVAILABLE</SectionError><div className="grid grid-2" style={{marginTop:12}}><Panel title="Pipeline health"><SectionError>PIPELINE DATA UNAVAILABLE</SectionError></Panel><Panel title="Shadow research"><SectionError>SHADOW DATA UNAVAILABLE</SectionError></Panel></div></> : <>
       <SessionOverview data={data}/>
       <ScalperSection data={data}/>
