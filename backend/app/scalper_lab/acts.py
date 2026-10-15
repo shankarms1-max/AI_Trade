@@ -311,10 +311,9 @@ def entry_valid(ctx: dict[str, Any], direction: str) -> str | None:
     return None
 
 
-def thesis_exit(trade: Any, ctx: dict[str, Any]) -> str | None:
+def adverse_conditions(trade: Any, ctx: dict[str, Any]) -> tuple:
     direction = trade.decision["direction"]
     sign = 1 if direction == "BULL" else -1
-    at = datetime.fromisoformat(ctx["timestamp"])
     returns = ctx["futures_returns_bps"]
     five, fifteen = returns.get("5m"), returns.get("15m")
     alpha = ctx["acts"]["alpha"]
@@ -339,7 +338,7 @@ def thesis_exit(trade: Any, ctx: dict[str, Any]) -> str | None:
     break_price = bool(held and ctx["future"] is not None
                        and sign * (ctx["spot"] - held["strike"]) < -10
                        and sign * (ctx["future"] - held["strike"]) < -10)
-    conditions = (
+    return (
         ("SUSTAINED_TREND_REVERSAL", five is not None and fifteen is not None
          and sign * five <= -4 and sign * fifteen <= -8, 60),
         ("SUSTAINED_STRONG_ALPHA_REVERSAL",
@@ -348,16 +347,26 @@ def thesis_exit(trade: Any, ctx: dict[str, Any]) -> str | None:
          sum((unwind, adverse_activity, opposing_strength)) >= 2, 180),
         ("SUSTAINED_STRUCTURE_BREAK", break_price, 60),
     )
-    for reason, adverse, seconds in conditions:
-        if not adverse:
-            trade.acts_adverse_since.pop(reason, None)
-            trade.acts_last_adverse_at.pop(reason, None)
-            continue
-        last = trade.acts_last_adverse_at.get(reason)
-        if last is not None and (at - last).total_seconds() > 30:
-            trade.acts_adverse_since.pop(reason, None)
-        trade.acts_last_adverse_at[reason] = at
-        since = trade.acts_adverse_since.setdefault(reason, at)
-        if (at - since).total_seconds() >= seconds:
+
+
+def sustained_condition(trade: Any, reason: str, adverse: bool,
+                        at: datetime, seconds: int) -> bool:
+    """The existing ACTS adverse-evidence gap/reset discipline, shared verbatim."""
+    if not adverse:
+        trade.acts_adverse_since.pop(reason, None)
+        trade.acts_last_adverse_at.pop(reason, None)
+        return False
+    last = trade.acts_last_adverse_at.get(reason)
+    if last is not None and (at - last).total_seconds() > 30:
+        trade.acts_adverse_since.pop(reason, None)
+    trade.acts_last_adverse_at[reason] = at
+    since = trade.acts_adverse_since.setdefault(reason, at)
+    return (at - since).total_seconds() >= seconds
+
+
+def thesis_exit(trade: Any, ctx: dict[str, Any]) -> str | None:
+    at = datetime.fromisoformat(ctx["timestamp"])
+    for reason, adverse, seconds in adverse_conditions(trade, ctx):
+        if sustained_condition(trade, reason, adverse, at, seconds):
             return reason
     return None

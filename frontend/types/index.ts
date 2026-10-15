@@ -19,6 +19,8 @@ export interface Phase15Trade {
   realized_gross_pnl: number | null; current_unrealized_gross_pnl: number | null;
   mfe: number | null; mae: number | null; holding_seconds: number | null;
   entry_reason: string | null; exit_reason: string | null; false_breakout: boolean | null;
+  exit_policy_version?: string | null; best_gross_points?: number | null;
+  mirror_diagnostics?: Record<string, unknown> | null;
 }
 export interface Phase15Strategy {
   strategy_id: string; display_name: string; trades_today: number | null;

@@ -74,6 +74,20 @@ describe("Phase 15 monitor", () => {
     expect(blockerLabel("ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT")).toBe("Re-entry disabled / same breakout");
   });
 
+  it("shows the stored exit policy and actual mirror reason in trade details", async () => {
+    const data = fixture();
+    data.strategies[0].today_trades = [{ ...openTrade, state: "CLOSED",
+      exit_policy_version: "MIRROR_EXIT_V1",
+      exit_reason: "SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS" }];
+    vi.mocked(api.phase15Summary).mockResolvedValue(data);
+    render(<Phase15Monitor/>);
+    fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
+    const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
+    expect(within(details).getByText("MIRROR_EXIT_V1")).toBeInTheDocument();
+    expect(within(details).getByText("Sustained opposite acts tradeable thesis")).toHaveAttribute(
+      "title", "SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS");
+  });
+
   it("shows N/A for one unavailable strategy while preserving the other five", async () => {
     const data = fixture();
     data.strategies[4] = { ...data.strategies[4], trades_today: null,

@@ -18,6 +18,7 @@ from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
 from app.alpha.engine import config_from_settings
 from app.core.logging import get_logger
 from app.data.models import OptionContractSnapshot
+from app.paper import mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -105,6 +106,9 @@ def verify_acts_paper_journal(sessions: sessionmaker[Session]) -> None:
         for row in rows:
             if latest.get(row.id) != (row.state, json.loads(row.document)):
                 raise RuntimeError("ACTS_PAPER_PROJECTION_INVALID")
+            doc = json.loads(row.document)
+            if "policy" in doc and doc.get("policy_hash") != digest(doc["policy"]):
+                raise RuntimeError("ACTS_PAPER_TRADE_POLICY_INVALID")
 
 
 class ActsPaperService:
@@ -130,13 +134,15 @@ class ActsPaperService:
             "strategy_version": acts.STRATEGY_ID, "parameters": acts.PARAMETERS,
             "config": self.config.payload(), "costs": self.costs.payload(),
             "execution_mode": "PAPER", "lots": 1}))
-        self.policy_hash = (self.v1_policy_hash if self.v2_config is None else
-                            digest(json_value({
+        self.policy = (None if self.v2_config is None else json_value({
                                 "strategy_version": acts_v2.STRATEGY_ID,
                                 "parameters": self.v2_config.payload(),
                                 "config": self.config.payload(),
                                 "costs": self.costs.payload(),
-                                "execution_mode": "PAPER", "lots": 1})))
+                                "execution_mode": "PAPER", "lots": 1,
+                                "exit_policy_version": mirror_exit.VERSION,
+                                "exit_policy": mirror_exit.policy(self.config)}))
+        self.policy_hash = self.v1_policy_hash if self.policy is None else digest(self.policy)
         verify_acts_paper_journal(sessions)
 
     def _emit(self, session: Session, cursor: ActsPaperCursor, kind: str,
@@ -153,6 +159,8 @@ class ActsPaperService:
             "source_market_timestamp": raw.source_market_timestamp,
             "ingestion_timestamp": raw.response_received_at,
             "policy_hash": document["policy_hash"] if document else self.policy_hash,
+            "exit_policy_version": (document.get("exit_policy_version") if document else
+                                    mirror_exit.VERSION if self.v2_config is not None else None),
             "trade_id": trade.id if trade else None,
             "state": trade.state if trade else None,
             "trade_document": document, **details})
@@ -225,7 +233,9 @@ class ActsPaperService:
         expected_hash = (self.v1_policy_hash if doc.get("strategy_version") == acts.STRATEGY_ID
                          else self.policy_hash if doc.get("strategy_version") ==
                          self.strategy_id else None)
-        if doc["policy_hash"] != expected_hash:
+        if (doc["policy_hash"] != expected_hash or
+                (doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                 and doc.get("exit_policy_version") != mirror_exit.VERSION)):
             doc["unresolved_reason"] = "ACTS_PAPER_POLICY_CHANGED"
             self._save(trade, doc, "UNRESOLVED_EXPOSURE")
             self._emit(session, cursor, "ACTS_UNRESOLVED", snapshot_id, raw,
@@ -274,9 +284,16 @@ class ActsPaperService:
             return
         pair, failure = executable_pair(raw, candidate, self.config, entry=False)
         if failure is not None:
-            if (failure == "MISSING_EXACT_CONTRACT" or
-                    raw.captured_at.astimezone(IST).time().replace(tzinfo=None)
-                    >= self.config.forced_exit_time):
+            terminal = (failure == "MISSING_EXACT_CONTRACT" or
+                        raw.captured_at.astimezone(IST).time().replace(tzinfo=None) >= self.config.forced_exit_time)
+            if doc.get("exit_policy_version") == mirror_exit.VERSION and not terminal:
+                lab = _lab_trade(trade)
+                assert lab is not None and self.v2_config is not None
+                mirror_exit.acts_signal(doc, lab, ctx, self.v2_config, available=False)
+                doc.update(acts_adverse_since={key: value.isoformat() for key, value in lab.acts_adverse_since.items()},
+                           acts_last_adverse_at={key: value.isoformat() for key, value in lab.acts_last_adverse_at.items()})
+                self._save(trade, doc)
+            if terminal:
                 doc.update(unresolved_reason=failure, last_snapshot_id=snapshot_id)
                 self._save(trade, doc, "UNRESOLVED_EXPOSURE")
                 self._emit(session, cursor, "ACTS_UNRESOLVED", snapshot_id, raw,
@@ -287,17 +304,25 @@ class ActsPaperService:
             return
         assert pair is not None
         lab = _lab_trade(trade)
-        assert lab is not None and lab.entry_credit is not None
+        assert lab is not None and lab.entry_credit is not None and lab.entry_timestamp is not None
         pnl = lab.entry_credit - pair.value
         lab.mae, lab.mfe = min(lab.mae, pnl), max(lab.mfe, pnl)
-        reason = _exit_reason(lab, ctx, pair.value, self.config,
-                              event_blocked=blocked)
         lab.best_gross_points = max(lab.best_gross_points, pnl)
         doc.update(current_debit=pair.value, gross_mark_points=pnl,
                    gross_mark_rupees=pnl * raw.lot_size,
                    best_gross_points=lab.best_gross_points,
                    mae=lab.mae, mfe=lab.mfe,
-                   last_snapshot_id=snapshot_id,
+                   last_snapshot_id=snapshot_id)
+        if doc.get("exit_policy_version") == mirror_exit.VERSION:
+            assert self.v2_config is not None
+            mirror_exit.legacy_diagnostics(doc, raw.captured_at, pair.value, self.config, acts_strategy=True)
+            reason = mirror_exit.safety_reason(doc, raw.captured_at, pair.value, self.config,
+                                               event_blocked=blocked)
+            if reason is None:
+                reason = mirror_exit.acts_signal(doc, lab, ctx, self.v2_config, available=True)
+        else:
+            reason = _exit_reason(lab, ctx, pair.value, self.config, event_blocked=blocked)
+        doc.update(
                    acts_adverse_since={key: value.isoformat() for key, value
                                        in lab.acts_adverse_since.items()},
                    acts_last_adverse_at={key: value.isoformat() for key, value
@@ -315,6 +340,7 @@ class ActsPaperService:
         doc.update(exit_timestamp=raw.captured_at.isoformat(),
                    exit_snapshot_id=snapshot_id, exit_debit=pair.value,
                    exit_quotes=pair.evidence, exit_reason=reason,
+                   holding_seconds=(raw.captured_at - lab.entry_timestamp).total_seconds(),
                    exit_thesis={"reason": reason, "regime": ctx["acts"]["regime"],
                                 "alpha": ctx["acts"]["alpha"],
                                 "positioning": ctx["acts"]["positioning"],
@@ -417,6 +443,9 @@ class ActsPaperService:
                 doc = json_value({
                     "strategy_version": self.strategy_id,
                     "policy_hash": self.policy_hash,
+                    **({"policy": self.policy, "exit_policy_version": mirror_exit.VERSION,
+                        "future_instrument_id": raw.future_instrument_id,
+                        "future_expiry": raw.future_expiry} if self.v2_config is not None else {}),
                     "decision_timestamp": raw.captured_at,
                     "decision_snapshot_id": snapshot_id,
                     "direction": decision["direction"],

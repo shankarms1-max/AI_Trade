@@ -118,6 +118,24 @@ def test_unknown_mark_and_unresolved_exposure_propagate(session_factory):
     assert result["strategies"][0]["unrealized_gross_pnl"] is None
 
 
+def test_stored_mirror_policy_and_evidence_are_reported_without_reinterpreting_legacy(session_factory):
+    seed(session_factory)
+    doc = trade_doc(exit=True)
+    doc.update(exit_policy_version="MIRROR_EXIT_V1", exit_reason="OPPOSITE_ORB_BREAKOUT",
+               best_gross_points=4, mirror_diagnostics={"opposite_breakout_first_at": AT.isoformat()})
+    parallel_trade(session_factory, "ORB_15", "mirror", "CLOSED", doc)
+    acts_trade(session_factory, "legacy", "CLOSED", trade_doc(exit=True))
+    result = summary(session_factory, AT)
+    current = result["strategies"][1]["today_trades"][0]
+    assert current["exit_policy_version"] == "MIRROR_EXIT_V1"
+    assert current["exit_reason"] == "OPPOSITE_ORB_BREAKOUT"
+    assert current["best_gross_points"] == 4
+    assert current["mirror_diagnostics"] == doc["mirror_diagnostics"]
+    legacy = result["strategies"][0]["today_trades"][0]
+    assert legacy["exit_policy_version"] is None
+    assert legacy["exit_reason"] == "PROFIT_CAPTURE"
+
+
 def test_entry_debit_is_not_presented_as_a_current_quote_before_first_mark(session_factory):
     seed(session_factory)
     acts_trade(session_factory, "fresh-open", "OPEN", trade_doc(mark=None))

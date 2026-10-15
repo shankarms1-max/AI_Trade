@@ -17,6 +17,7 @@ from app.parallel_paper.decisions import decide, entry_committed
 from app.parallel_paper.indicators import ema, supertrend
 from app.parallel_paper.market import ParallelMarketRepository
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
+from app.paper import mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -96,6 +97,7 @@ class ParallelPaperService:
         self.policies = {strategy: json_value({
             "strategy_id": strategy, "strategy_version": VERSIONS[strategy], "mode": "PAPER",
             "parameters": self.experiment.strategy_payload(strategy), "bars_version": "SAMPLED_FUTURES_V1",
+            "exit_policy_version": mirror_exit.VERSION, "exit_policy": mirror_exit.policy(config),
             "execution": config.payload(), "costs": self.costs.payload()})
             for strategy, config in self.configs.items()}
         self.hashes = {strategy: digest(policy) for strategy, policy in self.policies.items()}
@@ -122,6 +124,7 @@ class ParallelPaperService:
                               "state": trade.state if trade else None, "trade_document": doc,
                               "policy_hash": doc["policy_hash"] if doc else self.hashes[cursor.strategy_id],
                               "policy": doc["policy"] if doc else self.policies[cursor.strategy_id],
+                              "exit_policy_version": doc.get("exit_policy_version") if doc else mirror_exit.VERSION,
                               **details})
         cursor.sequence += 1
         hashed = digest({"strategy_id": cursor.strategy_id, "sequence": cursor.sequence,
@@ -182,13 +185,14 @@ class ParallelPaperService:
         return list(dict.fromkeys(reasons))
 
     def _transition(self, session: Session, cursor: ParallelPaperCursor, snapshot_id: int,
-                    raw: ScalperMarketSnapshot, bars: list[Bar], trade: ParallelPaperTrade,
+                    raw: ScalperMarketSnapshot, points: list[MarketPoint], bars: list[Bar], trade: ParallelPaperTrade,
                     rows: list[ParallelPaperTrade], blocked: bool) -> None:
         if trade.state == "UNRESOLVED_EXPOSURE":
             return
         config = self.configs[trade.strategy_id]
         doc = json.loads(trade.document)
-        if doc["policy_hash"] != self.hashes[trade.strategy_id]:
+        if (doc["policy_hash"] != self.hashes[trade.strategy_id] or
+                doc.get("exit_policy_version") != self.policies[trade.strategy_id]["exit_policy_version"]):
             trade.state = "UNRESOLVED_EXPOSURE"
             doc["unresolved_reason"] = "EXECUTION_POLICY_CHANGED"
             trade.document = canonical(doc)
@@ -244,8 +248,12 @@ class ParallelPaperService:
             if opposite:
                 doc.setdefault("breakout_reversal_first_at", raw.captured_at.isoformat())
         if failure:
-            if (failure == "MISSING_EXACT_CONTRACT" or
-                    raw.captured_at.time().replace(tzinfo=None) >= config.forced_exit_time):
+            terminal = (failure == "MISSING_EXACT_CONTRACT" or
+                        raw.captured_at.astimezone(IST).time().replace(tzinfo=None) >= config.forced_exit_time)
+            if doc.get("exit_policy_version") == mirror_exit.VERSION and not terminal:
+                mirror_exit.parallel_signal(doc, points, bars, raw.captured_at, self.experiment, available=False)
+                trade.document = canonical(doc)
+            if terminal:
                 trade.state = "UNRESOLVED_EXPOSURE"
                 doc["unresolved_reason"] = failure
                 trade.document = canonical(doc)
@@ -260,10 +268,17 @@ class ParallelPaperService:
         pnl = lab.entry_credit - pair.value
         lab.mae, lab.mfe = min(lab.mae, pnl), max(lab.mfe, pnl)
         context = {"timestamp": raw.captured_at.isoformat(), "spot": raw.nifty_spot, "lot_size": doc["lot_size"]}
-        reason = _exit_reason(lab, context, pair.value, config, event_blocked=blocked)
         doc.update(current_debit=pair.value, gross_mark_points=pnl,
                    gross_mark_rupees=pnl * doc["lot_size"], mae=lab.mae, mfe=lab.mfe,
                    best_gross_points=max(lab.best_gross_points, pnl))
+        if doc.get("exit_policy_version") == mirror_exit.VERSION:
+            mirror_exit.legacy_diagnostics(doc, raw.captured_at, pair.value, config)
+            reason = mirror_exit.safety_reason(doc, raw.captured_at, pair.value, config,
+                                               event_blocked=blocked)
+            if reason is None:
+                reason = mirror_exit.parallel_signal(doc, points, bars, raw.captured_at, self.experiment, available=True)
+        else:
+            reason = _exit_reason(lab, context, pair.value, config, event_blocked=blocked)
         trade.document = canonical(doc)
         self._emit(session, cursor, snapshot_id, raw, "MARK", trade, available=True, quotes=pair.evidence)
         if reason is None:
@@ -305,7 +320,7 @@ class ParallelPaperService:
             blocked = any(event.block_entries for event in self.events[strategy].events_at(raw.captured_at))
             for trade in rows:
                 if trade.state in ACTIVE:
-                    self._transition(session, cursor, snapshot_id, raw, bars, trade, rows, blocked)
+                    self._transition(session, cursor, snapshot_id, raw, points, bars, trade, rows, blocked)
             state = json.loads(cursor.state_json)
             decision = decide(strategy, points, bars, raw.captured_at, state, self.experiment)
             decision.update(snapshot_id=snapshot_id, market_data=source, policy_hash=self.hashes[strategy])
@@ -330,6 +345,7 @@ class ParallelPaperService:
                     doc = json_value({"strategy_id": strategy, "strategy_version": VERSIONS[strategy],
                                       "trade_id": trade_id, "policy_hash": self.hashes[strategy],
                                       "policy": self.policies[strategy],
+                                      "exit_policy_version": mirror_exit.VERSION,
                                       "decision_timestamp": raw.captured_at, "direction": decision["direction"],
                                       "decision": {**decision, "thesis": {}}, "strategy_features": decision["features"],
                                       "entry_reason": decision["entry_reason"], "candidate": candidate,

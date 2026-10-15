@@ -33,14 +33,15 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
       {strategy.latest_rejection_reason && <> · Latest: {blockerLabel(strategy.latest_rejection_reason)}</>}
     </div>
     {strategy.today_trades.length ? <div className="table-wrap"><table aria-label={`${strategy.display_name} today trades`}>
-      <thead><tr><th>Time</th><th>Direction</th><th>Spread</th><th>Entry Credit</th><th>Exit / Current Debit</th><th>Gross P&amp;L / MTM</th><th>MFE</th><th>MAE</th><th>Holding</th><th>Entry Reason</th><th>Exit Reason</th><th>State</th></tr></thead>
+      <thead><tr><th>Time</th><th>Direction</th><th>Spread</th><th>Entry Credit</th><th>Exit / Current Debit</th><th>Gross P&amp;L / MTM</th><th>MFE</th><th>MAE</th><th>Holding</th><th>Entry Reason</th><th>Exit Policy</th><th>Exit Reason</th><th>State</th></tr></thead>
       <tbody>{strategy.today_trades.map((trade: Phase15Trade) => <tr key={trade.trade_id}>
         <td>{timeIST(trade.entry_timestamp ?? trade.decision_timestamp)}</td><td>{trade.direction ?? "N/A"}</td>
         <td>{number(trade.short_strike, 0)} / {number(trade.hedge_strike, 0)}</td>
         <td>{number(trade.entry_credit)}</td><td>{number(trade.state === "CLOSED" ? trade.exit_debit : trade.current_debit)}</td>
         <td>{amount(trade.state === "CLOSED" ? trade.realized_gross_pnl : trade.current_unrealized_gross_pnl)}</td>
         <td>{number(trade.mfe)}</td><td>{number(trade.mae)}</td><td>{holding(trade.holding_seconds)}</td>
-        <td>{blockerLabel(trade.entry_reason)}</td><td>{blockerLabel(trade.exit_reason)}</td>
+        <td>{blockerLabel(trade.entry_reason)}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
+        <td title={trade.exit_reason ?? undefined}>{blockerLabel(trade.exit_reason)}</td>
         <td><Badge value={trade.state}/></td>
       </tr>)}</tbody>
     </table></div> : <Empty>NO ENTERED TRADES TODAY</Empty>}

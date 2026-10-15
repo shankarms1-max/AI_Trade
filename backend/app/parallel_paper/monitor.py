@@ -53,6 +53,9 @@ def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
         "mfe": _number(doc.get("mfe")), "mae": _number(doc.get("mae")),
         "holding_seconds": holding, "entry_reason": doc.get("entry_reason"),
         "exit_reason": doc.get("exit_reason"),
+        "exit_policy_version": doc.get("exit_policy_version"),
+        "best_gross_points": _number(doc.get("best_gross_points")),
+        "mirror_diagnostics": doc.get("mirror_diagnostics"),
         "false_breakout": bool(doc["false_breakout_first_at"]) if "false_breakout_first_at" in doc else None,
     }
 

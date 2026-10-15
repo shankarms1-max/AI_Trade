@@ -21,8 +21,9 @@ def _result(strategy: str, at: datetime, status: str, features: dict, *,
 
 
 def decide_orb(strategy: str, points: list[MarketPoint], at: datetime,
-               state: dict, config: ExperimentConfig) -> dict:
-    features = opening_range(points, at, int(strategy.split("_")[1]), config)
+               state: dict, config: ExperimentConfig, *, frozen_range: dict | None = None) -> dict:
+    features = (dict(frozen_range) if frozen_range is not None else
+                opening_range(points, at, int(strategy.split("_")[1]), config))
     if not features["complete"]:
         return _result(strategy, at, "NO_SETUP", features, blockers=[features["reason"]])
     price = points[-1].price
@@ -152,7 +153,7 @@ def decide_technical(bars: list[Bar], at: datetime, state: dict,
 
 
 def decide(strategy: str, points: list[MarketPoint], bars: list[Bar], at: datetime,
-           state: dict, config: ExperimentConfig) -> dict:
+           state: dict, config: ExperimentConfig, *, frozen_range: dict | None = None) -> dict:
     if any(point.at > at for point in points) or any(bar.end > at for bar in bars):
         raise ValueError("PARALLEL_FUTURE_OBSERVATION")
     session = session_start(at).date().isoformat()
@@ -160,7 +161,7 @@ def decide(strategy: str, points: list[MarketPoint], bars: list[Bar], at: dateti
         state.clear()
         state["session"] = session
     if strategy.startswith("ORB_"):
-        return decide_orb(strategy, points, at, state, config)
+        return decide_orb(strategy, points, at, state, config, frozen_range=frozen_range)
     usable = contiguous_bars(bars)
     if strategy == "EMA_PULLBACK":
         return decide_ema(usable, at, state, config)
