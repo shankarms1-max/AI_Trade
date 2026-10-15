@@ -1,4 +1,4 @@
-import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
+import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, Phase15Summary, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -10,6 +10,7 @@ async function request<T>(path: string): Promise<T> {
 const optional = async <T>(path: string): Promise<T | null> => { try { return await request<T>(path); } catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; } };
 export const api = {
   dashboard: () => request<DashboardData>("/api/dashboard/latest"),
+  phase15Summary: () => request<Phase15Summary>("/api/phase15/summary"),
   snapshots: (limit = 50) => request<MarketSnapshot[]>(`/api/snapshots?limit=${limit}`),
   snapshot: (id: number) => optional<MarketSnapshot>(`/api/snapshots/${id}`),
   regimes: (limit = 50) => request<MarketRegime[]>(`/api/regime?limit=${limit}`),

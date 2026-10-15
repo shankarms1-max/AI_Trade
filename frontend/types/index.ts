@@ -11,6 +11,29 @@ export interface CreditSpreadEconomics {
   ranking_components?: Record<string, number>; ranking_penalties?: Record<string, number>;
 }
 export type Status = "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED" | "STARTED" | "PENDING";
+export interface Phase15Trade {
+  trade_id: string; state: string; direction: string | null;
+  decision_timestamp: string | null; entry_timestamp: string | null; exit_timestamp: string | null;
+  short_strike: number | null; hedge_strike: number | null; entry_credit: number | null;
+  current_debit: number | null; exit_debit: number | null;
+  realized_gross_pnl: number | null; current_unrealized_gross_pnl: number | null;
+  mfe: number | null; mae: number | null; holding_seconds: number | null;
+  entry_reason: string | null; exit_reason: string | null; false_breakout: boolean | null;
+}
+export interface Phase15Strategy {
+  strategy_id: string; display_name: string; trades_today: number | null;
+  wins_today: number | null; losses_today: number | null; entry_rejections_today: number | null;
+  latest_rejection_reason: string | null; realized_gross_pnl_today: number | null;
+  unrealized_gross_pnl: number | null; open_position_count: number | null;
+  latest_status: string | null; latest_blocker: string | null; latest_timestamp: string | null;
+  accounting_status: "GROSS_ONLY"; today_trades: Phase15Trade[];
+}
+export interface Phase15Summary {
+  mode: "PAPER"; as_of: string; accounting_status: "GROSS_ONLY";
+  totals: { realized_gross_pnl_today: number | null; unrealized_gross_pnl: number | null;
+    combined_gross_pnl: number | null; open_positions: number | null; trades_today: number | null };
+  strategies: Phase15Strategy[];
+}
 export type RegimeName = "BULLISH" | "BEARISH" | "RANGE" | "NO_TRADE";
 
 export interface OptionContract { id: number; strike: number; option_type: "CE" | "PE"; expiry: string; trading_symbol: string; instrument_token: string; exchange?: string | null; source_market_timestamp?: string | null; bid_quantity?: number | null; ask_quantity?: number | null; depth_unit?: "UNKNOWN" | "UNITS" | "LOTS"; tick_size?: number | null; ltp: number | null; open_interest: number | null; previous_open_interest: number | null; change_in_open_interest: number | null; volume: number | null; bid: number | null; ask: number | null; }
