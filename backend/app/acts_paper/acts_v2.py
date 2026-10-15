@@ -287,31 +287,6 @@ def decide(ctx: dict[str, Any], watch: dict[str, Any],
             "entry_reason": trigger if status == "ENTER" else None}
 
 
-def directional_thesis(ctx: dict[str, Any], watch: dict[str, Any],
-                       config: ActsV2Config) -> dict[str, Any]:
-    """Use the exact entry score with no candidate, no risk gates, and no rescaling.
-
-    The existing scorer gives zero execution points when candidate is None. This
-    is an explicit lower-bound score out of the original 100, not a replacement
-    market-only scoring formula. A configured threshold above its ceiling cannot
-    qualify; the caller must preserve that limitation in the evidence.
-    """
-    decision = decide(ctx, watch, None, {}, [], config)
-    blockers = [reason for reason in decision["hard_blockers"]
-                if reason != "NO_EXECUTABLE_CANDIDATE"]
-    ceiling = 100 - sum(config.weights[key] for key in (
-        "execution_spread", "execution_depth", "execution_credit"))
-    return {key: decision[key] for key in (
-        "timestamp", "direction", "market_state", "opportunity_score", "score_band",
-        "score_components", "score_evidence", "alpha", "watch_state")} | {
-            "blockers": blockers,
-            "tradeable": not blockers and decision["direction"] is not None and
-            decision["score_band"] in {"TRADEABLE", "STRONG", "VERY_STRONG"},
-            "execution_score_status": "NO_CANDIDATE_ZERO_POINTS_NO_RESCALING",
-            "maximum_score_without_execution": ceiling,
-            "tradeable_threshold_reachable": config.tradeable_score <= ceiling}
-
-
 def entry_valid(ctx: dict[str, Any], direction: str,
                 config: ActsV2Config) -> str | None:
     state, current_direction, _ = market_state(ctx, {}, config)

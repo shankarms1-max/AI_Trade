@@ -74,18 +74,20 @@ describe("Phase 15 monitor", () => {
     expect(blockerLabel("ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT")).toBe("Re-entry disabled / same breakout");
   });
 
-  it("shows the stored exit policy and actual mirror reason in trade details", async () => {
+  it.each([
+    ["OPPOSITE_ACTS_V2_ENTRY_SIGNAL", "Opposite acts v2 entry signal"],
+    ["SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS", "Sustained opposite acts tradeable thesis"],
+  ])("shows the stored exit policy and preserves the actual reason %s", async (reason, label) => {
     const data = fixture();
     data.strategies[0].today_trades = [{ ...openTrade, state: "CLOSED",
       exit_policy_version: "MIRROR_EXIT_V1",
-      exit_reason: "SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS" }];
+      exit_reason: reason }];
     vi.mocked(api.phase15Summary).mockResolvedValue(data);
     render(<Phase15Monitor/>);
     fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
     const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
     expect(within(details).getByText("MIRROR_EXIT_V1")).toBeInTheDocument();
-    expect(within(details).getByText("Sustained opposite acts tradeable thesis")).toHaveAttribute(
-      "title", "SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS");
+    expect(within(details).getByText(label)).toHaveAttribute("title", reason);
   });
 
   it("shows N/A for one unavailable strategy while preserving the other five", async () => {

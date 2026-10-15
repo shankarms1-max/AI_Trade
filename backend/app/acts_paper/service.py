@@ -141,7 +141,7 @@ class ActsPaperService:
                                 "costs": self.costs.payload(),
                                 "execution_mode": "PAPER", "lots": 1,
                                 "exit_policy_version": mirror_exit.VERSION,
-                                "exit_policy": mirror_exit.policy(self.config)}))
+                                "exit_policy": mirror_exit.acts_policy(self.config)}))
         self.policy_hash = self.v1_policy_hash if self.policy is None else digest(self.policy)
         verify_acts_paper_journal(sessions)
 
@@ -223,6 +223,22 @@ class ActsPaperService:
         return list(session.scalars(select(ActsPaperTrade).order_by(
             ActsPaperTrade.decision_snapshot_id)).all())
 
+    def _mirror_signal(self, doc: dict, lab: LabTrade, raw: ScalperMarketSnapshot,
+                       ctx: dict[str, Any], *, available: bool) -> str | None:
+        assert self.v2_config is not None
+        if datetime.fromisoformat(ctx["timestamp"]) != raw.captured_at:
+            raise ValueError("ACTS_MIRROR_OBSERVATION_MISMATCH")
+        watch = doc.setdefault("mirror_exit_state", {}).setdefault("watch", {})
+        if watch.get("strategy_version") != acts_v2.STRATEGY_ID:
+            watch.clear()
+        _, direction, _ = acts_v2.market_state(ctx, watch, self.v2_config)
+        candidate, rejected = None, {}
+        if direction is not None and direction != doc["direction"]:
+            candidate, rejected = _candidate(
+                raw, {"strategy_id": acts_v2.STRATEGY_ID, "direction": direction}, ctx, self.config)
+        return mirror_exit.acts_signal(doc, lab, ctx, self.v2_config, candidate=candidate,
+                                       candidate_rejections=rejected, available=available)
+
     def _transition(self, session: Session, cursor: ActsPaperCursor,
                     snapshot_id: int, raw: ScalperMarketSnapshot,
                     ctx: dict[str, Any], trade: ActsPaperTrade,
@@ -289,7 +305,7 @@ class ActsPaperService:
             if doc.get("exit_policy_version") == mirror_exit.VERSION and not terminal:
                 lab = _lab_trade(trade)
                 assert lab is not None and self.v2_config is not None
-                mirror_exit.acts_signal(doc, lab, ctx, self.v2_config, available=False)
+                self._mirror_signal(doc, lab, raw, ctx, available=False)
                 doc.update(acts_adverse_since={key: value.isoformat() for key, value in lab.acts_adverse_since.items()},
                            acts_last_adverse_at={key: value.isoformat() for key, value in lab.acts_last_adverse_at.items()})
                 self._save(trade, doc)
@@ -319,7 +335,7 @@ class ActsPaperService:
             reason = mirror_exit.safety_reason(doc, raw.captured_at, pair.value, self.config,
                                                event_blocked=blocked)
             if reason is None:
-                reason = mirror_exit.acts_signal(doc, lab, ctx, self.v2_config, available=True)
+                reason = self._mirror_signal(doc, lab, raw, ctx, available=True)
         else:
             reason = _exit_reason(lab, ctx, pair.value, self.config, event_blocked=blocked)
         doc.update(
@@ -382,6 +398,9 @@ class ActsPaperService:
                     ActsPaperTrade.decision_snapshot_id)).all()
             for trade in active:
                 self._transition(session, cursor, snapshot_id, raw, ctx, trade, blocked)
+            mirror_closed = any(
+                trade.state == "CLOSED" and json.loads(trade.document).get("exit_reason") == mirror_exit.ACTS_REASON
+                and json.loads(trade.document).get("exit_snapshot_id") == snapshot_id for trade in active)
             watch = json.loads(cursor.watch_json)
             candidate = None
             rejected: dict[str, int] = {}
@@ -396,6 +415,8 @@ class ActsPaperService:
                 ledger = Ledger(trades=[lab for item in self._trades(session)
                                         if (lab := _lab_trade(item)) is not None])
                 reasons = _risk_blockers(ledger, self.config, raw.captured_at, blocked)
+                if mirror_closed:
+                    reasons.append("MIRROR_EXIT_OBSERVATION_NO_REENTRY")
                 if (candidate is not None
                         and raw.captured_at.date() >= candidate.short_leg.expiry):
                     reasons.append("EXPIRY_DAY_ENTRY_FORBIDDEN")

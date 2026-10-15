@@ -10,14 +10,16 @@ from app.parallel_paper.bars import Bar, MarketPoint, contiguous_bars, session_s
 from app.parallel_paper.config import ExperimentConfig
 from app.parallel_paper.decisions import decide
 from app.scalper.config import ScalperConfig
+from app.scalper.models import ScalperCandidate
 from app.scalper.repository import IST
 from app.scalper_lab import acts
 
 VERSION = "MIRROR_EXIT_V1"
-ACTS_REASON = "SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS"
+ACTS_REASON = "OPPOSITE_ACTS_V2_ENTRY_SIGNAL"
 
 
 def policy(config: ScalperConfig) -> dict[str, Any]:
+    """Keep the parallel experiments' original payload stable; ACTS uses acts_policy."""
     if config.forced_exit_time != time(15, 20):
         raise ValueError("MIRROR_EXIT_REQUIRES_1520_IST_FORCED_CLOSE")
     return {"version": VERSION, "forced_exit_time_ist": "15:20:00",
@@ -27,6 +29,16 @@ def policy(config: ScalperConfig) -> dict[str, Any]:
             "acts_execution_score": "NO_CANDIDATE_ZERO_POINTS_NO_RESCALING",
             "signal_book_unavailable": "PERSIST_EXIT_REQUEST_UNTIL_EXECUTABLE_OR_UNRESOLVED",
             "exit_price": "EXACT_SHORT_ASK_MINUS_HEDGE_BID"}
+
+
+def acts_policy(config: ScalperConfig) -> dict[str, Any]:
+    """Correct ACTS semantics without changing the other experiments' hashes."""
+    result = policy(config)
+    result.pop("acts_max_gap_seconds")
+    result.update(acts_confirmation_seconds=0,
+                  acts_execution_score="ORIGINAL_100_POINT_SCORE_WITH_CURRENT_OPPOSITE_CANDIDATE",
+                  acts_signal="ACTS_V2_ENTER_WITHOUT_PORTFOLIO_ENTRY_PERMISSION")
+    return result
 
 
 def safety_reason(doc: dict, at: datetime, debit: float, config: ScalperConfig,
@@ -146,7 +158,8 @@ def parallel_signal(doc: dict, points: list[MarketPoint], bars: list[Bar], at: d
 
 
 def acts_signal(doc: dict, trade: Any, ctx: dict, config: acts_v2.ActsV2Config,
-                *, available: bool) -> str | None:
+                *, candidate: ScalperCandidate | None,
+                candidate_rejections: dict[str, int], available: bool) -> str | None:
     at = datetime.fromisoformat(ctx["timestamp"])
     # Evaluate every legacy component separately as evidence only. The unchanged
     # legacy engine still returns its first matured invalidation normally.
@@ -156,15 +169,22 @@ def acts_signal(doc: dict, trade: Any, ctx: dict, config: acts_v2.ActsV2Config,
                   futures_returns_bps=ctx["futures_returns_bps"], alpha=ctx["acts"]["alpha"],
                   structure=ctx["structure"], positioning=ctx["acts"]["positioning"])
     state = doc.setdefault("mirror_exit_state", {})
-    thesis = acts_v2.directional_thesis(ctx, state.setdefault("watch", {}), config)
-    doc["mirror_exit_latest"] = thesis
+    signal = acts_v2.decide(ctx, state.setdefault("watch", {}), candidate,
+                            candidate_rejections, [], config)
+    signal["signal_candidate"] = candidate.model_dump(mode="json") if candidate else None
+    doc["mirror_exit_latest"] = signal
     same_future = (ctx.get("future") is not None and
                    (ctx.get("future_instrument_id"), str(ctx.get("future_expiry"))) ==
                    (doc["future_instrument_id"], doc["future_expiry"]))
     same_session = session_start(at) == session_start(datetime.fromisoformat(doc["entry_timestamp"]))
-    opposite = thesis["direction"] != doc["direction"] and thesis["direction"] is not None
-    confirmed = acts.sustained_condition(
-        trade, ACTS_REASON, bool(same_future and same_session and opposite and thesis["tradeable"]), at, 60)
-    if confirmed:
-        first(doc, "opposite_acts_thesis_confirmed_at", at, available=available, thesis=thesis)
-    return _requested(doc, ACTS_REASON if confirmed else None, at, thesis)
+    opposite = signal["direction"] != doc["direction"] and signal["direction"] is not None
+    if same_future and same_session and opposite and candidate is not None:
+        first(doc, "opposite_candidate_first_at", at, available=available,
+              candidate=signal["signal_candidate"])
+    full = same_future and same_session and opposite and signal["status"] == "ENTER"
+    if full:
+        first(doc, "opposite_full_entry_signal_first_at", at, available=available, signal=signal)
+        diagnostics = doc["mirror_diagnostics"]
+        diagnostics.setdefault("opposite_full_entry_score", signal["opportunity_score"])
+        diagnostics.setdefault("opposite_full_entry_band", signal["score_band"])
+    return _requested(doc, ACTS_REASON if full else None, at, signal)

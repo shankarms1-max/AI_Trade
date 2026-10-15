@@ -20,6 +20,12 @@ precondition is ignored, existing policy-mismatch handling marks it unresolved;
 the guard is deliberately not bypassed. ACTS_V1 retains its existing compatibility
 path. Future configuration changes are still subject to the existing hash guard.
 
+The ACTS symmetry correction also changes the ACTS policy hash relative to the
+initial MIRROR_EXIT_V1 draft in commit `402188b`. Deploy the correction with zero
+active ACTS positions as well. Existing CLOSED draft trades retain their stored
+policy and `SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS` reason. The parallel
+experiments' policy payloads and hashes are unchanged by this correction.
+
 Read-only preflight (both queries must return no rows):
 
 ```sql
@@ -53,18 +59,26 @@ observed book, subject to the higher-priority exits. No retrospective fill is us
   trade state. Opposite ordering alone is insufficient.
 - Supertrend uses the existing completed-bar Supertrend, RSI and volume engine;
   all three must produce an opposite ENTER, including the volume rule.
-- ACTS uses the exact existing market-state and score calculation with a separate
-  watch state, no candidate and no entry risk gates. A TRADEABLE/STRONG/VERY_STRONG
-  opposite thesis must persist for 60 seconds. The existing ACTS reset on a gap
-  greater than 30 seconds is shared. Configured alpha veto and missing futures
-  evidence still prevent thesis qualification.
+- ACTS runs the existing candidate builder on the current captured snapshot for
+  the opposite market-state direction, with an isolated per-trade watch state.
+  It passes that candidate to the unchanged ACTS V2 `decide` engine, including
+  the original spread/depth/credit execution scoring. It exits on the first
+  opposite **ENTER**, reason `OPPOSITE_ACTS_V2_ENTRY_SIGNAL`. Native ACTS
+  pullback/resumption behavior, configured alpha veto and futures requirements
+  remain part of that signal. No additional 60-second confirmation is applied.
 
-ACTS's original execution score requires a candidate. Its existing `candidate=None`
-semantics contribute **zero execution points**, with no rescaling and the same
-score bands/weights. Evidence labels this constraint explicitly. Default execution
-weights total 14, so the maximum without execution is 86 out of the original 100.
-An environment whose tradeable threshold exceeds this ceiling cannot produce an
-ACTS mirror exit; this is recorded, never replaced with a new formula.
+ACTS retains the complete 100-point model and existing default bands 40/55/70/85,
+with no score rescaling, weight changes or adjusted mirror threshold. An absent
+or invalid opposite candidate means no strict mirror signal; SL, emergencies and
+forced close still apply. The old candidate-free 86-point path is removed.
+
+The opposite candidate is signal evidence only. Portfolio permissions (open
+positions, daily trade/loss limits, consecutive losses and cooldowns) are not
+passed to the mirror decision. Normal entry processing retains all its risk
+checks; additionally, a mirror close suppresses new entry on that same
+observation, even if all other permissions would permit entry. No opposite
+trade or order is created by the mirror evaluation. No extra broker request is
+made, and the exit itself still uses the exact held spread's executable book.
 
 ## Causal diagnostics
 
@@ -76,7 +90,10 @@ completed-bar end times where applicable. They are never interpolated/backfilled
 Diagnostics include ORB own-boundary re-entry, midpoint and first/confirmed
 opposite breakout; EMA adverse ordering, original pullback-anchor close break,
 opposite WATCH and ENTER; first opposite ST, ST+RSI and full signal; and all four
-existing sustained ACTS component invalidations. First-event evidence includes
+existing sustained ACTS component invalidations. ACTS also records the first
+opposite candidate, first full opposite ENTER, its original score/band and the
+candidate/quote evidence. Component invalidations remain diagnostic-only.
+First-event evidence includes
 gross P&L when the book is available, MFE, MAE, best gross points and relevant
 indicator/thesis evidence. An unavailable book yields null current P&L evidence.
 
