@@ -4,6 +4,40 @@ ACTS V2 continues in its existing worker and journal. The new worker runs ORB_15
 ORB_30, ORB_60, EMA_PULLBACK and SUPERTREND_RSI_VOLUME. It does not calculate Alpha
 or evaluate ACTS. It defaults to disabled and supports PAPER mode only.
 
+## Expiry-day entry policy
+
+All five parallel PAPER strategies allow same-day-expiry spreads at decision
+and next-observation fill. Only contracts expiring before the observation date
+are rejected, with `EXPIRED_CONTRACT_ENTRY_FORBIDDEN`. Strategy signals,
+confirmation, liquidity, fills, risk counters and MIRROR_EXIT_V1 remain unchanged.
+Construction remains exactly 400 points with no alternate-width fallback.
+
+New trade policies include
+`entry_policy_version=PARALLEL_PAPER_EXPIRY_DAY_ENTRY_V1` and
+`entry_policy={"same_day_expiry":"ALLOWED","expired_contracts":"FORBIDDEN"}`.
+These explicit semantics change each strategy's deterministic execution-policy
+hash. Historical policies, events and expiry-day ENTRY_REJECTED evidence are not
+rewritten or replayed into entries. Only new eligible signals may enter.
+
+Upgrading requires **zero active old-policy parallel trades across all five
+strategies**, including PENDING_PAPER_ENTRY, OPEN and UNRESOLVED_EXPOSURE.
+Startup refuses any such trade; each strategy transaction repeats the global
+check before managing positions or recording a new decision. Do not delete,
+rewrite or fabricate outcomes to meet this condition. Active trades already
+created under the new entry policy can restart normally. Existing full
+execution-policy mismatch checks still apply to later configuration changes.
+ACTS policies and behavior are unchanged by this parallel-only correction.
+
+Read-only preflight (must return zero):
+
+```sql
+SELECT count(*) FROM parallel_paper_trades
+WHERE strategy_id IN ('ORB_15','ORB_30','ORB_60','EMA_PULLBACK','SUPERTREND_RSI_VOLUME')
+  AND state IN ('PENDING_PAPER_ENTRY','OPEN','UNRESOLVED_EXPOSURE');
+```
+
+## Runtime commands
+
 After installing this code and applying migration `0019_parallel_paper` in the
 intended environment, these are the runtime commands (no deployment is performed
 by them):

@@ -29,6 +29,7 @@ from app.scalper_lab.engine import LabTrade, Ledger, _construction_signal, _exit
 
 logger = get_logger(__name__)
 ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "UNRESOLVED_EXPOSURE")
+ENTRY_POLICY_VERSION = "PARALLEL_PAPER_EXPIRY_DAY_ENTRY_V1"
 
 
 def _lab(row: ParallelPaperTrade) -> LabTrade:
@@ -97,6 +98,8 @@ class ParallelPaperService:
         self.policies = {strategy: json_value({
             "strategy_id": strategy, "strategy_version": VERSIONS[strategy], "mode": "PAPER",
             "parameters": self.experiment.strategy_payload(strategy), "bars_version": "SAMPLED_FUTURES_V1",
+            "entry_policy_version": ENTRY_POLICY_VERSION,
+            "entry_policy": {"same_day_expiry": "ALLOWED", "expired_contracts": "FORBIDDEN"},
             "exit_policy_version": mirror_exit.VERSION, "exit_policy": mirror_exit.policy(config),
             "execution": config.payload(), "costs": self.costs.payload()})
             for strategy, config in self.configs.items()}
@@ -105,6 +108,16 @@ class ParallelPaperService:
                        for strategy, config in self.configs.items()}
         self.market = ParallelMarketRepository(sessions)
         verify_journals(sessions)
+        with sessions() as session:
+            self._assert_entry_policy_upgrade_safe(session)
+
+    @staticmethod
+    def _assert_entry_policy_upgrade_safe(session: Session) -> None:
+        rows = session.scalars(select(ParallelPaperTrade).where(
+            ParallelPaperTrade.strategy_id.in_(STRATEGIES), ParallelPaperTrade.state.in_(ACTIVE)))
+        if any(json.loads(row.document).get("policy", {}).get("entry_policy_version") != ENTRY_POLICY_VERSION
+               for row in rows):
+            raise RuntimeError("PARALLEL_PAPER_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
 
     @staticmethod
     def _trades(session: Session, strategy: str) -> list[ParallelPaperTrade]:
@@ -210,7 +223,7 @@ class ParallelPaperService:
                 return
             risk = self._risk([row for row in rows if row.id != trade.id], config, raw.captured_at, blocked)
             reason = ("ENTRY_TTL_EXCEEDED" if age > config.entry_ttl_seconds else
-                      "EXPIRY_DAY_ENTRY_FORBIDDEN" if raw.captured_at.date() >= candidate.short_leg.expiry else
+                      "EXPIRED_CONTRACT_ENTRY_FORBIDDEN" if candidate.short_leg.expiry < raw.captured_at.date() else
                       "LOT_SIZE_CHANGED" if raw.lot_size != doc["lot_size"] else
                       risk[0] if risk else failure or self._entry_valid(doc, raw, bars))
             if reason is None:
@@ -276,7 +289,8 @@ class ParallelPaperService:
             reason = mirror_exit.safety_reason(doc, raw.captured_at, pair.value, config,
                                                event_blocked=blocked)
             if reason is None:
-                reason = mirror_exit.parallel_signal(doc, points, bars, raw.captured_at, self.experiment, available=True)
+                reason = mirror_exit.parallel_signal(
+                    doc, points, bars, raw.captured_at, self.experiment, available=True)
         else:
             reason = _exit_reason(lab, context, pair.value, config, event_blocked=blocked)
         trade.document = canonical(doc)
@@ -310,6 +324,7 @@ class ParallelPaperService:
                 raise RuntimeError("PARALLEL_PAPER_MIGRATION_REQUIRED")
             cursor = session.get(ParallelPaperCursor, strategy)
             assert cursor is not None
+            self._assert_entry_policy_upgrade_safe(session)
             if session.scalar(select(ParallelPaperEvent.sequence).where(
                     ParallelPaperEvent.strategy_id == strategy,
                     ParallelPaperEvent.event_key == f"{snapshot_id}:SESSION:OBSERVATION")) is not None:
@@ -330,8 +345,8 @@ class ParallelPaperService:
                 reasons = self._risk(rows, config, raw.captured_at, blocked)
                 if candidate is None:
                     reasons.append("NO_EXECUTABLE_PROTECTED_SPREAD")
-                elif raw.captured_at.date() >= candidate.short_leg.expiry:
-                    reasons.append("EXPIRY_DAY_ENTRY_FORBIDDEN")
+                elif candidate.short_leg.expiry < raw.captured_at.date():
+                    reasons.append("EXPIRED_CONTRACT_ENTRY_FORBIDDEN")
                 if not raw.future_instrument_id or raw.future_expiry is None or raw.nifty_future is None:
                     reasons.append("FUTURES_REFERENCE_UNAVAILABLE")
                 decision["candidate_rejections"] = built.rejection_counts
