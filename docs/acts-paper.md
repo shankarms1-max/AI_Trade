@@ -1,5 +1,36 @@
 # ACTS_V1 paper worker
 
+## ACTS V2 expiry-day entry policy
+
+ACTS V2 PAPER allows same-day-expiry option spreads at both decision and
+next-observation fill. Contracts whose expiry precedes the observation date
+remain blocked with `EXPIRED_CONTRACT_ENTRY_FORBIDDEN`. The legacy ACTS V1 and
+parallel ORB/EMA/Supertrend expiry restrictions are unchanged.
+
+New V2 policy payloads include
+`entry_policy_version=ACTS_V2_EXPIRY_DAY_ENTRY_V1` and explicit same-day/expired
+contract rules, changing the deterministic policy hash. MIRROR_EXIT_V1, its
+policy payload and all existing execution/risk gates are unchanged, including
+400-point-only construction, executable bid/ask fills and 15:20 IST forced close.
+
+This upgrade requires **zero active old-policy ACTS V2 trades**, including
+PENDING_PAPER_ENTRY, OPEN and UNRESOLVED_EXPOSURE. Startup refuses otherwise,
+and the serialized observation transaction repeats this check to cover a
+concurrent old worker. Do not delete, rewrite or fabricate closure of trades to
+meet this condition. New-policy active trades can restart normally; historical
+CLOSED/ENTRY_REJECTED documents and journal events are never rewritten.
+The existing full policy-hash mismatch guard remains in force.
+
+Read-only preflight (must return zero):
+
+```sql
+SELECT count(*) FROM acts_paper_trades
+WHERE state IN ('PENDING_PAPER_ENTRY', 'OPEN', 'UNRESOLVED_EXPOSURE')
+  AND document::jsonb->>'strategy_version' = 'ACTS_V2';
+```
+
+## Existing worker and capture
+
 The ACTS paper worker is independent of the Phase 15 scalper worker and the
 Phase 14 paper journal. It captures Kotak market data into the existing Phase
 15 snapshot and quote tables, computes the existing frozen ACTS_V1 decision,

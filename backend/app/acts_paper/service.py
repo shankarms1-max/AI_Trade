@@ -1,6 +1,7 @@
 """Versioned ACTS paper execution over the isolated Phase 15 capture stream."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import replace
 from datetime import datetime, timedelta
 import json
@@ -34,6 +35,7 @@ from app.scalper_lab.engine import LabTrade, Ledger, _candidate, _exit_reason, _
 logger = get_logger(__name__)
 ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "UNRESOLVED_EXPOSURE")
 INTERVAL_SECONDS = 15
+V2_ENTRY_POLICY_VERSION = "ACTS_V2_EXPIRY_DAY_ENTRY_V1"
 
 
 def _at(value: str | None) -> datetime | None:
@@ -143,10 +145,35 @@ class ActsPaperService:
                                 "config": self.config.payload(),
                                 "costs": self.costs.payload(),
                                 "execution_mode": "PAPER", "lots": 1,
+                                "entry_policy_version": V2_ENTRY_POLICY_VERSION,
+                                "entry_policy": {"same_day_expiry": "ALLOWED",
+                                                 "expired_contracts": "FORBIDDEN"},
                                 "exit_policy_version": mirror_exit.VERSION,
                                 "exit_policy": mirror_exit.acts_policy(self.config)}))
         self.policy_hash = self.v1_policy_hash if self.policy is None else digest(self.policy)
         verify_acts_paper_journal(sessions)
+        if self.v2_config is not None:
+            with sessions() as session:
+                self._assert_entry_policy_upgrade_safe(session.scalars(select(ActsPaperTrade).where(
+                    ActsPaperTrade.state.in_(ACTIVE))).all())
+
+    def _assert_entry_policy_upgrade_safe(self, trades: Iterable[ActsPaperTrade]) -> None:
+        if self.v2_config is None:
+            return
+        for trade in trades:
+            doc = json.loads(trade.document)
+            if (doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                    and doc.get("policy", {}).get("entry_policy_version") != V2_ENTRY_POLICY_VERSION):
+                raise RuntimeError("ACTS_V2_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+
+    @staticmethod
+    def _entry_expiry_reason(raw: ScalperMarketSnapshot, candidate: ScalperCandidate,
+                             strategy_id: str) -> str | None:
+        if strategy_id == acts_v2.STRATEGY_ID:
+            return ("EXPIRED_CONTRACT_ENTRY_FORBIDDEN"
+                    if candidate.short_leg.expiry < raw.captured_at.date() else None)
+        return ("EXPIRY_DAY_ENTRY_FORBIDDEN"
+                if raw.captured_at.date() >= candidate.short_leg.expiry else None)
 
     def _emit(self, session: Session, cursor: ActsPaperCursor, kind: str,
               snapshot_id: int, raw: ScalperMarketSnapshot,
@@ -267,9 +294,9 @@ class ActsPaperService:
             if age <= 0:
                 return
             pair, failure = executable_pair(raw, candidate, self.config, entry=True)
+            expiry_reason = self._entry_expiry_reason(raw, candidate, doc["strategy_version"])
             reason = ("ENTRY_TTL_EXCEEDED" if age > self.config.entry_ttl_seconds else
-                      "EXPIRY_DAY_ENTRY_FORBIDDEN" if raw.captured_at.date() >=
-                      candidate.short_leg.expiry else
+                      expiry_reason if expiry_reason is not None else
                       "KILL_SWITCH_ACTIVE" if self.config.kill_switch else
                       "MARKET_EVENT_BLOCKED" if blocked else
                       failure or (acts_v2.entry_valid(
@@ -309,8 +336,9 @@ class ActsPaperService:
                 lab = _lab_trade(trade)
                 assert lab is not None and self.v2_config is not None
                 self._mirror_signal(doc, lab, raw, ctx, available=False)
-                doc.update(acts_adverse_since={key: value.isoformat() for key, value in lab.acts_adverse_since.items()},
-                           acts_last_adverse_at={key: value.isoformat() for key, value in lab.acts_last_adverse_at.items()})
+                doc.update(
+                    acts_adverse_since={key: value.isoformat() for key, value in lab.acts_adverse_since.items()},
+                    acts_last_adverse_at={key: value.isoformat() for key, value in lab.acts_last_adverse_at.items()})
                 self._save(trade, doc)
             if terminal:
                 doc.update(unresolved_reason=failure, last_snapshot_id=snapshot_id)
@@ -399,6 +427,7 @@ class ActsPaperService:
             active = session.scalars(select(ActsPaperTrade).where(
                 ActsPaperTrade.state.in_(ACTIVE)).order_by(
                     ActsPaperTrade.decision_snapshot_id)).all()
+            self._assert_entry_policy_upgrade_safe(active)
             for trade in active:
                 self._transition(session, cursor, snapshot_id, raw, ctx, trade, blocked)
             mirror_closed = any(
@@ -420,9 +449,10 @@ class ActsPaperService:
                 reasons = _risk_blockers(ledger, self.config, raw.captured_at, blocked)
                 if mirror_closed:
                     reasons.append("MIRROR_EXIT_OBSERVATION_NO_REENTRY")
-                if (candidate is not None
-                        and raw.captured_at.date() >= candidate.short_leg.expiry):
-                    reasons.append("EXPIRY_DAY_ENTRY_FORBIDDEN")
+                if candidate is not None:
+                    expiry_reason = self._entry_expiry_reason(raw, candidate, self.strategy_id)
+                    if expiry_reason is not None:
+                        reasons.append(expiry_reason)
                 if candidate is not None and candidate.defined_max_loss_per_lot > (
                         self.config.max_loss_per_trade):
                     reasons.append("MAX_LOSS_PER_TRADE_EXCEEDED")
