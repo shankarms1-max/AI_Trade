@@ -21,11 +21,16 @@ class BookResult:
     reason: str | None
     spread_pct: float | None
     available_units: int | None
+    wide_spread: bool | None = None
+    quality_warning: str | None = None
 
     def payload(self) -> dict[str, Any]:
-        return {"valid": self.valid, "reason": self.reason,
-                "spread_pct": self.spread_pct,
-                "available_units": self.available_units}
+        result: dict[str, Any] = {"valid": self.valid, "reason": self.reason,
+                                  "spread_pct": self.spread_pct,
+                                  "available_units": self.available_units}
+        if self.wide_spread is not None:
+            result.update(wide_spread=self.wide_spread, quality_warning=self.quality_warning)
+        return result
 
 
 @dataclass(frozen=True)
@@ -36,27 +41,35 @@ class CandidateBuildResult:
 
 def validate_book(quote: ScalperOptionQuote, observed_at, lot_size: int,
                   config: ScalperConfig, *, entry: bool = True,
-                  side: Literal["bid", "ask"] | None = None) -> BookResult:
+                  side: Literal["bid", "ask"] | None = None,
+                  allow_wide_exit: bool = False) -> BookResult:
     """Validate the real book; no LTP substitution or inferred quantity unit."""
+    def result(valid: bool, reason: str | None, spread: float | None, quantity: int | None) -> BookResult:
+        wide = spread > config.max_bid_ask_spread_pct if spread is not None else None
+        diagnostic = not entry and allow_wide_exit and wide is not None
+        return BookResult(valid, reason, spread, quantity,
+                          wide_spread=wide if diagnostic else None,
+                          quality_warning="BID_ASK_SPREAD_TOO_WIDE" if diagnostic and wide else None)
+
     if quote.bid is None or quote.ask is None:
-        return BookResult(False, "MISSING_EXECUTABLE_SIDE", None, None)
+        return result(False, "MISSING_EXECUTABLE_SIDE", None, None)
     if not all(isfinite(value) and value > 0 for value in (quote.bid, quote.ask)):
-        return BookResult(False, "NONPOSITIVE_EXECUTABLE_PRICE", None, None)
+        return result(False, "NONPOSITIVE_EXECUTABLE_PRICE", None, None)
     if quote.ask < quote.bid:
-        return BookResult(False, "CROSSED_BOOK", None, None)
+        return result(False, "CROSSED_BOOK", None, None)
     if quote.tick_size is not None:
         if not isfinite(quote.tick_size) or quote.tick_size <= 0:
-            return BookResult(False, "INVALID_TICK_SIZE", None, None)
+            return result(False, "INVALID_TICK_SIZE", None, None)
         for price in (quote.bid, quote.ask):
             ticks = price / quote.tick_size
             if abs(ticks - round(ticks)) > 1e-6:
-                return BookResult(False, "INVALID_TICK_PRICE", None, None)
+                return result(False, "INVALID_TICK_PRICE", None, None)
     midpoint = (quote.ask + quote.bid) / 2.0
     spread = (quote.ask - quote.bid) / midpoint * 100.0
-    if spread > config.max_bid_ask_spread_pct:
-        return BookResult(False, "BID_ASK_SPREAD_TOO_WIDE", spread, None)
+    if spread > config.max_bid_ask_spread_pct and (entry or not allow_wide_exit):
+        return result(False, "BID_ASK_SPREAD_TOO_WIDE", spread, None)
     if quote.source_market_timestamp is None:
-        return BookResult(False, "MISSING_QUOTE_TIMESTAMP", spread, None)
+        return result(False, "MISSING_QUOTE_TIMESTAMP", spread, None)
     source = quote.source_market_timestamp
     observed = observed_at
     if source.tzinfo is None:
@@ -65,23 +78,23 @@ def validate_book(quote: ScalperOptionQuote, observed_at, lot_size: int,
         observed = observed.replace(tzinfo=timezone.utc)
     age = (observed - source).total_seconds()
     if age < -1 or age > config.max_quote_age_seconds:
-        return BookResult(False, "STALE_OR_FUTURE_QUOTE", spread, None)
+        return result(False, "STALE_OR_FUTURE_QUOTE", spread, None)
     quantity = ((quote.bid_quantity or 0) if side == "bid" else
                 (quote.ask_quantity or 0) if side == "ask" else
                 min(quote.bid_quantity or 0, quote.ask_quantity or 0))
     if quote.depth_unit == "LOTS":
         quantity *= lot_size
     elif quote.depth_unit != "UNITS":
-        return BookResult(False, "UNKNOWN_REQUIRED_DEPTH", spread, None)
+        return result(False, "UNKNOWN_REQUIRED_DEPTH", spread, None)
     required = lot_size * config.lots
     if quantity < required:
-        return BookResult(False, "INSUFFICIENT_DEPTH", spread, quantity)
+        return result(False, "INSUFFICIENT_DEPTH", spread, quantity)
     if entry and (quote.open_interest is None
                   or quote.open_interest < config.min_open_interest):
-        return BookResult(False, "OPEN_INTEREST_TOO_LOW", spread, quantity)
+        return result(False, "OPEN_INTEREST_TOO_LOW", spread, quantity)
     if entry and (quote.volume is None or quote.volume < config.min_volume):
-        return BookResult(False, "VOLUME_TOO_LOW", spread, quantity)
-    return BookResult(True, None, spread, quantity)
+        return result(False, "VOLUME_TOO_LOW", spread, quantity)
+    return result(True, None, spread, quantity)
 
 
 def _leg(quote: ScalperOptionQuote) -> ScalperLeg:
@@ -141,8 +154,8 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                 continue
             max_loss = width - credit
             max_loss_lot = max_loss * snapshot.lot_size * config.lots
-            risk_failure = defined_risk_rejection(width, credit, snapshot.lot_size,
-                config.lots, max_loss=config.max_loss_per_trade)
+            risk_failure = defined_risk_rejection(
+                width, credit, snapshot.lot_size, config.lots, max_loss=config.max_loss_per_trade)
             if risk_failure:
                 reject(risk_failure)
                 continue
@@ -171,7 +184,8 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
                 defined_max_loss_per_lot=max_loss_lot,
                 premium_retention_ratio=retention,
                 construction_method="SHORT_LEG_FIRST_V1",
-                construction_evidence={"short_sell_price": short.bid,
+                construction_evidence={
+                    "short_sell_price": short.bid,
                     "hedge_protection_cost": long.ask,
                     "prior_vertical_score": round(sum(components.values()), 6)},
                 reason_codes=["SHORT_LEG_SELECTED", "HEDGE_SELECTED_FOR_PREMIUM_RETENTION"],
@@ -201,10 +215,11 @@ def build_candidates(snapshot: ScalperMarketSnapshot, signal: ScalperSignal,
     candidates.sort(key=lambda item: construction_key(
         short_quality=item.construction_evidence["short_quality_score"], retention=item.premium_retention_ratio,
         width=item.spread_width, identity=item.candidate_id))
-    candidates = [item.model_copy(update={"ranking_score": ordinal_score(i, len(candidates)),
-                  "construction_evidence": {**item.construction_evidence,
-                      "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
-                      "ranking_basis": "BALANCED_SHORT_QUALITY_THEN_PREMIUM_RETENTION_V2"}})
+    candidates = [item.model_copy(update={
+        "ranking_score": ordinal_score(i, len(candidates)),
+        "construction_evidence": {**item.construction_evidence,
+                                  "ordinal_rank": i+1, "eligible_pair_count": len(candidates),
+                                  "ranking_basis": "BALANCED_SHORT_QUALITY_THEN_PREMIUM_RETENTION_V2"}})
                   for i, item in enumerate(candidates)]
     return CandidateBuildResult(candidates, rejected)
 

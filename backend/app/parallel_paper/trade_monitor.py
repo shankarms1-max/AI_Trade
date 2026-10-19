@@ -39,10 +39,11 @@ def _fields(value: Any, names: tuple[str, ...]) -> dict:
 
 def _quotes(value: Any) -> dict:
     # Executable-pair evidence stores the original quote inside `quote`.
-    return {leg: _fields({**_dict(_dict(evidence).get("quote")), **_dict(evidence)}, (
+    return {leg: _fields({**_dict(_dict(evidence).get("quote")),
+                         **_dict(_dict(evidence).get("validation")), **_dict(evidence)}, (
         "exchange", "instrument_token", "trading_symbol", "expiry", "strike", "option_type",
         "side", "fill_price", "bid", "ask", "bid_quantity", "ask_quantity", "depth_unit",
-        "source_market_timestamp", "tick_size"))
+        "source_market_timestamp", "tick_size", "spread_pct", "wide_spread", "quality_warning"))
         for leg, evidence in _dict(value).items() if leg in ("short", "long")}
 
 
@@ -60,7 +61,8 @@ def _diagnostics(value: Any) -> list[dict]:
         detail = _dict(evidence.get(name))
         signal = _dict(detail.get("signal"))
         result.append({"name": name, "observed_at": timestamp,
-                       **_fields(detail, ("mark_available", "gross_points", "gross_pnl", "mfe", "mae", "best_gross_points")),
+                       **_fields(detail, ("mark_available", "gross_points", "gross_pnl",
+                                          "mfe", "mae", "best_gross_points")),
                        **_fields(signal, ("opportunity_score", "score_band", "status", "direction"))})
     return sorted(result, key=lambda item: (item["observed_at"], item["name"]))
 
@@ -68,6 +70,7 @@ def _diagnostics(value: Any) -> list[dict]:
 def _marks(session: Session, rows: list[Any]) -> dict[tuple[str, str], dict]:
     """Latest mark attempt per returned trade, across all dates (bounded result)."""
     result = {}
+    model: Any
     for model, acts in ((ActsPaperEvent, True), (ParallelPaperEvent, False)):
         ids = [row.trade_id for row in rows if (row.strategy_id == "ACTS_V2") == acts]
         if not ids:
@@ -86,7 +89,8 @@ def _marks(session: Session, rows: list[Any]) -> dict[tuple[str, str], dict]:
             result[(mark.strategy_id, mark.trade_id)] = {
                 "available": payload.get("available") is True,
                 "timestamp": _aware(mark.captured_at), "snapshot_id": mark.snapshot_id,
-                "reason": payload.get("reason"), "quotes": _quotes(payload.get("quotes"))}
+                "reason": payload.get("reason"), "quotes": _quotes(payload.get("quotes")),
+                "quality_warning": payload.get("mark_quality_warning")}
     return result
 
 
@@ -127,7 +131,8 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
         "entry_credit": _number(doc.get("entry_credit")),
         "current_debit": _number(doc.get("current_debit")) if available else None,
         "exit_debit": _number(doc.get("exit_debit")) if row.state == "CLOSED" else None,
-        "realized_gross_pnl": _number(_dict(doc.get("final_outcome")).get("gross_rupees")) if row.state == "CLOSED" else None,
+        "realized_gross_pnl": (_number(_dict(doc.get("final_outcome")).get("gross_rupees"))
+                               if row.state == "CLOSED" else None),
         "current_unrealized_gross_pnl": _number(doc.get("gross_mark_rupees")) if available else None,
         "mfe": _number(doc.get("mfe")), "mae": _number(doc.get("mae")),
         "best_gross_points": _number(doc.get("best_gross_points")), "holding_seconds": holding,
@@ -139,6 +144,7 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
         "latest_mark_timestamp": mark_at.isoformat() if mark_at else None,
         "mark_available": available, "mark_unavailable_reason": None if available else (
             mark.get("reason") or doc.get("unresolved_reason") or "NO_CURRENT_EXACT_MARK"),
+        "mark_quality_warning": mark.get("quality_warning") if available else None,
         "accounting_status": "GROSS_ONLY",
         "opportunity_score": _number(doc.get("opportunity_score", decision.get("opportunity_score"))),
         "score_band": doc.get("score_band", decision.get("score_band")),
@@ -163,6 +169,7 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
         if session.get_bind().dialect.name == "postgresql":
             session.execute(text("SET TRANSACTION READ ONLY"))
         queries = []
+        model: Any
         for model, acts in ((ActsPaperTrade, True), (ParallelPaperTrade, False)):
             source_strategy = literal("ACTS_V2") if acts else model.strategy_id
             query = select(model.id.label("trade_id"), source_strategy.label("strategy_id"),

@@ -19,7 +19,7 @@ from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
 from app.alpha.engine import config_from_settings
 from app.core.logging import get_logger
 from app.data.models import OptionContractSnapshot
-from app.paper import mirror_exit
+from app.paper import exit_book, mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -149,6 +149,7 @@ class ActsPaperService:
                                 "entry_policy": {"same_day_expiry": "ALLOWED",
                                                  "expired_contracts": "FORBIDDEN"},
                                 "exit_policy_version": mirror_exit.VERSION,
+                                "exit_book_policy": exit_book.policy(),
                                 "exit_policy": mirror_exit.acts_policy(self.config)}))
         self.policy_hash = self.v1_policy_hash if self.policy is None else digest(self.policy)
         verify_acts_paper_journal(sessions)
@@ -165,6 +166,9 @@ class ActsPaperService:
             if (doc.get("strategy_version") == acts_v2.STRATEGY_ID
                     and doc.get("policy", {}).get("entry_policy_version") != V2_ENTRY_POLICY_VERSION):
                 raise RuntimeError("ACTS_V2_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+            if (doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                    and doc.get("policy", {}).get("exit_book_policy") != exit_book.policy()):
+                raise RuntimeError("ACTS_V2_EXIT_BOOK_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
 
     @staticmethod
     def _entry_expiry_reason(raw: ScalperMarketSnapshot, candidate: ScalperCandidate,
@@ -328,7 +332,9 @@ class ActsPaperService:
             return
         if trade.state != "OPEN":
             return
-        pair, failure = executable_pair(raw, candidate, self.config, entry=False)
+        pair, failure = executable_pair(
+            raw, candidate, self.config, entry=False,
+            exit_book_policy=exit_book.VERSION if doc.get("strategy_version") == acts_v2.STRATEGY_ID else None)
         if failure is not None:
             terminal = (failure == "MISSING_EXACT_CONTRACT" or
                         raw.captured_at.astimezone(IST).time().replace(tzinfo=None) >= self.config.forced_exit_time)
@@ -357,6 +363,7 @@ class ActsPaperService:
         lab.best_gross_points = max(lab.best_gross_points, pnl)
         doc.update(current_debit=pair.value, gross_mark_points=pnl,
                    gross_mark_rupees=pnl * raw.lot_size,
+                   mark_quality_warning=exit_book.warning(pair.evidence),
                    best_gross_points=lab.best_gross_points,
                    mae=lab.mae, mfe=lab.mfe,
                    last_snapshot_id=snapshot_id)
@@ -376,7 +383,8 @@ class ActsPaperService:
                                          in lab.acts_last_adverse_at.items()})
         self._save(trade, doc)
         self._emit(session, cursor, "ACTS_MARK", snapshot_id, raw, trade,
-                   available=True, quotes=pair.evidence, gross_points=pnl)
+                   available=True, quotes=pair.evidence, gross_points=pnl,
+                   mark_quality_warning=doc["mark_quality_warning"])
         if reason is None:
             return
         outcome = self.costs.calculate(

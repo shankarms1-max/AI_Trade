@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Literal
 
 from app.research.costs import CostSchedule
+from app.paper import exit_book
 from app.scalper.config import ScalperConfig
 from app.scalper.models import (ScalperCandidate, ScalperMarketSnapshot,
                                 ScalperSignal)
@@ -22,7 +23,9 @@ class ExecutionPair:
 
 def executable_pair(snapshot: ScalperMarketSnapshot, candidate: ScalperCandidate,
                     config: ScalperConfig, *,
-                    entry: bool) -> tuple[ExecutionPair | None, str | None]:
+                    entry: bool, exit_book_policy: str | None = None) -> tuple[ExecutionPair | None, str | None]:
+    if exit_book_policy not in (None, exit_book.VERSION):
+        raise ValueError("UNKNOWN_EXIT_BOOK_POLICY")
     short = exact_quote(snapshot, candidate.short_leg)
     long = exact_quote(snapshot, candidate.long_leg)
     if short is None or long is None:
@@ -30,9 +33,11 @@ def executable_pair(snapshot: ScalperMarketSnapshot, candidate: ScalperCandidate
     short_side: Literal["bid", "ask"] = "bid" if entry else "ask"
     long_side: Literal["bid", "ask"] = "ask" if entry else "bid"
     short_book = validate_book(short, snapshot.response_received_at, snapshot.lot_size,
-                               config, entry=entry, side=short_side)
+                               config, entry=entry, side=short_side,
+                               allow_wide_exit=exit_book_policy == exit_book.VERSION)
     long_book = validate_book(long, snapshot.response_received_at, snapshot.lot_size,
-                              config, entry=entry, side=long_side)
+                              config, entry=entry, side=long_side,
+                              allow_wide_exit=exit_book_policy == exit_book.VERSION)
     if not short_book.valid:
         return None, short_book.reason
     if not long_book.valid:

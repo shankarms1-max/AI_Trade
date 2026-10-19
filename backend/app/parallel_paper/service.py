@@ -17,7 +17,7 @@ from app.parallel_paper.decisions import decide, entry_committed
 from app.parallel_paper.indicators import ema, supertrend
 from app.parallel_paper.market import ParallelMarketRepository
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
-from app.paper import mirror_exit
+from app.paper import exit_book, mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -101,6 +101,7 @@ class ParallelPaperService:
             "entry_policy_version": ENTRY_POLICY_VERSION,
             "entry_policy": {"same_day_expiry": "ALLOWED", "expired_contracts": "FORBIDDEN"},
             "exit_policy_version": mirror_exit.VERSION, "exit_policy": mirror_exit.policy(config),
+            "exit_book_policy": exit_book.policy(),
             "execution": config.payload(), "costs": self.costs.payload()})
             for strategy, config in self.configs.items()}
         self.hashes = {strategy: digest(policy) for strategy, policy in self.policies.items()}
@@ -115,9 +116,12 @@ class ParallelPaperService:
     def _assert_entry_policy_upgrade_safe(session: Session) -> None:
         rows = session.scalars(select(ParallelPaperTrade).where(
             ParallelPaperTrade.strategy_id.in_(STRATEGIES), ParallelPaperTrade.state.in_(ACTIVE)))
-        if any(json.loads(row.document).get("policy", {}).get("entry_policy_version") != ENTRY_POLICY_VERSION
-               for row in rows):
-            raise RuntimeError("PARALLEL_PAPER_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+        for row in rows:
+            policy = json.loads(row.document).get("policy", {})
+            if policy.get("entry_policy_version") != ENTRY_POLICY_VERSION:
+                raise RuntimeError("PARALLEL_PAPER_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+            if policy.get("exit_book_policy") != exit_book.policy():
+                raise RuntimeError("PARALLEL_PAPER_EXIT_BOOK_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
 
     @staticmethod
     def _trades(session: Session, strategy: str) -> list[ParallelPaperTrade]:
@@ -216,7 +220,7 @@ class ParallelPaperService:
         # Exit quantity is the original trade's confirmed quantity, never the new expiry's lot size.
         book = raw.model_copy(update={"lot_size": doc["lot_size"]})
         pending = trade.state == "PENDING_PAPER_ENTRY"
-        pair, failure = executable_pair(book, candidate, config, entry=pending)
+        pair, failure = executable_pair(book, candidate, config, entry=pending, exit_book_policy=exit_book.VERSION)
         if pending:
             age = (raw.captured_at - datetime.fromisoformat(doc["decision_timestamp"])).total_seconds()
             if age <= 0:
@@ -282,7 +286,9 @@ class ParallelPaperService:
         lab.mae, lab.mfe = min(lab.mae, pnl), max(lab.mfe, pnl)
         context = {"timestamp": raw.captured_at.isoformat(), "spot": raw.nifty_spot, "lot_size": doc["lot_size"]}
         doc.update(current_debit=pair.value, gross_mark_points=pnl,
+                   last_snapshot_id=snapshot_id,
                    gross_mark_rupees=pnl * doc["lot_size"], mae=lab.mae, mfe=lab.mfe,
+                   mark_quality_warning=exit_book.warning(pair.evidence),
                    best_gross_points=max(lab.best_gross_points, pnl))
         if doc.get("exit_policy_version") == mirror_exit.VERSION:
             mirror_exit.legacy_diagnostics(doc, raw.captured_at, pair.value, config)
@@ -294,7 +300,8 @@ class ParallelPaperService:
         else:
             reason = _exit_reason(lab, context, pair.value, config, event_blocked=blocked)
         trade.document = canonical(doc)
-        self._emit(session, cursor, snapshot_id, raw, "MARK", trade, available=True, quotes=pair.evidence)
+        self._emit(session, cursor, snapshot_id, raw, "MARK", trade, available=True, quotes=pair.evidence,
+                   mark_quality_warning=doc["mark_quality_warning"])
         if reason is None:
             return
         outcome = self.costs.calculate(

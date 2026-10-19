@@ -1,6 +1,7 @@
 """Compact, read-only Phase 15 paper monitor projection."""
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, time, timedelta
 import json
 from typing import Any
@@ -47,6 +48,7 @@ def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
         "hedge_strike": doc.get("hedge_strike", long.get("strike")),
         "entry_credit": _number(doc.get("entry_credit")),
         "current_debit": _number(doc.get("current_debit")) if marked_open else None,
+        "mark_quality_warning": doc.get("mark_quality_warning") if marked_open else None,
         "exit_debit": _number(doc.get("exit_debit")),
         "realized_gross_pnl": _number(outcome.get("gross_rupees")) if row.state == "CLOSED" else None,
         "current_unrealized_gross_pnl": _number(doc.get("gross_mark_rupees")) if marked_open else None,
@@ -69,13 +71,13 @@ def _unavailable(strategy: str) -> dict:
             "accounting_status": "GROSS_ONLY", "today_trades": []}
 
 
-def _project(strategy: str, cursor: Any, rows: list[Any], events: list[Any], at: datetime) -> dict:
+def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[Any], at: datetime) -> dict:
     if cursor is None or cursor.observed_at is None:
         return _unavailable(strategy)
     day = at.astimezone(IST).date()
     latest = json.loads(cursor.latest_json)
-    if not isinstance(latest, dict) or not latest or (strategy == "ACTS_V2" and
-                                                     latest.get("strategy_version") != "ACTS_V2"):
+    if (not isinstance(latest, dict) or not latest
+            or (strategy == "ACTS_V2" and latest.get("strategy_version") != "ACTS_V2")):
         return _unavailable(strategy)
     rejections: list[str | None] = []
     failed_marks: dict[str, bool] = {}
@@ -161,10 +163,10 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
         strategies = []
         for strategy in ORDER:
             cursor = acts_cursor if strategy == "ACTS_V2" else parallel_cursors.get(strategy)
-            rows = acts_rows if strategy == "ACTS_V2" else [row for row in parallel_rows
-                                                             if row.strategy_id == strategy]
-            events = acts_events if strategy == "ACTS_V2" else [event for event in parallel_events
-                                                                  if event.strategy_id == strategy]
+            rows = acts_rows if strategy == "ACTS_V2" else [
+                row for row in parallel_rows if row.strategy_id == strategy]
+            events = acts_events if strategy == "ACTS_V2" else [
+                event for event in parallel_events if event.strategy_id == strategy]
             try:
                 strategies.append(_project(strategy, cursor, rows, events, at))
             except (KeyError, TypeError, ValueError):
