@@ -1,11 +1,15 @@
 """Additive isolated schema, immutable evidence, and original rows preserved."""
 from io import StringIO
+import os
 from pathlib import Path
+from uuid import uuid4
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
 from app.commodity_acts.repository import save_snapshot
@@ -19,8 +23,7 @@ def migration_config(url):
     return value
 
 
-def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, market_snapshot):
-    url = f"sqlite+pysqlite:///{tmp_path / 'commodity-migration.db'}"
+def _check_additive_migration(url, market_snapshot):
     configuration = migration_config(url)
     command.upgrade(configuration, "0019_parallel_paper")
     engine = create_engine(url)
@@ -51,6 +54,37 @@ def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, marke
                 assert connection.execute(text(f'SELECT * FROM "{name}"')).all() == before[name]
     finally:
         engine.dispose()
+
+
+def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, market_snapshot):
+    _check_additive_migration(f"sqlite+pysqlite:///{tmp_path / 'commodity-migration.db'}", market_snapshot)
+
+
+def test_commodity_migration_is_the_single_head_with_unchanged_parent():
+    scripts = ScriptDirectory.from_config(migration_config("sqlite://"))
+    assert scripts.get_heads() == ["0020_commodity_acts_research"]
+    assert scripts.get_revision("0020_commodity_acts_research").down_revision == "0019_parallel_paper"
+
+
+def test_commodity_postgresql_additive_migration(market_snapshot):
+    value = os.getenv("PHASE15_POSTGRES_TEST_URL")
+    if not value:
+        pytest.skip("PHASE15_POSTGRES_TEST_URL must point to disposable PostgreSQL 16")
+    base = make_url(value)
+    admin = create_engine(base)
+    schema = f"commodity_research_{uuid4().hex}"
+    try:
+        with admin.begin() as connection:
+            assert connection.scalar(text("SHOW server_version")).startswith("16.")
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+        target = base.update_query_dict({"options": f"-csearch_path={schema}"})
+        try:
+            _check_additive_migration(target.render_as_string(hide_password=False), market_snapshot)
+        finally:
+            with admin.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+    finally:
+        admin.dispose()
 
 
 def test_postgresql_migration_compiles_without_touching_existing_tables():

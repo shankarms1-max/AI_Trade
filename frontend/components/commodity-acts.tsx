@@ -12,6 +12,8 @@ const coverage = (value?: number) => value == null ? "N/A" : percent(value * 100
 function Evidence({ data }: { data: CommodityDecision }) {
   const components = data.acts.score_components ?? {};
   return <details className="commodity-evidence"><summary>Score and market geometry evidence</summary>
+    <p>Stage: {data.stage ?? "UNAVAILABLE"}. Research score classification only, not a trade signal or paper entry.</p>
+    <p>ACTS event time: {stamp(data.acts.timestamp)}. Observed at: {stamp(data.observed_at)}. Processed at: {stamp(data.decided_at)}.</p>
     <p>Original 100-point weights · no rescaling · execution unavailable (maximum score without execution: {integer(data.maximum_score_without_execution)}).</p>
     <dl className="commodity-fields">{Object.entries(components).map(([name, value]) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd>{number(value)}</dd></div>)}</dl>
     <p>Unavailable: {data.unavailable_components?.join(", ") || "N/A"}</p>
@@ -37,7 +39,12 @@ export function CommodityOverview() {
       return <Panel key={instrument.instrument_id} title={instrument.display_name} className="commodity-card">
         <Badge value={instrument.readiness}/><p>Worker configuration: {instrument.configured_enabled ? "ENABLED" : "DISABLED"} · Process state unavailable</p>
         {!instrument.session_configured && <p className="warning">VERIFIED MCX SESSION SETTINGS REQUIRED</p>}
+        <p>Readiness is for scoring/research only. Entry qualification and spread execution are disabled.</p>
         <dl className="commodity-fields">
+          <div><dt>Spread width policy</dt><dd>NOT SELECTED</dd></div>
+          <div><dt>Depth quantity units</dt><dd>{latest?.geometry.depth_unit ?? "UNKNOWN"} (unconfirmed)</dd></div>
+          <div><dt>Option-to-future linkage</dt><dd>UNCONFIRMED: {latest?.data_provenance?.option_future_link ?? "No validated linkage"}</dd></div>
+          <div><dt>Normalized tick-size semantics</dt><dd>UNCONFIRMED</dd></div>
           <div><dt>Future reference price</dt><dd>{number(latest?.future_price)}</dd></div>
           <div><dt>Reference basis</dt><dd>{latest?.reference_basis ?? "UNAVAILABLE"}</dd></div>
           <div><dt>Future contract / expiry</dt><dd>{latest?.future_instrument_id ?? "N/A"} / {latest?.future_expiry ?? "N/A"}</dd></div>
@@ -48,7 +55,7 @@ export function CommodityOverview() {
           <div><dt>Alpha 1 / Alpha 2 state</dt><dd>{latest?.alpha.alpha_1_direction ?? "N/A"} / {latest?.alpha.alpha_2_direction ?? "N/A"}</dd></div>
           <div><dt>ACTS market state / direction</dt><dd>{latest?.acts.market_state ?? "N/A"} / {latest?.acts.direction ?? "N/A"}</dd></div>
           <div><dt>ACTS score / band</dt><dd>{number(latest?.acts.opportunity_score)} / 100 · {latest?.acts.score_band ?? "N/A"}</dd></div>
-          <div><dt>Latest shadow decision</dt><dd>{latest?.acts.status ?? "NOT_CAPTURED"}</dd></div>
+          <div><dt>Underlying ACTS status (entry disabled)</dt><dd>{latest?.acts.status ?? "NOT_CAPTURED"}</dd></div>
           <div><dt>Observations / decisions</dt><dd>{integer(instrument.observation_count)} / {integer(instrument.decision_count)}</dd></div>
           <div><dt>Latest observation</dt><dd>{stamp(latest?.observed_at)}</dd></div>
           <div><dt>Session ID</dt><dd>{latest?.session_id ?? "N/A"}</dd></div>

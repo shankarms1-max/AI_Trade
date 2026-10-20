@@ -4,7 +4,7 @@ import json
 
 from sqlalchemy import func, select, text
 
-from app.commodity_acts.config import INSTRUMENTS, VERSION
+from app.commodity_acts.config import INSTRUMENTS, RESEARCH_SCOPE, STAGE, VERSION
 from app.commodity_acts.models import CommodityActsCursor, CommodityActsDecision, CommodityMarketSnapshotRecord
 
 
@@ -14,7 +14,8 @@ def view(document: dict) -> dict:
             "future_exchange", "future_expiry", "option_expiry", "lot_size", "atm", "policy_hash", "unavailable_components",
             "score_basis", "maximum_score_without_execution", "timestamp_provenance", "data_provenance", "blockers")
     result = {key: document[key] for key in keys if key in document}
-    result.update(mode="PAPER", broker_orders_enabled=False, spread_execution_enabled=False, pnl=None)
+    result.update(stage=STAGE, research_scope=RESEARCH_SCOPE, mode="PAPER",
+                  broker_orders_enabled=False, spread_execution_enabled=False, pnl=None)
     geometry = document.get("geometry", {})
     result["geometry"] = {key: value for key, value in geometry.items() if key != "observed_bid_ask_credits_by_steps"}
     result["geometry"]["credit_geometry_summary"] = [
@@ -27,7 +28,7 @@ def view(document: dict) -> dict:
         "alpha_1_direction", "alpha_2_direction", "status", "validity_state", "rank_observations_alpha1", "rank_observations_alpha2",
         "warnings", "session_id", "reference_instrument_id", "reference_expiry") if key in alpha}
     decision = document.get("acts", {})
-    result["acts"] = {key: decision[key] for key in ("status", "market_state", "direction", "opportunity_score", "score_band",
+    result["acts"] = {key: decision[key] for key in ("timestamp", "status", "market_state", "direction", "opportunity_score", "score_band",
         "score_components", "score_evidence", "positioning", "blockers", "candidate_rejections") if key in decision}
     return result
 
@@ -58,7 +59,8 @@ def summary(sessions, config, at: datetime) -> dict:
                 "worker_state": "PROCESS_STATE_UNAVAILABLE", "observation_count": counts.get(instrument, 0),
                 "decision_count": decisions.get(instrument, 0), "journal_sequence": cursor.sequence if cursor else 0,
                 "readiness": latest.get("readiness", "NOT_CAPTURED"), "latest": view(latest) if latest else None})
-    return {"version": VERSION, "as_of": at.isoformat(), "mode": "PAPER", "broker_orders_enabled": False,
+    return {"version": VERSION, "stage": STAGE, "research_scope": RESEARCH_SCOPE,
+            "as_of": at.isoformat(), "mode": "PAPER", "broker_orders_enabled": False,
             "spread_execution_enabled": False, "pnl": None, "instruments": instruments}
 
 

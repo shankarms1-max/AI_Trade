@@ -10,6 +10,9 @@ from app.alpha.clock import IST, SessionClock
 InstrumentId = Literal["CRUDEOILM", "NATGASMINI"]
 INSTRUMENTS = ("CRUDEOILM", "NATGASMINI")
 VERSION = "COMMODITY_ACTS_PAPER_V1"
+STAGE = "SCORE_TRANSFERABILITY"
+RESEARCH_SCOPE = ("ACTS directional/scoring research only. Entry qualification is disabled "
+                  "until commodity execution geometry is validated.")
 
 
 class MarketSession(BaseModel):

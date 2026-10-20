@@ -28,7 +28,7 @@ def _ratio(quotes, field):
     return puts / calls if calls > 0 else None
 
 
-def build_context(current, history, spec: InstrumentSpec, decision_at: datetime, max_age: int) -> dict:
+def build_context(current, history, spec: InstrumentSpec, processed_at: datetime, max_age: int) -> dict:
     if any(row.instrument_id != current.instrument_id or row.timestamp_ist >= current.timestamp_ist for row in history):
         raise ValueError("COMMODITY_NONCAUSAL_OR_CROSS_INSTRUMENT_CONTEXT")
     history = [row for row in history if row.session_id == current.session_id
@@ -96,7 +96,10 @@ def build_context(current, history, spec: InstrumentSpec, decision_at: datetime,
     opening_complete = bool(opening and current.timestamp_ist >= opening_end
                             and min(row.timestamp_ist for row in opening) <= opening_start + timedelta(seconds=30)
                             and max(row.timestamp_ist for row in opening) >= opening_end - timedelta(seconds=30))
-    return {"timestamp": decision_at.isoformat(), "observed_at": current.timestamp_ist.isoformat(),
+    # ACTS watch/setup timing follows market observations, including recovery.
+    # Processing time is provenance, never a replacement strategy/event clock.
+    return {"timestamp": current.timestamp_ist.isoformat(), "observed_at": current.timestamp_ist.isoformat(),
+            "decided_at": processed_at.isoformat(),
             "reference_price": current.reference_price, "reference_basis": current.reference_basis,
             "spot": current.reference_price, "future": current.future_price,
             "future_instrument_id": current.future_instrument_id, "future_expiry": current.future_expiry,

@@ -9,6 +9,8 @@ vi.mock("@/lib/api", () => ({ api: { commodityActsSummary: vi.fn(), commodityAct
 
 function decision(): CommodityDecision {
   return { instrument_id: "CRUDEOILM", readiness: "ALPHA_WARMING_UP", snapshot_id: 1,
+    stage: "SCORE_TRANSFERABILITY", research_scope: "ACTS directional/scoring research only. Entry qualification is disabled until commodity execution geometry is validated.",
+    data_provenance: { option_future_link: "SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED" },
     decision_kind: "SHADOW_DECISION", observed_at: "2026-10-20T10:00:00+05:30", decided_at: "2026-10-20T10:00:01+05:30",
     reference_price: 9453, future_price: 9453, reference_basis: "SELECTED_MCX_FUTURE", future_instrument_id: "CRUDEOILM19NOV26FUT",
     future_expiry: "2026-11-19", option_expiry: "2026-11-17", lot_size: 10, atm: 9450, session_id: "MCX_CRUDEOILM_2026-10-20",
@@ -23,6 +25,7 @@ function decision(): CommodityDecision {
 }
 function summary(): CommoditySummary {
   return { as_of: "2026-10-20T10:00:01+05:30", version: "COMMODITY_ACTS_PAPER_V1", mode: "PAPER",
+    stage: "SCORE_TRANSFERABILITY", research_scope: "ACTS directional/scoring research only. Entry qualification is disabled until commodity execution geometry is validated.",
     broker_orders_enabled: false, spread_execution_enabled: false, pnl: null,
     instruments: [{ instrument_id: "CRUDEOILM", display_name: "CRUDEOILM", configured_enabled: false,
       session_configured: true, worker_state: "PROCESS_STATE_UNAVAILABLE", observation_count: 12, decision_count: 12,
@@ -39,6 +42,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("isolated commodity ACTS research", () => {
+  it("labels score transferability and keeps research readiness distinct from execution validation", async () => {
+    const ready = summary(); ready.instruments[0].readiness = "READY_FOR_ACTS_RESEARCH";
+    vi.mocked(api.commodityActsSummary).mockResolvedValue(ready);
+    render(<CommodityPage/>);
+    expect(screen.getByText(/Stage: SCORE_TRANSFERABILITY. ACTS directional\/scoring research only/)).toBeInTheDocument();
+    expect(screen.getByText(/Entry qualification is disabled until commodity execution geometry is validated/)).toBeInTheDocument();
+    expect(await screen.findByText("READY FOR ACTS RESEARCH")).toBeInTheDocument();
+    expect(screen.getAllByText(/Readiness is for scoring\/research only/)).toHaveLength(2);
+    expect(screen.getAllByText("NOT SELECTED")).toHaveLength(2);
+    expect(screen.getAllByText("UNKNOWN (unconfirmed)")).toHaveLength(2);
+    expect(screen.getByText(/UNCONFIRMED: SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED/)).toBeInTheDocument();
+    expect(screen.getAllByText("UNCONFIRMED")).toHaveLength(2);
+    expect(screen.getAllByText(/Research score classification only, not a trade signal or paper entry/)).not.toHaveLength(0);
+    expect(screen.getAllByText(/ACTS event time:.*Observed at:.*Processed at:/)).not.toHaveLength(0);
+  });
+
   it("labels paper research only, no broker orders and no P&L, independently of NIFTY", async () => {
     render(<CommodityPage/>);
     expect(screen.getByText(/RESEARCH \/ PAPER ONLY · NO BROKER ORDERS · NO P&L YET/)).toBeInTheDocument();

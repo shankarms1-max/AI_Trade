@@ -6,6 +6,12 @@ journals original ACTS V2 scores. PAPER means research observations and shadow
 decisions here, **not paper spread fills**. There are no entries, positions,
 exits, broker orders, P&L or profitability claims in this version.
 
+Stage: **`SCORE_TRANSFERABILITY`**.
+
+ACTS directional/scoring research only. Entry qualification is disabled until
+commodity execution geometry is validated. A research score band is not an ENTER,
+trade signal, executable signal or paper entry.
+
 ## Architecture and isolation
 
 ```text
@@ -163,6 +169,26 @@ paired regular observed grids. Wall clusters use one observed modal strike step,
 not NIFTY's fixed point intervals. Missing history, opening coverage or baskets
 remain unavailable rather than invented.
 
+### Observation clock versus processing clock
+
+`ctx["timestamp"]` and `ctx["observed_at"]` are always the snapshot's exact
+`timestamp_ist`, including captured-but-pending observations recovered after a
+restart. Original ACTS V2 market-state/watch/setup lifetime calculations use that
+observation/event clock, in chronological capture order, not the restart time.
+`ctx["decided_at"]` and journal `decided_at` retain the actual processing clock.
+
+Alpha remains checked as known at **processing time**, using its true
+`feature_calculated_at`. Recovery does not backdate the calculation or pretend
+Alpha was available at capture time. An old recovered observation may have a
+newly calculated Alpha that is still stale/unavailable to the original ACTS
+evidence guard. Observation-time market-state calculations and processing-time
+knowledge provenance are intentionally different clocks.
+
+The policy records `MARKET_OBSERVATION_TIME`, `ACTUAL_PROCESSING_TIME` and the
+score-only stage. This changes the policy hash relative to the initial commodity
+commit: existing immutable journals are not rewritten or silently continued under
+different timing semantics. A policy mismatch still fails closed.
+
 ## Original ACTS V2 scoring, no execution policy
 
 The original V2 scorer, weights, alpha factors and thresholds are reused, not
@@ -174,10 +200,13 @@ candidate exists. With the current original weights the maximum without those
 execution components is 86/100, **not a rescaled 100**.
 
 The original scorer intentionally reports `NO_EXECUTABLE_CANDIDATE` when there is
-a directional thesis but no candidate. Consequently V1 normally records scores
-and blocked decisions, not eligible ENTERs. This guard is not bypassed to inflate
-opportunity counts. Even if an ENTER result is supplied, service handling only
-appends a `SHADOW_DECISION`; there is no trade type or fill path.
+a directional thesis but no candidate. The service intentionally passes
+`candidate=None` to the unchanged scorer, so its ACTS status **cannot naturally
+become ENTER** in V1. It records genuine directions, market states, scores/bands,
+components, Alpha and positioning/participation evidence, with blocked entry
+qualification. No fake candidate, separate ENTER classification or commodity
+width is manufactured. The original blocker is retained; every result is only a
+`SHADOW_DECISION`, with no trade type or fill path.
 
 Each decision contains the score/band, market state/direction, original component
 and positioning/participation evidence, Alpha states, missing inputs, blockers,
@@ -210,6 +239,13 @@ Readiness is distinct from ACTS bands and the execution-disabled blocker. Collec
 multiple sessions of actual strike spacing, spreads, depth coverage, expiry/lot
 behavior and credit geometry before a separate reviewed commodity execution
 policy is proposed. Never copy NIFTY's 400-point width into this module.
+
+API/UI expose `stage=SCORE_TRANSFERABILITY`. `READY_FOR_ACTS_RESEARCH` means only
+scoring/research readiness. Cards explicitly label the width policy NOT SELECTED,
+depth quantity units UNKNOWN/unconfirmed, normalized tick semantics unconfirmed
+and option-to-future linkage UNCONFIRMED, including the broker-data provenance.
+They retain `broker_orders_enabled=false`, `spread_execution_enabled=false` and
+`pnl=null`, regardless of score or readiness.
 
 ## Additive schema and controlled operation
 
@@ -316,7 +352,7 @@ No broker call or research write is performed by the API or status command.
 
 ## Changed-file manifest
 
-Validation on 2026-10-20: full backend **1,444 passed / 8 skipped** (the optional
+Initial commodity commit validation (old `5ee5d95` base): full backend **1,444 passed / 8 skipped** (the optional
 PostgreSQL integrations need `PHASE15_POSTGRES_TEST_URL`); commodity-only focused
 tests **49 passed**; frontend **65 passed**; lint, TypeScript, production build
 and `git diff --check` passed. The build includes `/commodity-acts`, `/phase15`
@@ -348,6 +384,7 @@ backend/tests/fixtures/mcx_quotes_safe_20261020.json
 backend/tests/test_commodity_acts.py
 backend/tests/test_commodity_acts_controls.py
 backend/tests/test_commodity_acts_migration.py
+backend/tests/test_commodity_acts_timing.py
 backend/tests/test_parallel_paper_migration.py
 backend/tests/test_scalper_migration.py
 docs/commodity-acts-paper-v1.md
@@ -365,3 +402,83 @@ The two existing migration tests received only revision bookkeeping: the paralle
 test is pinned to the revision it tests, and the optional PostgreSQL full-upgrade
 test expects the new head. No existing NIFTY strategy test or assertion was
 removed or relaxed.
+
+## Rebase and timing hardening
+
+Final validation on the rebased current NIFTY base:
+
+| Check | Result |
+| --- | --- |
+| Complete backend suite | 1,653 passed, 9 optional PostgreSQL integrations skipped |
+| Commodity-focused suite | 66 passed, 1 optional PostgreSQL integration skipped |
+| NIFTY expiry/exit-book/MIRROR/fixed-width and migration targets | 267 passed, 4 optional PostgreSQL integrations skipped |
+| Complete frontend suite | 66 passed, 8 files |
+| Frontend lint / TypeScript / production build | Passed; `/`, `/phase15`, `/commodity-acts` generated |
+| Working-tree and staged `git diff --check` | Passed |
+
+Counts overlap across focused/full runs and must not be added together. Backend
+emitted only the existing Starlette/httpx deprecation warning. All nine skips
+require a disposable PostgreSQL test URL; none was configured, and the local
+Docker engine was stopped. PostgreSQL offline compilation passed, but actual
+PostgreSQL integration is **not verified**. No alternative or production database
+was used. These counts include the current upstream NIFTY expiry/exit-book tests,
+not just the older original-commodity base.
+
+Executed full backend command:
+`python -m pytest backend/tests --tb=short --durations=10`, with
+`PYTHON_DOTENV_DISABLED=1` confined to test processes. Frontend checks were
+`npm test`, `npm run lint`, `npx tsc --noEmit --incremental false`, `npm run build`.
+No runtime environment file or commodity flag was changed.
+
+Rebased the original `059765f88b8f7c1918f4e431026c1ec7f44a7d1e` commodity change
+onto `origin/feat/mirror-exit-v1` at
+`0f638fd400af0c2073d9d7599b95a3ba3643bf79`. There were no conflicts. The upstream
+ACTS V2 expiry-day policy, five parallel expiry-day policies and
+`PHASE15_EXIT_BOOK_V1` were retained byte-for-byte, as were MIRROR_EXIT_V1 and
+NIFTY fixed-400 construction. These six NIFTY paper strategies are ACTS V2,
+ORB_15, ORB_30, ORB_60, EMA_PULLBACK and SUPERTREND_RSI_VOLUME. No NIFTY runtime
+strategy/risk/execution file was edited by commodity hardening.
+
+Migration remains the single head `0020_commodity_acts_research`, with
+`down_revision=0019_parallel_paper`; its migration source is unchanged. Local
+SQLite additive preservation checks and PostgreSQL offline compilation are
+required. The new optional commodity PostgreSQL integration check also tests
+additive upgrade/downgrade, preserved NIFTY rows and immutable evidence in a unique
+disposable schema, only if `PHASE15_POSTGRES_TEST_URL` is provided. It never uses
+the runtime `DATABASE_URL`. No deployment, production migration, feature-flag
+enablement or production worker changes are part of this hardening.
+
+Exact hardening-file delta from the rebased initial commodity commit:
+
+```text
+backend/app/commodity_acts/config.py
+backend/app/commodity_acts/context.py
+backend/app/commodity_acts/read.py
+backend/app/commodity_acts/service.py
+backend/tests/test_commodity_acts_migration.py
+backend/tests/test_commodity_acts_timing.py
+docs/commodity-acts-paper-v1.md
+frontend/app/commodity-acts/page.tsx
+frontend/components/commodity-acts.tsx
+frontend/tests/commodity-acts.test.tsx
+frontend/types/commodity-acts.ts
+```
+
+The rebase additionally incorporates these exact upstream-only changed files from
+the three NIFTY commits (not commodity hardening edits):
+
+```text
+backend/app/acts_paper/service.py
+backend/app/paper/exit_book.py
+backend/app/parallel_paper/monitor.py
+backend/app/parallel_paper/service.py
+backend/app/parallel_paper/trade_monitor.py
+backend/app/scalper/paper.py
+backend/app/scalper/strategy.py
+backend/tests/test_acts_paper_expiry.py
+backend/tests/test_parallel_paper_expiry.py
+backend/tests/test_phase15_exit_book.py
+docs/acts-paper.md
+docs/parallel_paper.md
+docs/phase15-exit-book.md
+```

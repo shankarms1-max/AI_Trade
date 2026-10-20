@@ -11,7 +11,7 @@ from app.alpha.clock import IST, using_session
 from app.alpha.engine import build_alpha_features, config_from_settings
 from app.alpha.models import AlphaFeatureSnapshot, AlphaValidity, CalculationMode
 from app.commodity_acts.broker import assert_market_only
-from app.commodity_acts.config import VERSION, CommoditySettings, InstrumentSpec
+from app.commodity_acts.config import RESEARCH_SCOPE, STAGE, VERSION, CommoditySettings, InstrumentSpec
 from app.commodity_acts.context import build_context
 from app.commodity_acts.domain import CommoditySnapshot
 from app.commodity_acts.geometry import geometry
@@ -35,8 +35,9 @@ class CommodityResearch:
         if (self.acts_config.watch_score, self.acts_config.tradeable_score,
                 self.acts_config.strong_score, self.acts_config.very_strong_score) != (40, 55, 70, 85):
             raise ValueError("COMMODITY_REQUIRES_ORIGINAL_ACTS_SCORE_BANDS")
-        self.policy = json_value({"version": VERSION, "instrument": spec, "acts": self.acts_config.payload(),
+        self.policy = json_value({"version": VERSION, "stage": STAGE, "instrument": spec, "acts": self.acts_config.payload(),
             "alpha": asdict(self.alpha_config), "execution": "DISABLED_GEOMETRY_NOT_VALIDATED",
+            "strategy_clock": "MARKET_OBSERVATION_TIME", "alpha_known_at": "ACTUAL_PROCESSING_TIME",
             "alpha_sampling": "FIRST_CAPTURE_IN_EACH_COMPLETED_OR_CURRENT_3_MINUTE_BUCKET"})
         self.policy_hash = digest(self.policy)
         verify_journal(sessions, spec.instrument_id)
@@ -104,6 +105,8 @@ class CommodityResearch:
             if alpha.feature_calculated_at is not None and alpha.feature_calculated_at > decided_at:
                 raise ValueError("COMMODITY_ALPHA_NOT_YET_KNOWN")
             ctx = build_context(current, history, self.spec, decided_at, self.config.max_quote_age_seconds)
+            # Alpha is checked as actually known at processing time. Its real
+            # calculation time must not be backdated to ctx's observation clock.
             ctx["acts"] = {"alpha": alpha_evidence(alpha, decided_at, current.future_instrument_id,
                                                    current.future_expiry, current.expiry)}
             evidence = geometry(current, self.config.max_quote_age_seconds)
@@ -125,7 +128,8 @@ class CommodityResearch:
             readiness = ("INSUFFICIENT_OPTION_PAIRS" if not evidence["atm_pair_complete"] or evidence["complete_pairs"] < self.config.minimum_option_pairs else
                 "QUOTE_DEPTH_INSUFFICIENT" if evidence["depth_count"] < 2 * self.config.minimum_option_pairs else
                 "ALPHA_WARMING_UP" if alpha.validity_state != AlphaValidity.VALID else "READY_FOR_ACTS_RESEARCH")
-            document = json_value({"version": VERSION, "instrument_id": current.instrument_id,
+            document = json_value({"version": VERSION, "stage": STAGE, "research_scope": RESEARCH_SCOPE,
+                "instrument_id": current.instrument_id,
                 "session_id": current.session_id, "snapshot_id": snapshot_id, "observed_at": current.timestamp_ist,
                 "decided_at": decided_at, "decision_kind": "SHADOW_DECISION", "readiness": readiness,
                 "mode": "PAPER", "broker_orders_enabled": False, "spread_execution_enabled": False, "pnl": None,
@@ -186,7 +190,8 @@ class CommodityResearch:
                                                                        CommodityActsEvent.event_key == key)) is not None:
                 return
             readiness = reason if reason in ("FUTURE_UNRESOLVED", "OPTION_EXPIRY_UNRESOLVED", "OPTION_CHAIN_UNAVAILABLE") else "NOT_CAPTURED"
-            latest = {"version": VERSION, "instrument_id": self.spec.instrument_id, "readiness": readiness,
+            latest = {"version": VERSION, "stage": STAGE, "research_scope": RESEARCH_SCOPE,
+                      "instrument_id": self.spec.instrument_id, "readiness": readiness,
                       "blockers": [reason], "observed_at": at.isoformat(), "spread_execution_enabled": False,
                       "broker_orders_enabled": False, "pnl": None}
             append_event(session, cursor, key, "CAPTURE_FAILED", latest, json.loads(cursor.state_json))
