@@ -661,3 +661,7 @@ from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrad
 from app.parallel_paper.models import (  # noqa: F401, E402
     ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade,
 )
+from app.commodity_acts.models import (  # noqa: F401, E402
+    CommodityMarketSnapshotRecord, CommodityOptionQuoteRecord, CommodityActsCursor,
+    CommodityActsEvent, CommodityActsDecision,
+)

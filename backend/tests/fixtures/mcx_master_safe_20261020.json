@@ -1,0 +1,14 @@
+{
+  "provenance": "Allowlisted fields from real Kotak SDK 3.0.7 search_scrip, 2026-10-20. Test evidence only, never runtime identities.",
+  "CRUDEOILM": [
+    {"pSymbolName":"CRUDEOILM","pExchSeg":"mcx_fo","pInstType":"COM","pOptionType":"  ","pTrdSymbol":"CRUDEOILMCOM","pSymbol":556,"pExpiryDate":null,"lExpiryDate":0},
+    {"pSymbolName":"CRUDEOILM","pExchSeg":"mcx_fo","pInstType":"FUTCOM","pOptionType":"XX","pTrdSymbol":"CRUDEOILM19NOV26FUT","pSymbol":573423,"pExpiryDate":"19Nov2026","lExpiryDate":1795132799,"lLotSize":10,"dStrikePrice;":0.0,"dTickSize":100},
+    {"pSymbolName":"CRUDEOILM","pExchSeg":"mcx_fo","pInstType":"OPTFUT","pOptionType":"CE","pTrdSymbol":"CRUDEOILM17NOV267900CE","pSymbol":582831,"pExpiryDate":"17Nov2026","lExpiryDate":1794959999,"lLotSize":10,"dStrikePrice;":790000.0,"dTickSize":5},
+    {"pSymbolName":"CRUDEOILM","pExchSeg":"mcx_fo","pInstType":"OPTFUT","pOptionType":"PE","pTrdSymbol":"CRUDEOILM17NOV267900PE","pSymbol":582832,"pExpiryDate":"17Nov2026","lExpiryDate":1794959999,"lLotSize":10,"dStrikePrice;":790000.0,"dTickSize":5}
+  ],
+  "NATGASMINI": [
+    {"pSymbolName":"NATGASMINI","pExchSeg":"mcx_fo","pInstType":"FUTCOM","pOptionType":"XX","pTrdSymbol":"NATGASMINI27OCT26FUT","pSymbol":570751,"pExpiryDate":"27Oct2026","lExpiryDate":1793145599,"lLotSize":250,"dStrikePrice;":0.0,"dTickSize":10},
+    {"pSymbolName":"NATGASMINI","pExchSeg":"mcx_fo","pInstType":"OPTFUT","pOptionType":"CE","pTrdSymbol":"NATGASMINI23OCT26290CE","pSymbol":581133,"pExpiryDate":"23Oct2026","lExpiryDate":1792799999,"lLotSize":250,"dStrikePrice;":29000.0,"dTickSize":5},
+    {"pSymbolName":"NATGASMINI","pExchSeg":"mcx_fo","pInstType":"OPTFUT","pOptionType":"PE","pTrdSymbol":"NATGASMINI23OCT26290PE","pSymbol":581134,"pExpiryDate":"23Oct2026","lExpiryDate":1792799999,"lLotSize":250,"dStrikePrice;":29000.0,"dTickSize":5}
+  ]
+}

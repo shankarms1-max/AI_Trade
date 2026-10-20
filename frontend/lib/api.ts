@@ -1,4 +1,5 @@
 import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, DetailedSystemHealth, MarketFeatures, MarketRegime, MarketSnapshot, NotificationDelivery, OperationalEvent, Phase15Summary, Phase15TradePage, Phase15JournalFilters, PipelineRun, RiskEvaluationSet, ShadowMark, ShadowPerformance, ShadowTrade, StrategyCandidateSet, SystemMetrics } from "@/types";
+import type { CommodityDecisionPage, CommodityInstrument, CommoditySummary } from "@/types/commodity-acts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
@@ -9,6 +10,9 @@ async function request<T>(path: string): Promise<T> {
 }
 const optional = async <T>(path: string): Promise<T | null> => { try { return await request<T>(path); } catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; } };
 export const api = {
+  commodityActsSummary: () => request<CommoditySummary>("/api/commodity-acts/summary"),
+  commodityActsDecisions: (instrument: CommodityInstrument, offset = 0) =>
+    request<CommodityDecisionPage>(`/api/commodity-acts/decisions?instrument=${encodeURIComponent(instrument)}&limit=50&offset=${offset}`),
   dashboard: () => request<DashboardData>("/api/dashboard/latest"),
   phase15Summary: () => request<Phase15Summary>("/api/phase15/summary"),
   phase15Positions: (offset = 0) => request<Phase15TradePage>(`/api/phase15/positions?limit=100&offset=${offset}`),

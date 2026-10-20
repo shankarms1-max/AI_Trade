@@ -17,6 +17,7 @@ from app.api.notifications import router as notifications_router
 from app.api.alpha import router as alpha_router
 from app.api.scalper import router as scalper_router
 from app.api.phase15 import router as phase15_router
+from app.api.commodity_acts import router as commodity_acts_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -61,6 +62,7 @@ app.include_router(notifications_router)
 app.include_router(alpha_router)
 app.include_router(scalper_router)
 app.include_router(phase15_router)
+app.include_router(commodity_acts_router)
 
 
 @app.get("/health")

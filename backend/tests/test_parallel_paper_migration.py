@@ -42,7 +42,7 @@ def _check(url):
             before_rows = {name: connection.execute(text(f'SELECT * FROM "{name}"')).all()
                            for name in ("acts_paper_cursor", "acts_paper_trades", "acts_paper_events",
                                         "scalper_market_snapshots", "scalper_option_quotes")}
-        command.upgrade(config, "head")
+        command.upgrade(config, "0019_parallel_paper")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0019_parallel_paper"
             after_columns = {name: [column["name"] for column in inspect(connection).get_columns(name)]

@@ -21,11 +21,17 @@ class HorizonReturn:
 
 
 def reference_price(snapshot: MarketSnapshot, source: str) -> float | None:
+    # Generic research observations explicitly carry their instrument identity
+    # and future/reference prices. They are never written to NIFTY models/tables.
+    if hasattr(snapshot, "instrument_id") and hasattr(snapshot, "future_price"):
+        return snapshot.reference_price if source == "SPOT" else snapshot.future_price
     return snapshot.nifty_spot if source == "SPOT" else snapshot.nifty_future
 
 
 def reference_identity(snapshot: MarketSnapshot, source: str) -> tuple[str | None, object | None]:
     if source == "SPOT":
+        if hasattr(snapshot, "instrument_id"):
+            return None, None  # A commodity future must never masquerade as cash spot.
         return "NSE_NIFTY_50_SPOT", None
     return snapshot.future_instrument_id, snapshot.future_expiry
 
