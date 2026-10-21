@@ -1,9 +1,11 @@
 import type { CommodityInstrument } from "./commodity-acts";
 export type PaperKind = "positions" | "orders" | "fills" | "events";
 export interface PaperCandidate {
+  strategy_type?: "SHORT_PUT" | "SHORT_CALL" | "BULL_PUT_SPREAD" | "BEAR_CALL_SPREAD";
+  contract_quantity?: number; stress_loss_estimate?: number; risk_reservation?: number; maximum_loss?: null; loss_is_bounded?: false;
   short_leg?: { trading_symbol?: string; strike?: number }; long_leg?: { trading_symbol?: string; strike?: number };
   spread_width?: number; executable_credit?: number; defined_max_loss_per_lot?: number;
-  construction_evidence?: { margin?: { status?: string; standalone_margin?: number | null; spread_margin?: number | null; margin_saved_pct?: number | null; credit_to_blocked_margin?: number | null; credit_to_verified_margin_estimate?: number | null } };
+  construction_evidence?: { margin?: { status?: string; required_margin?: number | null; premium_to_verified_margin_estimate?: number | null; standalone_margin?: number | null; spread_margin?: number | null; margin_saved_pct?: number | null; credit_to_blocked_margin?: number | null; credit_to_verified_margin_estimate?: number | null } };
 }
 export interface PaperDecision {
   status?: string; direction?: string | null; market_state?: string; opportunity_score?: number; score_band?: string;
@@ -21,7 +23,7 @@ export interface PaperInstrumentStatus {
   latest?: PaperLatest | null; pending_entries?: number; open_positions?: number; pending_exits?: number; unresolved_exposure?: number;
   rejected_entries?: number; closed_trades?: number; wins?: number; losses?: number; sample_sessions?: number;
   realized_gross?: number | null; realized_net?: number | null; unrealized_gross?: number | null; unrealized_net?: number | null;
-  reserved_defined_risk?: number; margin_status?: string;
+  reserved_defined_risk?: number; reserved_stress_risk?: number; expiry_exit_overdue?: number; margin_status?: string;
   execution_evidence?: { depth_unit?: string; source?: string; lot_size?: number; rupees_per_point_per_lot?: number; valid_until?: string } | null;
 }
 export interface PaperSummary { version?: string; as_of?: string; broker_orders_enabled: false; instruments?: PaperInstrumentStatus[] | null }
@@ -32,7 +34,8 @@ export interface PaperRecord {
   gross_realized_pnl?: number | null; net_realized_pnl?: number | null; unrealized_gross?: number | null;
   unrealized_net?: number | null; defined_risk?: number; exit_reason?: string; rejection_reason?: string; unresolved_reason?: string | null;
   margin_status?: string; return_on_verified_margin?: number | null; latest?: PaperLatest | null;
-  execution?: { value?: number; atomic?: boolean; short?: { price?: number }; long?: { price?: number } } | null;
+  strategy?: string; contract_quantity?: number; risk_reservation?: number; stress_loss_estimate?: number; maximum_loss?: null; action?: string;
+  execution?: { value?: number; atomic?: boolean; action?: string; short?: { price?: number }; long?: { price?: number } } | null;
   policy?: { cost_source?: string | null; cost_model?: string };
   last_attempt?: { reason?: string };
 }

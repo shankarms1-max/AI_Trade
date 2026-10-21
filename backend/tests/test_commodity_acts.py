@@ -129,7 +129,7 @@ def test_master_and_batch_capture_are_instrument_specific_not_nifty(instrument):
     assert data.reference_price == data.future_price == 5000 and data.reference_basis == "SELECTED_MCX_FUTURE"
     assert data.lot_size == 10 and len(data.options) == 42
     assert not hasattr(data, "nifty_spot") and not hasattr(data, "india_vix")
-    assert all(q.depth_unit == "UNKNOWN" and q.tick_size is None and q.raw_master_tick_size == 5 for q in data.options)
+    assert all(q.depth_unit == "UNITS" and q.tick_size is None and q.raw_master_tick_size == 5 for q in data.options)
     assert data.options[0].bid == 39 and data.options[0].volume == 1000 and data.options[0].open_interest == 5000
     assert client.calls[0] == ("search", {"exchange_segment": "mcx_fo", "symbol": instrument, "ignore_50multiple": True})
     assert all(len(kwargs["instrument_tokens"]) <= 50 for method, kwargs in client.calls if method == "quotes")
@@ -223,7 +223,7 @@ def test_same_bucket_two_instruments_no_nifty_writes_and_hash_restart(research_c
         for row in session.scalars(select(CommodityActsDecision)):
             doc = json.loads(row.document)
             assert doc["alpha"]["session_id"] == f"MCX_{row.instrument_id}_2099-10-01"
-            assert doc["geometry"]["depth_unit"] == "UNKNOWN" and doc["pnl"] is None
+            assert doc["geometry"]["depth_unit"] == "UNITS" and doc["pnl"] is None
             assert doc["acts"]["score_components"]["execution"] == 0
             assert doc["maximum_score_without_execution"] == 86
             assert doc["score_basis"] == "ORIGINAL_100_POINT_WEIGHTS_NO_RESCALING"

@@ -115,7 +115,7 @@ def test_api_exposes_score_only_scope_and_keeps_unconfirmed_provenance(research_
     assert row["stage"] == STAGE
     assert row["acts"]["timestamp"] == row["observed_at"] == AT.isoformat()
     assert row["decided_at"] == clock.at.isoformat()
-    assert row["geometry"]["depth_unit"] == "UNKNOWN"
+    assert row["geometry"]["depth_unit"] == "UNITS"
     assert row["data_provenance"]["option_future_link"].endswith("LINK_NOT_CONFIRMED")
     assert row["maximum_score_without_execution"] == 86
     assert row["broker_orders_enabled"] is row["spread_execution_enabled"] is False and row["pnl"] is None

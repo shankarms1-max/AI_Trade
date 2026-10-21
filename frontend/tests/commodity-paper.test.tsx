@@ -56,7 +56,7 @@ describe("commodity paper evidence only", () => {
       candidate: { short_leg: { trading_symbol: "TEST_SHORT_PE" }, long_leg: { trading_symbol: "TEST_HEDGE_PE" } } }] });
     render(<CommodityPaper/>);
     const table = await screen.findByRole("table", { name: "Commodity paper lifecycle ledger" });
-    expect(within(table).getByText("TEST_SHORT_PE / TEST_HEDGE_PE")).toBeInTheDocument();
+    expect(within(table).getByText(/TEST_SHORT_PE \/ TEST_HEDGE_PE \(historical spread\)/)).toBeInTheDocument();
     expect(within(table).getByText("₹40.00 / N/A")).toBeInTheDocument();
     expect(within(table).getByText("10.00 / 6.00")).toBeInTheDocument();
     expect(within(table).getByText("CLOSED")).toBeInTheDocument();
@@ -65,6 +65,22 @@ describe("commodity paper evidence only", () => {
     vi.mocked(api.commodityPaperPage).mockResolvedValue({ items: [{ kind: "ENTRY", execution: { value: 12.5, atomic: true } }] });
     render(<CommodityPaper/>);
     expect(await screen.findByText("12.50 / N/A")).toBeInTheDocument();
+  });
+  it("shows a single short, underlying units, unbounded loss and unknown capital honestly", async () => {
+    const data = summary();
+    Object.assign(data.instruments![0], { reserved_stress_risk: 3000, expiry_exit_overdue: 1,
+      latest: { candidate: { strategy_type: "SHORT_PUT", contract_quantity: 10, executable_credit: 90,
+        stress_loss_estimate: 1500, construction_evidence: { margin: { status: "MARGIN_UNVERIFIED", required_margin: null } } } } });
+    vi.mocked(api.commodityPaperSummary).mockResolvedValue(data);
+    vi.mocked(api.commodityPaperPage).mockResolvedValue({ items: [{ state: "OPEN", action: "SELL", contract_quantity: 10,
+      candidate: { strategy_type: "SHORT_PUT", short_leg: { trading_symbol: "TEST_SINGLE_PE" }, contract_quantity: 10 } }] });
+    render(<CommodityPaper/>);
+    expect(await screen.findByText(/stops and stress scenarios are not guaranteed maximum losses/)).toBeInTheDocument();
+    expect(await screen.findByText(/TEST_SINGLE_PE \/ SHORT_PUT/)).toBeInTheDocument();
+    expect(screen.getByText("SELL / units 10")).toBeInTheDocument();
+    const margin = screen.getByText("Single-instrument broker margin estimate").closest("div")!;
+    expect(within(margin).getByText("N/A")).toBeInTheDocument();
+    expect(screen.queryByText("Verified margin saved")).not.toBeInTheDocument();
   });
   it("isolates paper summary failure from its journal", async () => {
     vi.mocked(api.commodityPaperSummary).mockRejectedValue(new Error("private backend details"));

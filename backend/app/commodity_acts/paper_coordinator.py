@@ -13,13 +13,13 @@ import json
 
 
 class CommodityPaperCoordinator(CommodityResearch):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, margin_reader=None, **kwargs):
         super().__init__(*args, **kwargs)
         with self.sessions() as session:
             present = inspect(session.get_bind()).has_table("commodity_paper_cursors")
         if not present and self.config.trading_enabled:
             raise RuntimeError("COMMODITY_PAPER_MIGRATION_REQUIRED")
-        self.paper = CommodityPaperEngine(self) if present else None
+        self.paper = CommodityPaperEngine(self, margin_reader=margin_reader) if present else None
 
     def process_snapshot(self, snapshot_id):
         result = super().process_snapshot(snapshot_id)
@@ -48,7 +48,7 @@ class CommodityPaperCoordinator(CommodityResearch):
             with self.sessions() as session:
                 held = [json.loads(row.document)["candidate"] for row in session.scalars(select(CommodityPaperPosition).where(
                     CommodityPaperPosition.instrument_id == self.spec.instrument_id, CommodityPaperPosition.state.in_(ACTIVE)))]
-            required = [item[leg] for item in held for leg in ("short_leg", "long_leg")]
+            required = [item[leg] for item in held for leg in ("short_leg", "long_leg") if item.get(leg)]
             if required:
                 class WithHeldQuotes:
                     def capture(_, spec):

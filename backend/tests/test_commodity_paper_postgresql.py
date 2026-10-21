@@ -51,6 +51,19 @@ from tests.test_commodity_paper_read_recovery import (
     test_initial_paper_cursor_recovers_latest_v1_not_entire_history as test_pg_initial_cursor_recovery,
     test_read_views_preserve_zero_vs_unknown_and_hide_stale_pnl as test_pg_readonly_views,
 )
+from tests.test_commodity_paper_naked import (
+    test_marks_are_subsequent_asks_and_no_ltp_fallback as test_pg_single_option_marks,
+    test_pre_expiry_exit_is_queued_then_filled_or_unresolved_after_restart as test_pg_single_pre_expiry_recovery,
+    test_pre_expiry_entry_window_rejected_with_ttl_buffer as test_pg_single_pre_expiry_entry_buffer,
+    test_adverse_gap_can_exceed_stop_and_entry_stress_no_clamped_pnl as test_pg_single_unbounded_adverse_gap,
+    test_authorized_margin_is_refreshed_at_fill_and_never_actual_blocked_capital as test_pg_single_margin_evidence,
+    test_slow_margin_lookup_cannot_authorize_a_stale_fill as test_pg_single_slow_margin,
+    test_legacy_open_spread_recovers_without_rewriting_frozen_policy as test_pg_legacy_spread_recovery,
+    test_stress_risk_is_repriced_and_rejected_before_fill as test_pg_single_fill_stress_revalidation,
+    test_global_stress_exposure_growth_requests_real_subsequent_exit as test_pg_single_global_stress_exit,
+    test_thesis_reversal_exit_does_not_require_margin_for_a_new_short as test_pg_single_mirror_without_margin,
+    test_stale_future_does_not_become_verified_stress_input as test_pg_single_stress_requires_fresh_reference,
+)
 
 PAPER_TABLES = {"commodity_paper_cursors", "commodity_paper_controls", "commodity_paper_positions",
                 "commodity_paper_orders", "commodity_paper_fills", "commodity_paper_events"}

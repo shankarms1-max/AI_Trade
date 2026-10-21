@@ -28,7 +28,7 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
       <div><dt>Broker reference timestamp</dt><dd>{stamp(latest?.source_market_timestamp ?? undefined)}</dd></div>
       <div><dt>Observation freshness / age seconds</dt><dd>{row.observation_freshness ?? "UNAVAILABLE"} / {number(row.observation_age_seconds, 1)}</dd></div>
       <div><dt>ACTS direction / market state</dt><dd>{latest?.decision?.direction ?? "N/A"} / {latest?.decision?.market_state ?? "N/A"}</dd></div>
-      <div><dt>Original ACTS score / band</dt><dd>{number(latest?.decision?.opportunity_score)} / 100 - {latest?.decision?.score_band ?? "N/A"}</dd></div>
+      <div><dt>ACTS V2 score / band (single-option execution inputs)</dt><dd>{number(latest?.decision?.opportunity_score)} / 100 - {latest?.decision?.score_band ?? "N/A"}</dd></div>
       <div><dt>Pending entries / open positions</dt><dd>{integer(row.pending_entries)} / {integer(row.open_positions)}</dd></div>
       <div><dt>Pending exits / unresolved exposure</dt><dd>{integer(row.pending_exits)} / {integer(row.unresolved_exposure)}</dd></div>
       <div><dt>Rejected entries / completed trades</dt><dd>{integer(row.rejected_entries)} / {integer(row.closed_trades)}</dd></div>
@@ -36,15 +36,16 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
       <div><dt>Cumulative realized gross</dt><dd>{money(row.realized_gross)}</dd></div>
       <div><dt>Realized net (configured costs only)</dt><dd>{money(row.realized_net)}</dd></div>
       <div><dt>Fresh unrealized gross / net</dt><dd>{money(row.unrealized_gross)} / {money(row.unrealized_net)}</dd></div>
-      <div><dt>Reserved defined premium risk</dt><dd>{money(row.reserved_defined_risk)}</dd></div>
-      <div><dt>Adaptive observed width / credit</dt><dd>{number(latest?.candidate?.spread_width)} / {number(latest?.candidate?.executable_credit)}</dd></div>
-      <div><dt>Margin-benefit verdict</dt><dd>{margin?.status ?? row.margin_status ?? "MARGIN_UNVERIFIED"}</dd></div>
-      <div><dt>Short-only / spread broker margin estimate</dt><dd>{money(margin?.standalone_margin)} / {money(margin?.spread_margin)}</dd></div>
-      <div><dt>Verified margin saved</dt><dd>{percent(margin?.margin_saved_pct)}</dd></div>
-      <div><dt>Credit / verified margin estimate</dt><dd>{percent(margin?.credit_to_verified_margin_estimate == null ? null : margin.credit_to_verified_margin_estimate*100)}</dd></div>
-      <div><dt>Credit / actual blocked margin</dt><dd>{percent(margin?.credit_to_blocked_margin == null ? null : margin.credit_to_blocked_margin*100)}</dd></div>
+      <div><dt>Reserved stress-risk estimate (not maximum loss)</dt><dd>{money(row.reserved_stress_risk)}</dd></div>
+      <div><dt>Historical spread defined-risk reservation</dt><dd>{money(row.reserved_defined_risk)}</dd></div>
+      <div><dt>Single short / underlying quantity / bid premium</dt><dd>{latest?.candidate?.strategy_type ?? "N/A"} / {integer(latest?.candidate?.contract_quantity)} / {number(latest?.candidate?.executable_credit)}</dd></div>
+      <div><dt>Selected stress-loss scenario estimate</dt><dd>{money(latest?.candidate?.stress_loss_estimate)}</dd></div>
+      <div><dt>Broker margin status</dt><dd>{margin?.status ?? row.margin_status ?? "MARGIN_UNVERIFIED"}</dd></div>
+      <div><dt>Single-instrument broker margin estimate</dt><dd>{money(margin?.required_margin)}</dd></div>
+      <div><dt>Premium / verified margin estimate (not ROC)</dt><dd>{percent(margin?.premium_to_verified_margin_estimate == null ? null : margin.premium_to_verified_margin_estimate*100)}</dd></div>
+      <div><dt>Pre-expiry exits overdue</dt><dd>{integer(row.expiry_exit_overdue)}</dd></div>
       <div><dt>Confirmed contract lot / INR per point per lot</dt><dd>{integer(row.execution_evidence?.lot_size)} / {number(row.execution_evidence?.rupees_per_point_per_lot)}</dd></div>
-      <div><dt>Raw depth semantics / execution interpretation</dt><dd>UNKNOWN / {row.execution_evidence?.depth_unit ?? "UNVERIFIED"}</dd></div>
+      <div><dt>Execution depth semantics</dt><dd>{row.execution_evidence?.depth_unit ?? "UNVERIFIED"} (underlying units; historical raw UNKNOWN retained)</dd></div>
       <div><dt>Execution evidence source</dt><dd>{row.execution_evidence?.source ?? "UNVERIFIED"}</dd></div>
       <div><dt>Observation / processing</dt><dd>{stamp(latest?.observed_at)} / {stamp(latest?.processed_at)}</dd></div>
     </dl>
@@ -52,7 +53,7 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
     <p>Entry blockers: {(latest?.decision?.blockers ?? []).join(", ") || "N/A"}</p>
     <p>Candidate rejection counts: {Object.entries(latest?.decision?.candidate_rejections ?? {}).map(([key, count]) => `${key}: ${count}`).join(", ") || "N/A"}</p>
     <p>ACTS components: {Object.entries(latest?.decision?.score_components ?? {}).map(([key, value]) => `${key}: ${number(value)}`).join(", ") || "N/A"}</p>
-    <p className="execution-note">Quotes must be fresh and depth sufficient; LTP is never a fill. Broker margin estimates are not actual blocked capital. Net is unavailable without a complete, dated cost model. Paper results are descriptive research, not a profitability claim.</p>
+    <p className="execution-note">SINGLE-LEG NAKED OPTION SELLING — PAPER ONLY. Loss is not bounded by a hedge; stops and stress scenarios are not guaranteed maximum losses. Entry sells at a later observed BID; marks and exits buy at subsequent observed ASK. Quotes must be fresh and depth sufficient; LTP is never a fill. Broker margin estimates are not actual blocked capital; unknown margin is not zero capital usage. Net is unavailable without a complete, dated cost model. Paper results are descriptive research, not a profitability claim.</p>
   </>;
 }
 
@@ -62,7 +63,7 @@ function RecordRow({ row, index }: { row: PaperRecord; index: number }) {
   const blocked = [...(row.latest?.risk_blocks ?? []), ...(signal?.blockers ?? [])].join(", ");
   return <tr><td>{stamp(row.observed_at ?? row.decision_timestamp)}<small>{row.id?.slice(0, 12) ?? row.sequence ?? index}</small></td>
     <td>{row.state ?? row.event_type ?? row.kind ?? "N/A"}{signal && <small>{signal.status ?? "N/A"} / {signal.direction ?? "N/A"} / {number(signal.opportunity_score)}</small>}</td>
-    <td>{candidate?.short_leg?.trading_symbol ?? "N/A"} / {candidate?.long_leg?.trading_symbol ?? "N/A"}</td>
+    <td>{candidate?.short_leg?.trading_symbol ?? "N/A"}{candidate?.long_leg ? ` / ${candidate.long_leg.trading_symbol ?? "N/A"} (historical spread)` : candidate?.short_leg ? ` / ${candidate.strategy_type ?? "SINGLE SHORT"}` : ""}<small>{row.action ?? row.execution?.action ?? ""} / units {integer(row.contract_quantity ?? candidate?.contract_quantity)}</small></td>
     <td>{stamp(row.entry_timestamp)} / {stamp(row.exit_timestamp)}</td>
     <td>{number(row.entry_credit ?? (row.kind === "ENTRY" ? row.execution?.value : null))} / {number(row.exit_debit ?? (row.kind === "EXIT" ? row.execution?.value : null))}</td>
     <td>{money(row.gross_realized_pnl ?? row.unrealized_gross)} / {money(row.net_realized_pnl ?? row.unrealized_net)}</td>
@@ -77,7 +78,7 @@ function Ledger({ instrument, kind, offset, onPage }: { instrument: CommodityIns
   if (!data) return <Empty>LOADING PAPER LEDGER</Empty>;
   const rows = data.items ?? [];
   return <>{data.status === "MIGRATION_REQUIRED" ? <Empty>PAPER MIGRATION REQUIRED</Empty> : rows.length ?
-    <div className="table-wrap"><table aria-label="Commodity paper lifecycle ledger"><thead><tr><th>Observation / ID</th><th>State / event</th><th>Exact contracts</th><th>Entry / exit time</th><th>Entry credit / exit debit</th><th>Gross / net P&amp;L</th><th>Reason / evidence</th></tr></thead>
+    <div className="table-wrap"><table aria-label="Commodity paper lifecycle ledger"><thead><tr><th>Observation / ID</th><th>State / event</th><th>Exact short contract / historical legs</th><th>Entry / exit time</th><th>SELL premium / BUY premium</th><th>Gross / net P&amp;L</th><th>Reason / evidence</th></tr></thead>
       <tbody>{rows.map((row, index) => <RecordRow key={row.id ?? row.sequence ?? index} row={row} index={index}/>)}</tbody></table></div> : <Empty>NO PAPER RECORDS</Empty>}
     <div className="commodity-pagination"><button disabled={offset === 0} onClick={() => onPage(Math.max(0, offset-50))}>Previous paper page</button>
       <span>{rows.length} {kind} records</span><button disabled={!data.has_more || offset >= 100000} onClick={() => onPage(offset+50)}>Next paper page</button></div>
@@ -88,7 +89,7 @@ export function CommodityPaper() {
   const [instrument, setInstrument] = useState<CommodityInstrument>("CRUDEOILM");
   const [kind, setKind] = useState<PaperKind>("positions");
   const [offset, setOffset] = useState(0);
-  return <Panel title="AUTOMATED COMMODITY PAPER - NO BROKER ORDERS"><div className="commodity-filter">
+  return <Panel title="COMMODITY ACTS SINGLE SHORT - PAPER ONLY - NO BROKER ORDERS"><div className="commodity-filter">
     <label>Paper instrument <select value={instrument} onChange={event => { setInstrument(event.target.value as CommodityInstrument); setOffset(0); }}>
       <option value="CRUDEOILM">CRUDEOILM</option><option value="NATGASMINI">NATGASMINI</option></select></label>
     <label>Paper records <select value={kind} onChange={event => { setKind(event.target.value as PaperKind); setOffset(0); }}>

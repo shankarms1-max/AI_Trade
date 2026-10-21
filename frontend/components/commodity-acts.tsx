@@ -39,10 +39,10 @@ export function CommodityOverview() {
       return <Panel key={instrument.instrument_id} title={instrument.display_name} className="commodity-card">
         <Badge value={instrument.readiness}/><p>Worker configuration: {instrument.configured_enabled ? "ENABLED" : "DISABLED"} · Process state unavailable</p>
         {!instrument.session_configured && <p className="warning">VERIFIED MCX SESSION SETTINGS REQUIRED</p>}
-        <p>Readiness is for scoring/research only. Entry qualification and spread execution are disabled.</p>
+        <p>These cards show V1 scoring/research evidence only. Use the single-short paper panel for authoritative entry and lifecycle state. New commodity spread entries are disabled.</p>
         <dl className="commodity-fields">
-          <div><dt>Spread width policy</dt><dd>NOT SELECTED</dd></div>
-          <div><dt>Depth quantity units</dt><dd>{latest?.geometry.depth_unit ?? "UNKNOWN"} (unconfirmed)</dd></div>
+          <div><dt>New paper entry structure</dt><dd>SINGLE SHORT (PAPER POLICY REQUIRED)</dd></div>
+          <div><dt>Depth quantity units</dt><dd>{latest?.geometry.depth_unit ?? "UNKNOWN"} {latest?.geometry.depth_unit === "UNITS" ? "(underlying units)" : "(unconfirmed)"}</dd></div>
           <div><dt>Option-to-future linkage</dt><dd>UNCONFIRMED: {latest?.data_provenance?.option_future_link ?? "No validated linkage"}</dd></div>
           <div><dt>Normalized tick-size semantics</dt><dd>UNCONFIRMED</dd></div>
           <div><dt>Future reference price</dt><dd>{number(latest?.future_price)}</dd></div>

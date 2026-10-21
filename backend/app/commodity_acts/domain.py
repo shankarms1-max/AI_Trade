@@ -13,7 +13,9 @@ class CommodityOption(OptionContractSnapshot):
     exchange: Literal["mcx_fo"] = "mcx_fo"
     instrument_token: str = Field(min_length=1)
     lot_size: int = Field(gt=0)
-    depth_unit: Literal["UNKNOWN"] = "UNKNOWN"
+    # UNKNOWN default preserves historical documents. New captures explicitly use
+    # the operator-confirmed MCX underlying-unit convention.
+    depth_unit: Literal["UNKNOWN", "UNITS"] = "UNKNOWN"
     raw_master_strike: float
     master_strike_divisor: Literal[100] = 100
     raw_master_tick_size: float | None = None

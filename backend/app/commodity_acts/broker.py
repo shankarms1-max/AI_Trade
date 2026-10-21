@@ -237,7 +237,7 @@ class KotakCommodityMarketData:
                 ltp=number(data.get("ltp"), positive=True), open_interest=integer(data.get("open_int")),
                 volume=integer(data.get("last_volume")), bid=bid, ask=ask, bid_quantity=bid_qty, ask_quantity=ask_qty,
                 raw_source_timestamp=raw_timestamp(data.get("lstup_time")),
-                source_market_timestamp=parse_quote_timestamp(data.get("lstup_time")), depth_unit="UNKNOWN"))
+                source_market_timestamp=parse_quote_timestamp(data.get("lstup_time")), depth_unit="UNITS"))
         if not contracts:
             raise CommodityDataError("OPTION_CHAIN_UNAVAILABLE")
         return CommoditySnapshot(
@@ -252,5 +252,5 @@ class KotakCommodityMarketData:
                         "configured_alias": spec.underlying, "resolved_underlying": future["pSymbolName"],
                         "expiry": "SDK_DDMMMYYYY_CHECKED_AGAINST_MCX_UNIX_EXPIRY",
                         "strike": "SDK_3_0_7_SCRIP_SEARCH_DSTRIKEPRICE_DIV100",
-                        "depth_unit": "UNCONFIRMED_NO_CONVERSION", "tick_size": "UNCONFIRMED_RAW_MASTER_RETAINED",
+                        "depth_unit": "OPERATOR_CONFIRMED_KOTAK_MCX_UNDERLYING_UNITS_2026_10_22_NO_CONVERSION", "tick_size": "UNCONFIRMED_RAW_MASTER_RETAINED",
                         "option_future_link": "SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED"})

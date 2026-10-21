@@ -51,10 +51,10 @@ describe("isolated commodity ACTS research", () => {
     vi.mocked(api.commodityActsSummary).mockResolvedValue(ready);
     render(<CommodityPage/>);
     expect(screen.getByText(/Stage: SCORE_TRANSFERABILITY. ACTS directional\/scoring research only/)).toBeInTheDocument();
-    expect(screen.getByText(/Entry qualification is disabled until commodity execution geometry is validated/)).toBeInTheDocument();
+    expect(screen.getByText(/This V1 score-only panel does not activate single-short paper entries/)).toBeInTheDocument();
     expect(await screen.findByText("READY FOR ACTS RESEARCH")).toBeInTheDocument();
-    expect(screen.getAllByText(/Readiness is for scoring\/research only/)).toHaveLength(2);
-    expect(screen.getAllByText("NOT SELECTED")).toHaveLength(2);
+    expect(screen.getAllByText(/These cards show V1 scoring\/research evidence only/)).toHaveLength(2);
+    expect(screen.getAllByText("SINGLE SHORT (PAPER POLICY REQUIRED)")).toHaveLength(2);
     expect(screen.getAllByText("UNKNOWN (unconfirmed)")).toHaveLength(2);
     expect(screen.getByText(/UNCONFIRMED: SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED/)).toBeInTheDocument();
     expect(screen.getAllByText("UNCONFIRMED")).toHaveLength(2);

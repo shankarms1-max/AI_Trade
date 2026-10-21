@@ -7,7 +7,8 @@ from sqlalchemy import inspect, select, text
 from app.commodity_acts.config import INSTRUMENTS
 from app.commodity_acts.paper_models import (CommodityPaperCursor, CommodityPaperEvent, CommodityPaperFill,
                                            CommodityPaperOrder, CommodityPaperPosition)
-from app.commodity_acts.paper_policy import ACTIVE, PAPER_VERSION
+from app.commodity_acts.paper_policy import ACTIVE
+from app.commodity_acts.paper_naked import VERSION, NakedPaperPolicy, load_policy, reservation
 from app.alpha.clock import IST
 
 
@@ -64,11 +65,15 @@ def summary(sessions, config, at):
                 "unrealized_gross": sum(doc["unrealized_gross"] for doc in open_rows) if fresh_marks else None,
                 "unrealized_net": sum(doc["unrealized_net"] for doc in open_rows) if fresh_marks and all(
                     doc.get("unrealized_net") is not None for doc in open_rows) else None,
-                "reserved_defined_risk": sum(doc["defined_risk"] for state, doc in rows if state in ACTIVE),
+                "strategy": "NAKED_SHORT_OPTION", "maximum_loss": None, "loss_is_bounded": False,
+                "reserved_stress_risk": sum(reservation(doc) for state, doc in rows if state in ACTIVE and doc.get("strategy") == "NAKED_SHORT_OPTION"),
+                "reserved_defined_risk": sum(doc["defined_risk"] for state, doc in rows if state in ACTIVE and "defined_risk" in doc),
+                "expiry_exit_overdue": sum(isinstance(p := load_policy(doc["policy"]), NakedPaperPolicy)
+                    and at >= p.expiry_cutoff() for doc in open_rows),
                 "margin_status": "SEE_TRADE_EVIDENCE" if any(doc.get("entry_timestamp") for _, doc in rows) and all(
                     doc.get("margin_evidence") is not None for _, doc in rows if doc.get("entry_timestamp")) else "MARGIN_UNVERIFIED",
                 "profitability_claim": False})
-        return {"version": PAPER_VERSION, "stage": "AUTOMATED_PAPER", "as_of": at.isoformat(),
+        return {"version": VERSION, "strategy": "NAKED_SHORT_OPTION", "stage": "AUTOMATED_PAPER", "as_of": at.isoformat(),
                 "broker_orders_enabled": False, "instruments": items}
 
 

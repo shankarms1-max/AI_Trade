@@ -47,6 +47,6 @@ def geometry(snapshot: CommoditySnapshot, max_age: int = 30) -> dict:
             "source_timestamp_coverage": sum(q.source_market_timestamp is not None for q in quotes) / len(quotes),
             "median_bid_ask_spread_pct": median(spreads) if spreads else None,
             "max_bid_ask_spread_pct": max(spreads) if spreads else None,
-            "depth_unit": "UNKNOWN", "spread_execution_enabled": False,
+            "depth_unit": "UNITS" if all(q.depth_unit == "UNITS" for q in quotes) else "UNKNOWN", "spread_execution_enabled": False,
             "credits_basis": "OBSERVED_SHORT_BID_MINUS_HEDGE_ASK_NOT_ELIGIBILITY_OR_FILL",
             "observed_bid_ask_credits_by_steps": {str(key): credits[key] for key in sorted(credits)}}

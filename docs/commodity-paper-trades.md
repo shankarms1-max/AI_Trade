@@ -1,5 +1,10 @@
 # Commodity ACTS V2: automated paper lifecycle
 
+> Historical credit-spread implementation/reference. New commodity entries now use
+> [single-leg short-option PAPER V1](commodity-paper-single-short.md). The spread
+> implementation is retained for historical recovery, not new entry construction.
+> Results below describe the pre-switch implementation and are not new live evidence.
+
 Development branch: `feat/commodity-acts-paper-trades`, based on `c76677f`.
 This implementation is paper-only, disabled by default, and has not been deployed.
 Synthetic regression results are not MCX execution validation or a profitability claim.

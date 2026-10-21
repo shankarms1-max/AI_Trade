@@ -22,11 +22,10 @@ def test_trailing_uses_observed_gain_then_next_observation_exit(case):
     step(case, 0)
     step(case, 15)
     credit = positions(case)[0][1]["entry_credit"]
-    width = positions(case)[0][1]["candidate"]["spread_width"]
     # Choose an observed synthetic premium curve with a 35% profit, below the
     # existing configured 50% target, then a 20%-of-credit giveback.
-    gain_scale = (credit*.65-2)/(width*.15)
-    bounce_scale = (credit*.85-2)/(width*.15)
+    gain_scale = (credit*.65-1)/(credit+1)
+    bounce_scale = (credit*.85-1)/(credit+1)
     def tick_aligned(rows):
         for row in rows:
             if row["exchange_token"].endswith("_F"): continue
@@ -90,7 +89,7 @@ def test_disabled_entries_still_manage_frozen_open_position(case):
 @pytest.mark.parametrize("setting,reason", [
     ("max_loss_per_trade", "NO_EXECUTABLE_CANDIDATE"),
     ("daily_loss_limit", "INSTRUMENT_DAILY_LOSS_RESERVATION_LIMIT"),
-    ("global_max_defined_risk", "GLOBAL_DEFINED_RISK_LIMIT"),
+    ("global_max_stress_risk", "GLOBAL_STRESS_RISK_LIMIT"),
     ("global_daily_loss_limit", "GLOBAL_DAILY_LOSS_RESERVATION_LIMIT"),
     ("max_broker_margin", "NO_EXECUTABLE_CANDIDATE"),
     ("kill_switch", "KILL_SWITCH"),
@@ -120,7 +119,7 @@ def test_session_trade_limit_counts_completed_trades_not_only_open_positions(cas
 def test_global_policy_drift_cannot_fill_pending_order(case):
     step(case, 0)
     engine = case[2]["CRUDEOILM"]
-    engine.config = engine.config.model_copy(update={"global_max_defined_risk": 300000})
+    engine.config = engine.config.model_copy(update={"global_max_stress_risk": 300000})
     step(case, 15)
     assert positions(case)[0][0] == "ENTRY_REJECTED"
     assert positions(case)[0][1]["rejection_reason"] == "GLOBAL_RISK_POLICY_CHANGED"
@@ -218,10 +217,10 @@ def test_finite_limits_and_default_off():
 
 
 def test_policy_defaults_have_stable_hash_after_durable_json_roundtrip():
-    from app.commodity_acts.paper_policy import PaperPolicy
+    from app.commodity_acts.paper_naked import load_policy
     from app.research.manifest import digest
     original = policy()
-    assert digest(original) == digest(PaperPolicy.model_validate_json(original.model_dump_json()))
+    assert digest(original) == digest(load_policy(json.loads(original.model_dump_json())))
 
 
 def test_actual_order_creation_not_decision_start_controls_next_observation(case, monkeypatch):
@@ -261,9 +260,9 @@ def test_observed_daily_loss_forces_exit_without_inventing_a_fill(case, global_l
     engine = case[2]["CRUDEOILM"]
     if global_limit:
         engine.config = engine.config.model_copy(update={"global_daily_loss_limit": 2000})
-        engine.policy = policy(daily_loss_limit=1000000)
+        engine.policy = policy(daily_loss_limit=1000000, max_loss_per_trade=500)
     else:
-        engine.policy = policy(daily_loss_limit=2000)
+        engine.policy = policy(daily_loss_limit=2000, max_loss_per_trade=500)
     step(case, 0)
     step(case, 15)
     step(case, 30, scale=100)
@@ -273,10 +272,10 @@ def test_observed_daily_loss_forces_exit_without_inventing_a_fill(case, global_l
     assert doc.get("exit_timestamp") is None
     step(case, 45, scale=100)
     assert positions(case)[0][0] == "CLOSED"
-    # Observed wide exit debit is NOT clamped to theoretical expiry width.
+    # Neither a stop nor the scenario reserve is a guaranteed loss bound.
     doc = positions(case)[0][1]
-    assert doc["exit_debit"] > doc["candidate"]["spread_width"]
-    assert doc["gross_realized_pnl"] < -doc["defined_risk"]
+    assert doc["exit_debit"] > doc["entry_credit"] * 10
+    assert doc["gross_realized_pnl"] < -doc["entry_stress"]["stress_loss_estimate"]
 
 
 def test_simultaneous_instruments_can_each_fill_but_never_write_nifty(case):

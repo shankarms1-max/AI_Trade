@@ -88,15 +88,16 @@ class CommoditySettings(BaseSettings):
     paper_policies_json: str = "{}"
     global_max_positions: int = Field(default=2, ge=1, le=2)
     global_max_defined_risk: float | None = Field(default=None, gt=0)
+    global_max_stress_risk: float | None = Field(default=None, gt=0)
     global_daily_loss_limit: float | None = Field(default=None, gt=0)
 
     def trading_policy(self, instrument):
         import json
-        from app.commodity_acts.paper_policy import PaperPolicy
+        from app.commodity_acts.paper_naked import load_policy
         raw = json.loads(self.paper_policies_json)
         if not isinstance(raw, dict) or set(raw) - set(INSTRUMENTS):
             raise ValueError("COMMODITY_PAPER_POLICY_MAP_REQUIRED")
-        return PaperPolicy.model_validate(raw[instrument]) if instrument in raw else None
+        return load_policy(raw[instrument]) if instrument in raw else None
 
     def enabled(self, instrument: InstrumentId) -> bool:
         return self.paper_enabled and getattr(self, f"{instrument.lower()}_enabled")

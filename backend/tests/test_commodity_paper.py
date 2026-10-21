@@ -15,7 +15,7 @@ from app.commodity_acts.paper_policy import PaperPolicy, margin_comparison
 from tests.test_commodity_acts import AT, MarketClient, captured, config, research_case
 
 
-def policy(instrument="CRUDEOILM", **updates):
+def policy(instrument="CRUDEOILM", *, legacy=False, **updates):
     lot = 10 if instrument == "CRUDEOILM" else 250
     data = dict(instrument_id=instrument, evidence=dict(instrument_id=instrument,
         future_token=f"TEST_{instrument}_F", future_expiry="2099-10-15", option_expiry="2099-10-15",
@@ -25,7 +25,13 @@ def policy(instrument="CRUDEOILM", **updates):
         max_loss_per_trade=300*lot, daily_loss_limit=1000*lot, max_entry_spread_pct=20,
         max_trades_per_session=1)
     data.update(updates)
-    return PaperPolicy.model_validate(data)
+    if legacy:
+        return PaperPolicy.model_validate(data)
+    from app.commodity_acts.paper_naked import NakedPaperPolicy
+    data = {"strategy": "NAKED_SHORT_OPTION", "max_stress_loss_per_trade": 400*lot,
+            "stress_underlying_move_pct": 3, "stress_premium_multiple": 2,
+            "pre_expiry_exit_time": "20:00:00", **data}
+    return NakedPaperPolicy.model_validate(data)
 
 
 def raw(instrument="CRUDEOILM", seconds=0, scale=1, corrupt=None):
@@ -55,7 +61,8 @@ def case(research_case, monkeypatch):
     sessions, research, clock = research_case
     policies = {name: policy(name).model_dump(mode="json") for name in research}
     cfg = config(paper_enabled=True, crudeoilm_enabled=True, natgasmini_enabled=True, trading_enabled=True,
-                 paper_policies_json=json.dumps(policies), global_max_defined_risk=200000, global_daily_loss_limit=400000)
+                 paper_policies_json=json.dumps(policies), global_max_defined_risk=200000,
+                 global_max_stress_risk=200000, global_daily_loss_limit=400000)
     with sessions.begin() as session:
         session.add(CommodityPaperControl(id=1))
         session.add_all(CommodityPaperCursor(instrument_id=name) for name in research)
@@ -98,7 +105,8 @@ def test_real_actsv2_score_next_observation_atomic_fill_and_restart(case, instru
     state, doc = positions(case, instrument)[0]
     assert state == "PENDING_PAPER_ENTRY" and doc["decision"]["status"] == "ENTER"
     assert doc["decision"]["opportunity_score"] == pytest.approx(sum(doc["decision"]["score_components"].values()))
-    assert doc["candidate"]["spread_width"] != 400
+    assert doc["candidate"]["strategy_type"] in ("SHORT_PUT", "SHORT_CALL")
+    assert "spread_width" not in doc["candidate"] and "long_leg" not in doc["candidate"]
     assert doc["candidate"]["short_leg"]["option_type"] == ("PE" if direction > 0 else "CE")
     assert engines[instrument].process_snapshot(signal) == "DUPLICATE"
     assert positions(case, instrument)[0][0] == "PENDING_PAPER_ENTRY"
@@ -106,10 +114,10 @@ def test_real_actsv2_score_next_observation_atomic_fill_and_restart(case, instru
     fill_id = step(case, 15, instrument=instrument)
     state, doc = positions(case, instrument)[0]
     assert state == "OPEN" and doc["entry_snapshot_id"] == fill_id
-    assert doc["entry_credit"] == doc["entry_execution"]["short"]["price"]-doc["entry_execution"]["long"]["price"]
+    assert doc["entry_credit"] == doc["entry_execution"]["short"]["price"]
     assert doc["margin_status"] == "MARGIN_UNVERIFIED" and doc["unrealized_net"] is None
-    assert doc["best_gross_points"] == doc["entry_credit"]-doc["current_debit"] < 0
-    assert doc["entry_execution"]["short"]["quote"]["depth_unit"] == "UNKNOWN"
+    assert doc["unrealized_gross"] is None and doc["mark_at"] is None
+    assert doc["entry_execution"]["short"]["quote"]["depth_unit"] == "UNITS"
     assert doc["entry_execution"]["short"]["depth_interpretation"]["depth_unit"] == "UNITS"
     with sessions() as session:
         assert session.scalar(select(func.count()).select_from(CommodityPaperFill)) == 1
@@ -155,7 +163,7 @@ def test_order_cannot_fill_from_an_observation_preceding_its_actual_creation(cas
     assert positions(case)[0][0] == "OPEN"
 
 
-@pytest.mark.parametrize("kind,scale,seconds", [("PROFIT_CAPTURE", .2, 30), ("SPREAD_STOP", 3, 30), ("TIME_STOP", 1, 1830)])
+@pytest.mark.parametrize("kind,scale,seconds", [("PROFIT_CAPTURE", .2, 30), ("PREMIUM_MULTIPLE_STOP", 3, 30), ("TIME_STOP", 1, 1830)])
 def test_exit_signal_is_not_a_close_and_later_observation_books_set_real_pnl(case, kind, scale, seconds):
     step(case, 0)
     step(case, 15)
@@ -166,7 +174,7 @@ def test_exit_signal_is_not_a_close_and_later_observation_books_set_real_pnl(cas
     step(case, seconds+15, scale=scale)
     state, closed = positions(case)[0]
     assert state == "CLOSED"
-    assert closed["exit_debit"] == closed["exit_execution"]["short"]["price"]-closed["exit_execution"]["long"]["price"]
+    assert closed["exit_debit"] == closed["exit_execution"]["short"]["price"]
     assert closed["gross_realized_pnl"] == pytest.approx((closed["entry_credit"]-closed["exit_debit"])*10)
     assert closed["net_realized_pnl"] is None and closed["return_on_verified_margin"] is None
     with case[0]() as session:
@@ -192,7 +200,7 @@ def test_global_risk_reservations_serialize_simultaneous_instruments(case):
     sessions, research, engines, clock = case
     cfg = config(paper_enabled=True, crudeoilm_enabled=True, natgasmini_enabled=True, trading_enabled=True,
         paper_policies_json=engines["CRUDEOILM"].config.paper_policies_json,
-        global_max_positions=1, global_max_defined_risk=200000, global_daily_loss_limit=400000)
+        global_max_positions=1, global_max_defined_risk=200000, global_max_stress_risk=200000, global_daily_loss_limit=400000)
     ids = {name: service.observe(raw(name))[0] for name, service in research.items()}
     for engine in engines.values(): engine.config = cfg
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -230,16 +238,16 @@ def test_margin_math_requires_same_short_actual_portfolio_evidence():
 
 def test_adaptive_selection_respects_defined_risk_and_no_assumed_width():
     snapshot = raw()
-    choice, _ = candidates(snapshot, "BULL", {}, policy(max_loss_per_trade=500), AT+timedelta(seconds=1))
+    choice, _ = candidates(snapshot, "BULL", {}, policy(legacy=True, max_loss_per_trade=500), AT+timedelta(seconds=1))
     assert choice and choice.spread_width == 50 and choice.defined_max_loss_per_lot <= 500
-    none, rejected = candidates(snapshot, "BULL", {}, policy(max_loss_per_trade=1), AT+timedelta(seconds=1))
+    none, rejected = candidates(snapshot, "BULL", {}, policy(legacy=True, max_loss_per_trade=1), AT+timedelta(seconds=1))
     assert none is None and rejected["DEFINED_RISK_OR_CREDIT_LIMIT"] > 0
 
 
 def test_supported_dated_costs_only():
     unconfigured = policy()
     assert unconfigured.net(100, AT.date()) is None
-    configured = policy(all_in_cost_per_leg_execution=2, cost_source="SYNTHETIC COMPLETE TEST COSTS",
+    configured = policy(legacy=True, all_in_cost_per_leg_execution=2, cost_source="SYNTHETIC COMPLETE TEST COSTS",
                         cost_model="COMPLETE_FLAT_PER_EXECUTED_LEG",
                         cost_effective_from=AT.date(), cost_effective_to=AT.date())
     assert configured.net(100, AT.date()) == 92 and configured.net(100, (AT+timedelta(days=1)).date()) is None
@@ -250,12 +258,12 @@ def test_lots_depth_requires_explicit_evidence_and_preserves_raw_unknown():
     from app.commodity_acts.paper_execution import book
     snapshot = raw()
     quote = snapshot.options[0].model_copy(update={"bid_quantity": 1})
-    unit_book, reason = book(quote, snapshot, policy(), AT+timedelta(seconds=1), entry=True, side="bid")
+    unit_book, reason = book(quote, snapshot, policy(legacy=True), AT+timedelta(seconds=1), entry=True, side="bid")
     assert unit_book is None and reason == "INSUFFICIENT_DEPTH"
-    lots = policy(evidence={**policy().evidence.model_dump(), "depth_unit": "LOTS"})
+    lots = policy(legacy=True, evidence={**policy().evidence.model_dump(), "depth_unit": "LOTS"})
     lot_book, reason = book(quote, snapshot, lots, AT+timedelta(seconds=1), entry=True, side="bid")
     assert reason is None and lot_book["validation"]["available_units"] == snapshot.lot_size
-    assert lot_book["quote"]["bid_quantity"] == 1 and lot_book["quote"]["depth_unit"] == "UNKNOWN"
+    assert lot_book["quote"]["bid_quantity"] == 1 and lot_book["quote"]["depth_unit"] == "UNITS"
     with pytest.raises(ValueError):
         policy(evidence={**policy().evidence.model_dump(), "depth_unit": "UNKNOWN"})
 
@@ -267,7 +275,7 @@ def test_margin_evidence_is_exact_current_and_unambiguous(kind):
     record = dict(instrument_id="CRUDEOILM", short_token="TEST_SHORT", hedge_token="TEST_HEDGE",
         expiry="2099-10-15", lot_size=10, required_margin=7000, observed_at=at,
         source="SYNTHETIC_PORTFOLIO_ESTIMATE", portfolio_verified=True)
-    configured = policy(margin_evidence=[record, record] if kind == "ambiguous" else [record])
+    configured = policy(legacy=True, margin_evidence=[record, record] if kind == "ambiguous" else [record])
     result = margin_for(configured, "TEST_SHORT", "TEST_HEDGE", configured.evidence.option_expiry, AT)
     assert (result is not None) == (kind == "verified")
     if result:

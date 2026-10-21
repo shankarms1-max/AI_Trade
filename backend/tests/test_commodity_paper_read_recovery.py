@@ -23,6 +23,7 @@ def test_read_views_preserve_zero_vs_unknown_and_hide_stale_pnl(case):
     assert empty["instruments"][0]["realized_gross"] is None
     step(case, 0)
     step(case, 15)
+    step(case, 30)
     result = summary(case[0], cfg, case[3].at)
     row = result["instruments"][0]
     assert row["observation_freshness"] == "FRESH" and row["observation_age_seconds"] == 1
