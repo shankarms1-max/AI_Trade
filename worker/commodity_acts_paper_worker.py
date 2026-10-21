@@ -1,4 +1,4 @@
-"""Dedicated opt-in MCX capture/ACTS research worker. PAPER only; no fills."""
+"""Dedicated opt-in MCX ACTS research and paper worker. Read-only broker access."""
 from datetime import datetime
 from pathlib import Path
 import argparse
@@ -14,7 +14,8 @@ from app.alpha.clock import IST  # noqa: E402
 from app.commodity_acts.broker import CommodityDataError, assert_market_only, make_adapter  # noqa: E402
 from app.commodity_acts.config import CommoditySettings, INSTRUMENTS  # noqa: E402
 from app.commodity_acts.read import summary  # noqa: E402
-from app.commodity_acts.service import CommodityResearch  # noqa: E402
+from app.commodity_acts.paper_read import summary as paper_summary  # noqa: E402
+from app.commodity_acts.paper_coordinator import CommodityPaperCoordinator as CommodityResearch  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.logging import configure_logging, get_logger  # noqa: E402
 from app.db.session import build_engine, build_session_factory  # noqa: E402
@@ -51,6 +52,9 @@ def main(argv=None):
         if args.status:
             result = summary(sessions, config, datetime.now(IST))
             result["instruments"] = [row for row in result["instruments"] if row["instrument_id"] == args.instrument]
+            paper = paper_summary(sessions, config, datetime.now(IST))
+            paper["instruments"] = [row for row in paper["instruments"] if row["instrument_id"] == args.instrument]
+            result["automated_paper"] = paper
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
         assert spec is not None

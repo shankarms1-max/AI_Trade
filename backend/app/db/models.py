@@ -665,3 +665,7 @@ from app.commodity_acts.models import (  # noqa: F401, E402
     CommodityMarketSnapshotRecord, CommodityOptionQuoteRecord, CommodityActsCursor,
     CommodityActsEvent, CommodityActsDecision,
 )
+from app.commodity_acts.paper_models import (  # noqa: F401, E402
+    CommodityPaperControl, CommodityPaperCursor, CommodityPaperEvent, CommodityPaperFill,
+    CommodityPaperOrder, CommodityPaperPosition,
+)

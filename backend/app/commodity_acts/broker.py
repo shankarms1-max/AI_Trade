@@ -196,7 +196,7 @@ class KotakCommodityMarketData:
                 result[token] = row
         return result
 
-    def capture(self, spec: InstrumentSpec) -> CommoditySnapshot:
+    def capture(self, spec: InstrumentSpec, *, required_options=()) -> CommoditySnapshot:
         started = self._clock()
         key = spec.instrument_id, spec.underlying, started.date()
         if key not in self._master_cache:
@@ -211,7 +211,9 @@ class KotakCommodityMarketData:
         strikes = sorted({row["resolved_strike"] for row in options})
         nearest = min(range(len(strikes)), key=lambda i: (abs(strikes[i] - future_price), strikes[i]))
         selected = set(strikes[max(0, nearest - self._range):nearest + self._range + 1])
-        options = [row for row in options if row["resolved_strike"] in selected]
+        required_tokens = {row["instrument_token"] for row in required_options if row.get("exchange") == SEGMENT
+                           and str(row.get("expiry")) == options[0]["resolved_expiry"].isoformat()}
+        options = [row for row in options if row["resolved_strike"] in selected or row["resolved_token"] in required_tokens]
         quotes = self._quotes(options)
         if not quotes:
             raise CommodityDataError("OPTION_CHAIN_UNAVAILABLE")

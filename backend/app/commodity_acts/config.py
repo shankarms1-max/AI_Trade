@@ -64,7 +64,8 @@ class InstrumentSpec(InstrumentAlias):
 
 class CommoditySettings(BaseSettings):
     """Separate opt-in settings; no change to existing NIFTY Settings defaults."""
-    model_config = SettingsConfigDict(env_prefix="COMMODITY_ACTS_", env_file=".env", extra="ignore", hide_input_in_errors=True)
+    model_config = SettingsConfigDict(env_prefix="COMMODITY_ACTS_", env_file=".env", extra="ignore", hide_input_in_errors=True,
+                                     allow_inf_nan=False)
     paper_enabled: bool = False
     crudeoilm_enabled: bool = False
     natgasmini_enabled: bool = False
@@ -83,6 +84,19 @@ class CommoditySettings(BaseSettings):
     max_quote_age_seconds: int = Field(default=30, ge=1, le=600)
     minimum_option_pairs: int = Field(default=3, ge=1, le=21)
     history_limit: int = Field(default=5000, ge=100, le=10000)
+    trading_enabled: bool = False
+    paper_policies_json: str = "{}"
+    global_max_positions: int = Field(default=2, ge=1, le=2)
+    global_max_defined_risk: float | None = Field(default=None, gt=0)
+    global_daily_loss_limit: float | None = Field(default=None, gt=0)
+
+    def trading_policy(self, instrument):
+        import json
+        from app.commodity_acts.paper_policy import PaperPolicy
+        raw = json.loads(self.paper_policies_json)
+        if not isinstance(raw, dict) or set(raw) - set(INSTRUMENTS):
+            raise ValueError("COMMODITY_PAPER_POLICY_MAP_REQUIRED")
+        return PaperPolicy.model_validate(raw[instrument]) if instrument in raw else None
 
     def enabled(self, instrument: InstrumentId) -> bool:
         return self.paper_enabled and getattr(self, f"{instrument.lower()}_enabled")

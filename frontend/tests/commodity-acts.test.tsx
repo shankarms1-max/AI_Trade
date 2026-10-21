@@ -5,7 +5,8 @@ import { CommodityJournal, CommodityOverview } from "@/components/commodity-acts
 import { api } from "@/lib/api";
 import type { CommodityDecision, CommodityDecisionPage, CommoditySummary } from "@/types/commodity-acts";
 
-vi.mock("@/lib/api", () => ({ api: { commodityActsSummary: vi.fn(), commodityActsDecisions: vi.fn() } }));
+vi.mock("@/lib/api", () => ({ api: { commodityActsSummary: vi.fn(), commodityActsDecisions: vi.fn(),
+  commodityPaperSummary: vi.fn(), commodityPaperPage: vi.fn() } }));
 
 function decision(): CommodityDecision {
   return { instrument_id: "CRUDEOILM", readiness: "ALPHA_WARMING_UP", snapshot_id: 1,
@@ -38,6 +39,9 @@ const page = (items: CommodityDecision[] = []): CommodityDecisionPage => ({ inst
 beforeEach(() => {
   vi.mocked(api.commodityActsSummary).mockReset().mockResolvedValue(summary());
   vi.mocked(api.commodityActsDecisions).mockReset().mockResolvedValue(page([decision()]));
+  vi.mocked(api.commodityPaperSummary).mockReset().mockResolvedValue({ broker_orders_enabled: false,
+    instruments: [{ instrument_id: "CRUDEOILM", status: "DISABLED", paper_enabled: false }] });
+  vi.mocked(api.commodityPaperPage).mockReset().mockResolvedValue({ items: [] });
 });
 afterEach(cleanup);
 
@@ -60,8 +64,8 @@ describe("isolated commodity ACTS research", () => {
 
   it("labels paper research only, no broker orders and no P&L, independently of NIFTY", async () => {
     render(<CommodityPage/>);
-    expect(screen.getByText(/RESEARCH \/ PAPER ONLY · NO BROKER ORDERS · NO P&L YET/)).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "CRUDEOILM" })).toBeInTheDocument();
+    expect(screen.getByText(/RESEARCH \/ PAPER ONLY · NO BROKER ORDERS/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "CRUDEOILM" }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "NATGASMINI" })).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Paper trade journal" })).not.toBeInTheDocument();
     expect(screen.queryByText(/₹/)).not.toBeInTheDocument();

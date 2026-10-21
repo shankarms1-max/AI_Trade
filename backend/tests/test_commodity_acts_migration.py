@@ -62,7 +62,8 @@ def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, marke
 
 def test_commodity_migration_is_the_single_head_with_unchanged_parent():
     scripts = ScriptDirectory.from_config(migration_config("sqlite://"))
-    assert scripts.get_heads() == ["0020_commodity_acts_research"]
+    assert scripts.get_heads() == ["0021_commodity_paper_trades"]
+    assert scripts.get_revision("0021_commodity_paper_trades").down_revision == "0020_commodity_acts_research"
     assert scripts.get_revision("0020_commodity_acts_research").down_revision == "0019_parallel_paper"
 
 
