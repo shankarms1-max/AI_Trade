@@ -198,10 +198,11 @@ Before any separately authorized deployment:
    `deploy/expired-paper-exposure`. Do not replace the running frontend with this
    branch wholesale or merge unrelated changes blindly. Existing NIFTY root/Phase15
    components are unchanged here.
-2. Back up the DB and validate additive `0020 -> 0021` against disposable PostgreSQL
-   16, including concurrent instrument workers, immutable evidence and recovery.
-   Local SQLite integration and PostgreSQL offline DDL are not a substitute for
-   that check. Do not downgrade a populated research ledger to discard evidence.
+2. Back up the DB and rehearse deployment against an appropriate staging copy.
+   The disposable local PostgreSQL 16.15 integration check is now complete: migration,
+   concurrent instruments, immutable evidence and recovery passed (details below).
+   This does not replace production backup/approval or validate real MCX quotes.
+   Do not downgrade a populated research ledger to discard evidence.
 3. Apply, only with separate deployment approval and the normal production DB
    configuration: `python -m alembic upgrade 0021_commodity_paper_trades`.
    No migration was applied to production during development. V1 capture still
@@ -256,8 +257,8 @@ part of this implementation.
 
 ## Remaining evidence limitations
 
-Current market-hours MCX execution metadata/depth and the disposable PostgreSQL
-runtime check remain deployment blockers. Both margin verdicts remain unverified;
+Current market-hours MCX execution metadata/depth remain deployment blockers.
+The disposable PostgreSQL runtime check is complete. Both margin verdicts remain unverified;
 capital efficiency and production readiness cannot be claimed. Normal option
 expiry/devolvement cannot be paper-settled without observed supported evidence, so
 missing end-of-session books remain unresolved exposure. Dated metadata expiring
@@ -291,6 +292,7 @@ backend/tests/test_commodity_acts_migration.py
 backend/tests/test_commodity_paper.py
 backend/tests/test_commodity_paper_controls.py
 backend/tests/test_commodity_paper_migration.py
+backend/tests/test_commodity_paper_postgresql.py
 backend/tests/test_commodity_paper_read_recovery.py
 backend/tests/test_scalper_migration.py
 docs/commodity-paper-trades.md
@@ -307,7 +309,7 @@ The two existing migration tests change only the expected migration head/parent.
 The DB model registry and API client additions are registration-only for the new
 commodity tables/read methods. No deployed NIFTY dashboard root is modified.
 
-## Local validation
+## Prior implementation validation (`55538e23`)
 
 Broader backend regression: **1,713 passed, 10 skipped**, no failures. Final
 commodity-focused checks (including subsequently added provenance/clock/depth
@@ -330,3 +332,64 @@ $env:PYTHON_DOTENV_DISABLED='1'
 The environment switch prevents Alembic's dotenv loader from modifying test
 environment settings. All migration execution in these tests targets temporary
 databases (or an explicitly supplied disposable PostgreSQL schema), not production.
+
+## PostgreSQL integration validation
+
+**48 passed, 0 failed, 0 skipped** on a disposable local Docker PostgreSQL
+**16.15 (Debian 16.15-1.pgdg13+2)** instance, using psycopg and the real Alembic
+migrations. These comprise 46 cases in `test_commodity_paper_postgresql.py` and
+the two existing PostgreSQL commodity migration tests. No SQLite results are
+substituted here. The full previously passing backend/frontend suites were not
+repeated. The existing Starlette/httpx deprecation warning is unrelated.
+
+Validated:
+
+- `0020 -> 0021` with both commodities' existing research: four snapshots,
+  168 exact option rows, four original Alpha/ACTS decisions, four journal events,
+  and both cursors. Every pre-existing table's rows, columns, PK/FK/unique/check
+  constraints, indexes, triggers and existing sequence counters remain unchanged.
+  Representative NIFTY snapshot/option data is included in this comparison.
+- A separately created **fresh database**, not just `create_all()` or a new schema,
+  migrates from empty to head `0021_commodity_paper_trades` with correct genesis seeds.
+- Bull/bear entries for both instruments, next-observation exits/P&L, missing/stale
+  and partial books, native mirror exits, profit/stop/trailing/forced exits, TTL,
+  atomic transaction rollback and journal/global-control validation.
+- Pending entries, open positions, pending exits and unresolved exits survive
+  disposal of the original connection pool and recovery through a fresh engine,
+  session factory and coordinator. Duplicate observations do not duplicate fills.
+- Separate-connection concurrent instruments respect the global reservation limit;
+  simultaneous duplicate processing produces exactly one atomic fill. PostgreSQL
+  composite foreign keys reject cross-instrument order/fill ownership (`23503`).
+- Actual database triggers reject UPDATE, DELETE and TRUNCATE of paper fills/events.
+  Read-only views, coordinator crash-gap recovery and initial cursor recovery work.
+
+No PostgreSQL compatibility fixes to the engine, ORM or migrations were required.
+Only the opt-in integration tests and this evidence/checklist were added/updated.
+All test markets/contract attestations remain synthetic, not actual MCX validation.
+No production database, worker, deployment, credential file or strategy flag was used.
+
+The server was bound only to `127.0.0.1` on an assigned ephemeral port. Its Docker
+image was `postgres:16`, resolved to
+`sha256:a902560563d3a5661228585f53474c5065e7f273b21ffd77e555a8b5682c5690`.
+The disposable server contains only synthetic fixtures; local trust authentication
+is for this isolated test instance only, never a production configuration.
+
+To repeat against a new dedicated disposable instance:
+
+```powershell
+docker --context desktop-linux run --detach --rm --name ai-trade-commodity-pg-validation --publish 127.0.0.1::5432 --env POSTGRES_USER=commodity_validation --env POSTGRES_DB=commodity_paper_validation --env POSTGRES_HOST_AUTH_METHOD=trust postgres:16
+docker --context desktop-linux port ai-trade-commodity-pg-validation 5432/tcp
+# Replace <port> with the reported loopback port; wait for pg_isready first.
+$env:COMMODITY_POSTGRES_TEST_URL='postgresql+psycopg://commodity_validation@127.0.0.1:<port>/commodity_paper_validation'
+$env:PHASE15_POSTGRES_TEST_URL=$env:COMMODITY_POSTGRES_TEST_URL
+$env:PYTHON_DOTENV_DISABLED='1'
+.venv\Scripts\python.exe -m pytest -o addopts='' backend/tests/test_commodity_paper_postgresql.py backend/tests/test_commodity_paper_migration.py::test_postgresql_paper_migration_on_disposable_schema backend/tests/test_commodity_acts_migration.py::test_commodity_postgresql_additive_migration -q
+docker --context desktop-linux stop ai-trade-commodity-pg-validation
+```
+
+The new suite rejects non-loopback URLs, other database/user names and connection
+query overrides. It never reads `DATABASE_URL` as its test target. Each runtime case
+uses a private schema with migrated triggers/FKs; only mutable genesis seeds are
+reset so the original fixtures can insert their identical seed records. Test-created
+schemas/fresh databases are dropped afterward. No engine behavior is patched to
+work around PostgreSQL; the established synthetic directional context is reused.
