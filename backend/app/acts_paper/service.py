@@ -137,9 +137,10 @@ class ActsPaperService:
             "strategy_version": acts.STRATEGY_ID, "parameters": acts.PARAMETERS,
             "config": self.config.payload(), "costs": self.costs.payload(),
             "execution_mode": "PAPER", "lots": 1}))
-        # Phase 15 V2 construction only; preserve the ACTS V1 compatibility hash.
+        # Phase 15 V2 execution only; preserve the ACTS V1 compatibility hash.
         if self.v2_config is not None:
-            self.config = replace(self.config, allowed_widths=(400,))
+            self.config = replace(self.config, allowed_widths=(400,),
+                                  max_trades_per_day=min(base.max_trades_per_day, 6))
         self.policy = (None if self.v2_config is None else json_value({
                                 "strategy_version": acts_v2.STRATEGY_ID,
                                 "parameters": self.v2_config.payload(),
