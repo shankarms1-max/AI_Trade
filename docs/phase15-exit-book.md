@@ -63,3 +63,7 @@ separate explicitly authorized journal-safe plan, not a policy-document edit.
 Historical CLOSED and ENTRY_REJECTED rows do not block startup and remain intact.
 
 No production database access, orders, deployment or push is performed here.
+
+The expiry-only startup exception and unpriced terminal lifecycle are documented
+in [Phase 15 expiry lifecycle](phase15-expiry-lifecycle.md). Non-expired
+old-policy exposure remains subject to the zero-active upgrade guard.

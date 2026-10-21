@@ -19,7 +19,7 @@ from app.acts_paper.diagnostics import alpha_readiness, regime_readiness
 from app.alpha.engine import config_from_settings
 from app.core.logging import get_logger
 from app.data.models import OptionContractSnapshot
-from app.paper import exit_book, mirror_exit
+from app.paper import exit_book, expiry, mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -58,6 +58,7 @@ def _lab_trade(row: ActsPaperTrade) -> LabTrade | None:
                      exit_timestamp=_at(doc.get("exit_timestamp")),
                      exit_reason=doc.get("exit_reason"),
                      outcome=doc.get("final_outcome"),
+                     expiry_terminalization=expiry.is_unpriced(doc),
                      best_gross_points=doc.get("best_gross_points", 0.0),
                      mae=doc.get("mae", 0.0), mfe=doc.get("mfe", 0.0))
     trade.acts_adverse_since = {key: datetime.fromisoformat(value) for key, value
@@ -158,11 +159,30 @@ class ActsPaperService:
                 self._assert_entry_policy_upgrade_safe(session.scalars(select(ActsPaperTrade).where(
                     ActsPaperTrade.state.in_(ACTIVE))).all())
 
-    def _assert_entry_policy_upgrade_safe(self, trades: Iterable[ActsPaperTrade]) -> None:
+    def _terminalize_expired(self, session: Session, cursor: ActsPaperCursor,
+                             snapshot_id: int, raw: ScalperMarketSnapshot, trade: ActsPaperTrade) -> bool:
+        doc = json.loads(trade.document)
+        if doc.get("strategy_version") != acts_v2.STRATEGY_ID:
+            return False
+        state = expiry.terminalize(trade.state, doc, raw.captured_at, snapshot_id)
+        if state is None:
+            return False
+        self._save(trade, doc, state)
+        self._emit(session, cursor, "ACTS_ENTRY_REJECTED" if state == "ENTRY_REJECTED" else
+                   "ACTS_CONTRACT_EXPIRED", snapshot_id, raw, trade,
+                   reason=doc.get("rejection_reason") if state == "ENTRY_REJECTED" else "CONTRACT_EXPIRED_UNPRICED",
+                   lifecycle_version=expiry.VERSION)
+        return True
+
+    def _assert_entry_policy_upgrade_safe(self, trades: Iterable[ActsPaperTrade],
+                                          at: datetime | None = None) -> None:
         if self.v2_config is None:
             return
         for trade in trades:
             doc = json.loads(trade.document)
+            if (doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                    and expiry.expired(doc, at or datetime.now(IST))):
+                continue
             if (doc.get("strategy_version") == acts_v2.STRATEGY_ID
                     and doc.get("policy", {}).get("entry_policy_version") != V2_ENTRY_POLICY_VERSION):
                 raise RuntimeError("ACTS_V2_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
@@ -277,6 +297,8 @@ class ActsPaperService:
                     snapshot_id: int, raw: ScalperMarketSnapshot,
                     ctx: dict[str, Any], trade: ActsPaperTrade,
                     blocked: bool) -> None:
+        if self._terminalize_expired(session, cursor, snapshot_id, raw, trade):
+            return
         doc = json.loads(trade.document)
         if trade.state == "UNRESOLVED_EXPOSURE":
             return
@@ -435,8 +457,13 @@ class ActsPaperService:
             active = session.scalars(select(ActsPaperTrade).where(
                 ActsPaperTrade.state.in_(ACTIVE)).order_by(
                     ActsPaperTrade.decision_snapshot_id)).all()
-            self._assert_entry_policy_upgrade_safe(active)
             for trade in active:
+                self._terminalize_expired(session, cursor, snapshot_id, raw, trade)
+            self._assert_entry_policy_upgrade_safe(
+                (trade for trade in active if trade.state in ACTIVE), raw.captured_at)
+            for trade in active:
+                if trade.state not in ACTIVE:
+                    continue
                 self._transition(session, cursor, snapshot_id, raw, ctx, trade, blocked)
             mirror_closed = any(
                 trade.state == "CLOSED" and json.loads(trade.document).get("exit_reason") == mirror_exit.ACTS_REASON
@@ -582,14 +609,17 @@ class ActsPaperService:
                        watch=watch, latest=latest, **details)
             return status
 
-    def required_contracts(self) -> list[OptionContractSnapshot]:
+    def required_contracts(self, at: datetime | None = None) -> list[OptionContractSnapshot]:
         """Ask market-data capture for held exact legs, including pending hedges."""
         with self.sessions() as session:
             rows = session.scalars(select(ActsPaperTrade).where(
                 ActsPaperTrade.state.in_(("PENDING_PAPER_ENTRY", "OPEN")))).all()
             result: dict[tuple[str, str], OptionContractSnapshot] = {}
             for row in rows:
-                candidate = json.loads(row.document)["candidate"]
+                doc = json.loads(row.document)
+                if doc.get("strategy_version") == acts_v2.STRATEGY_ID and expiry.expired(doc, at or datetime.now(IST)):
+                    continue
+                candidate = doc["candidate"]
                 for name in ("short_leg", "long_leg"):
                     leg = candidate[name]
                     result[(leg["exchange"], leg["instrument_token"])] = (
@@ -606,7 +636,7 @@ class ActsPaperService:
             docs = [(row.state, json.loads(row.document)) for row in rows]
             today = [(row.id, state, doc) for row, (state, doc) in zip(rows, docs)
                      if doc["decision_timestamp"][:10] == str(day)]
-            closed = [doc for _, state, doc in today if state == "CLOSED"]
+            closed = [doc for _, state, doc in today if state == "CLOSED" and not expiry.is_unpriced(doc)]
             active = next(((state, doc) for state, doc in reversed(docs)
                            if state in ACTIVE), None)
             realized = sum(doc["final_outcome"]["gross_rupees"] for doc in closed)
@@ -645,6 +675,10 @@ class ActsPaperService:
                     "exit_timestamp": doc.get("exit_timestamp"),
                     "gross_pnl": doc.get("gross_pnl")}
                     for trade_id, state, doc in today],
+                "open_position_count": sum(state == "OPEN" for state, _ in docs),
+                "unresolved_exposure_count": sum(state == "UNRESOLVED_EXPOSURE" for state, _ in docs),
+                "expired_unpriced_count": sum(state == "CLOSED" and expiry.is_unpriced(doc)
+                                              for state, doc in docs),
                 "realized_gross_pnl": realized,
                 "unrealized_gross_pnl": unrealized,
                 "total_gross_pnl": realized + unrealized if unrealized is not None

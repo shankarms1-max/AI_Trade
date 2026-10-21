@@ -19,6 +19,8 @@ export interface Phase15Trade {
   realized_gross_pnl: number | null; current_unrealized_gross_pnl: number | null;
   mfe: number | null; mae: number | null; holding_seconds: number | null;
   entry_reason: string | null; exit_reason: string | null; false_breakout: boolean | null;
+  expiry_terminalization?: boolean; exit_pricing_status?: string | null;
+  terminalized_at?: string | null; terminal_status?: string | null;
   exit_policy_version?: string | null; best_gross_points?: number | null;
   mirror_diagnostics?: Record<string, unknown> | null;
 }
@@ -27,13 +29,15 @@ export interface Phase15Strategy {
   wins_today: number | null; losses_today: number | null; entry_rejections_today: number | null;
   latest_rejection_reason: string | null; realized_gross_pnl_today: number | null;
   unrealized_gross_pnl: number | null; open_position_count: number | null;
+  unresolved_exposure_count: number | null; expired_unpriced_count: number | null;
   latest_status: string | null; latest_blocker: string | null; latest_timestamp: string | null;
   accounting_status: "GROSS_ONLY"; today_trades: Phase15Trade[];
 }
 export interface Phase15Summary {
   mode: "PAPER"; as_of: string; accounting_status: "GROSS_ONLY";
   totals: { realized_gross_pnl_today: number | null; unrealized_gross_pnl: number | null;
-    combined_gross_pnl: number | null; open_positions: number | null; trades_today: number | null };
+    combined_gross_pnl: number | null; open_positions: number | null;
+    unresolved_exposures: number | null; expired_unpriced_count: number | null; trades_today: number | null };
   strategies: Phase15Strategy[];
 }
 export interface Phase15PaperTrade extends Omit<Phase15Trade, "mirror_diagnostics" | "false_breakout"> {

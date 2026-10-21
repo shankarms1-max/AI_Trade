@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
 from app.parallel_paper.config import STRATEGIES
+from app.paper import expiry
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST
@@ -42,7 +43,11 @@ def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
     if holding is None and entry_at and exit_at:
         holding = (datetime.fromisoformat(exit_at) - datetime.fromisoformat(entry_at)).total_seconds()
     return {
-        "trade_id": row.id, "state": row.state, "direction": doc.get("direction"),
+        "trade_id": row.id, "state": row.state,
+        "expiry_terminalization": expiry.is_unpriced(doc),
+        "exit_pricing_status": doc.get("exit_pricing_status"),
+        "terminalized_at": doc.get("terminalized_at"),
+        "terminal_status": expiry.LABEL if expiry.is_unpriced(doc) else None, "direction": doc.get("direction"),
         "decision_timestamp": doc.get("decision_timestamp"), "entry_timestamp": entry_at,
         "exit_timestamp": exit_at, "short_strike": doc.get("short_strike", short.get("strike")),
         "hedge_strike": doc.get("hedge_strike", long.get("strike")),
@@ -67,6 +72,7 @@ def _unavailable(strategy: str) -> dict:
             "wins_today": None, "losses_today": None, "entry_rejections_today": None,
             "latest_rejection_reason": None, "realized_gross_pnl_today": None,
             "unrealized_gross_pnl": None, "open_position_count": None,
+            "unresolved_exposure_count": None, "expired_unpriced_count": None,
             "latest_status": None, "latest_blocker": None, "latest_timestamp": None,
             "accounting_status": "GROSS_ONLY", "today_trades": []}
 
@@ -81,36 +87,52 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
         return _unavailable(strategy)
     rejections: list[str | None] = []
     failed_marks: dict[str, bool] = {}
+    blocked_signals: set[tuple] = set()
+    rejected_trades: set[str] = set()
     for event in events:
         payload = json.loads(event.payload)
         if strategy == "ACTS_V2":
             if payload.get("strategy_version") != "ACTS_V2":
                 continue
             if event.event_type == "ACTS_ENTRY_REJECTED":
-                rejections.append(payload.get("reason"))
+                if event.trade_id is None or event.trade_id not in rejected_trades:
+                    rejections.append(payload.get("reason"))
+                if event.trade_id is not None:
+                    rejected_trades.add(event.trade_id)
             elif event.event_type == "ACTS_MARK" and event.trade_id:
                 failed_marks[event.trade_id] = payload.get("available") is False
         else:
             if event.event_type == "OBSERVATION":
                 decision = payload.get("decision") or {}
                 if decision.get("status") == "ENTRY_REJECTED":
-                    rejections.append(next(iter(decision.get("blockers") or []), None))
+                    breakout = (decision.get("features") or {}).get("breakout_timestamp")
+                    identity = (strategy, day.isoformat(), decision.get("direction"), breakout)
+                    if not strategy.startswith("ORB_") or not breakout or identity not in blocked_signals:
+                        rejections.append(next(iter(decision.get("blockers") or []), None))
+                    if strategy.startswith("ORB_") and breakout:
+                        blocked_signals.add(identity)
             elif event.event_type == "ENTRY_REJECTED":
-                rejections.append(payload.get("reason"))
+                if event.trade_id is None or event.trade_id not in rejected_trades:
+                    rejections.append(payload.get("reason"))
+                if event.trade_id is not None:
+                    rejected_trades.add(event.trade_id)
             elif event.event_type == "MARK" and event.trade_id:
                 failed_marks[event.trade_id] = payload.get("available") is False
 
     entered: list[dict] = []
     closed_today: list[dict] = []
     active: list[dict] = []
+    unresolved_count = expired_count = 0
     for row in rows:
         doc = json.loads(row.document)
         if strategy == "ACTS_V2" and doc.get("strategy_version") != "ACTS_V2":
             continue
         mark_available = not failed_marks.get(row.id, False)
+        unresolved_count += row.state == "UNRESOLVED_EXPOSURE"
+        expired_count += row.state == "CLOSED" and expiry.is_unpriced(doc)
         if row.state in ACTIVE_EXPOSURE:
             active.append(_trade(row, doc, mark_available))
-        if row.state == "CLOSED" and _on_day(doc.get("exit_timestamp"), day):
+        if row.state == "CLOSED" and not expiry.is_unpriced(doc) and _on_day(doc.get("exit_timestamp"), day):
             closed_today.append(_trade(row, doc, mark_available))
         if doc.get("entry_timestamp") and _on_day(doc["entry_timestamp"], day):
             entered.append(_trade(row, doc, mark_available))
@@ -128,7 +150,9 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
             "entry_rejections_today": len(rejections),
             "latest_rejection_reason": rejections[-1] if rejections else None,
             "realized_gross_pnl_today": realized, "unrealized_gross_pnl": unrealized,
-            "open_position_count": len(active), "latest_status": latest.get("status"),
+            "open_position_count": sum(trade["state"] == "OPEN" for trade in active),
+            "unresolved_exposure_count": unresolved_count, "expired_unpriced_count": expired_count,
+            "latest_status": latest.get("status"),
             "latest_blocker": latest_blocker,
             "latest_timestamp": latest.get("timestamp") or cursor.observed_at,
             "accounting_status": "GROSS_ONLY",
@@ -176,6 +200,8 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
     unrealized = [row["unrealized_gross_pnl"] for row in strategies]
     open_counts = [row["open_position_count"] for row in strategies]
     trade_counts = [row["trades_today"] for row in strategies]
+    unresolved_counts = [row["unresolved_exposure_count"] for row in strategies]
+    expired_counts = [row["expired_unpriced_count"] for row in strategies]
     realized_total = sum(realized) if all(value is not None for value in realized) else None
     unrealized_total = sum(unrealized) if all(value is not None for value in unrealized) else None
     return {"mode": "PAPER", "as_of": at.isoformat(), "accounting_status": "GROSS_ONLY",
@@ -184,5 +210,9 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
                        "combined_gross_pnl": (realized_total + unrealized_total
                                               if realized_total is not None and unrealized_total is not None else None),
                        "open_positions": sum(open_counts) if all(value is not None for value in open_counts) else None,
+                       "unresolved_exposures": (sum(unresolved_counts)
+                                                if all(v is not None for v in unresolved_counts) else None),
+                       "expired_unpriced_count": (sum(expired_counts)
+                                                  if all(v is not None for v in expired_counts) else None),
                        "trades_today": sum(trade_counts) if all(value is not None for value in trade_counts) else None},
             "strategies": strategies}

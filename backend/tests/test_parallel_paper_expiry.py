@@ -169,7 +169,7 @@ def test_all_five_pending_fills_recheck_expired_contract(engine, strategy):
     paper.configs[strategy] = replace(paper.configs[strategy], entry_ttl_seconds=25 * 3600)
     fill(engine, paper, strategy, current, samples, completed, 24 * 3600)
     state, rejected = stored(paper, strategy)
-    assert state == "ENTRY_REJECTED" and rejected["rejection_reason"] == "EXPIRED_CONTRACT_ENTRY_FORBIDDEN"
+    assert state == "ENTRY_REJECTED" and rejected["rejection_reason"] == "CONTRACT_EXPIRED_BEFORE_FILL"
     assert rejected.get("entry_credit") is None
     verify_journals(paper.sessions)
 

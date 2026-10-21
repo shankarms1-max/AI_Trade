@@ -23,6 +23,7 @@ function fixture(): Phase15Summary {
     latest_rejection_reason: index === 1 ? "MAX_TRADES_PER_DAY_REACHED" : null,
     realized_gross_pnl_today: index === 2 ? 250 : 0,
     unrealized_gross_pnl: index === 0 ? -187.5 : 0, open_position_count: index === 0 ? 1 : 0,
+    unresolved_exposure_count: 0, expired_unpriced_count: 0,
     latest_status: index === 0 ? "OPEN" : "NO_SETUP",
     latest_blocker: index === 1 ? "ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT" : null,
     latest_timestamp: "2026-10-15T04:03:00+00:00", accounting_status: "GROSS_ONLY",
@@ -31,7 +32,7 @@ function fixture(): Phase15Summary {
   return {
     mode: "PAPER", as_of: "2026-10-15T04:06:00+00:00", accounting_status: "GROSS_ONLY",
     totals: { realized_gross_pnl_today: 250, unrealized_gross_pnl: -187.5,
-      combined_gross_pnl: 62.5, open_positions: 1, trades_today: 1 }, strategies,
+      combined_gross_pnl: 62.5, open_positions: 1, unresolved_exposures: 0, expired_unpriced_count: 0, trades_today: 1 }, strategies,
   };
 }
 
@@ -65,6 +66,25 @@ describe("Phase 15 monitor", () => {
     expect(screen.getByText(/Entry rejections today: 1/)).toBeInTheDocument();
     expect(screen.getByText("NO ENTERED TRADES TODAY")).toBeInTheDocument();
     expect(screen.getByText("Re-entry disabled / same breakout")).toBeInTheDocument();
+  });
+
+  it("separates unresolved and expired unpriced records from open and realized P&L", async () => {
+    const data = fixture();
+    data.totals.unresolved_exposures = 2;
+    data.totals.expired_unpriced_count = 3;
+    data.strategies[0].unresolved_exposure_count = 2;
+    data.strategies[0].expired_unpriced_count = 3;
+    data.strategies[0].today_trades = [{ ...openTrade, state: "CLOSED", current_debit: null,
+      current_unrealized_gross_pnl: null, expiry_terminalization: true,
+      terminal_status: "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE", exit_reason: "CONTRACT_EXPIRED_UNPRICED" }];
+    vi.mocked(api.phase15Summary).mockResolvedValue(data);
+    render(<Phase15Monitor/>);
+    fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
+    expect(screen.getByText("Unresolved Exposures")).toBeInTheDocument();
+    expect(screen.getAllByText("Expired Unpriced")).toHaveLength(2);
+    const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
+    expect(within(details).getByText("CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE")).toBeInTheDocument();
+    expect(within(details).queryByText(/₹0/)).not.toBeInTheDocument();
   });
 
   it("treats ordinary blockers as labels, not errors", () => {

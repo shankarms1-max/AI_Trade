@@ -27,16 +27,17 @@ def seed(sessions, at=AT):
                              "timestamp": at.isoformat()}), observed_at=at.isoformat())
                          for name in STRATEGIES])
         session.add(ActsPaperCursor(id=1, sequence=0, head_hash="GENESIS", lock_version=0,
-                         watch_json="{}", latest_json=json.dumps({
-                             "strategy_version": "ACTS_V2", "status": "WATCH",
-                             "primary_blocker": "VOLUME_CONFIRMATION_REQUIRED",
-                             "timestamp": at.isoformat()}), observed_at=at.isoformat()))
+                                    watch_json="{}", latest_json=json.dumps({
+                                        "strategy_version": "ACTS_V2", "status": "WATCH",
+                                        "primary_blocker": "VOLUME_CONFIRMATION_REQUIRED",
+                                        "timestamp": at.isoformat()}), observed_at=at.isoformat()))
         for index in (1, 2):
             observed = at + timedelta(seconds=index * 15)
             session.add(ScalperMarketSnapshotRecord(id=index, capture_key=f"test-{index}",
-                captured_at=observed, request_started_at=observed, response_received_at=observed,
-                nifty_spot=25000, lot_size=50, atm_strike=25000, expiry=at.date(),
-                source="TEST", feature_json="{}", signal_json="{}"))
+                                                    captured_at=observed, request_started_at=observed,
+                                                    response_received_at=observed,
+                                                    nifty_spot=25000, lot_size=50, atm_strike=25000, expiry=at.date(),
+                                                    source="TEST", feature_json="{}", signal_json="{}"))
 
 
 def trade_doc(at=AT, *, gross=120, mark=None, entry=True, exit=False):
@@ -57,30 +58,30 @@ def trade_doc(at=AT, *, gross=120, mark=None, entry=True, exit=False):
 def parallel_trade(sessions, strategy, trade_id, state, doc):
     with sessions.begin() as session:
         session.add(ParallelPaperTrade(id=trade_id, strategy_id=strategy,
-            strategy_version=f"{strategy}_V1", decision_snapshot_id=1,
-            state=state, document=json.dumps(doc)))
+                                       strategy_version=f"{strategy}_V1", decision_snapshot_id=1,
+                                       state=state, document=json.dumps(doc)))
 
 
 def acts_trade(sessions, trade_id, state, doc):
     with sessions.begin() as session:
         session.add(ActsPaperTrade(id=trade_id, decision_snapshot_id=2,
-            state=state, document=json.dumps(doc)))
+                                   state=state, document=json.dumps(doc)))
 
 
 def parallel_event(sessions, strategy, sequence, kind, payload, *, snapshot_id=1, trade_id=None):
     with sessions.begin() as session:
         session.add(ParallelPaperEvent(strategy_id=strategy, sequence=sequence,
-            event_key=f"{snapshot_id}:{sequence}:{kind}", event_type=kind,
-            snapshot_id=snapshot_id, trade_id=trade_id,
-            previous_hash="a" * 64, event_hash="b" * 64, payload=json.dumps(payload)))
+                                       event_key=f"{snapshot_id}:{sequence}:{kind}", event_type=kind,
+                                       snapshot_id=snapshot_id, trade_id=trade_id,
+                                       previous_hash="a" * 64, event_hash="b" * 64, payload=json.dumps(payload)))
 
 
 def acts_event(sessions, sequence, kind, payload, *, snapshot_id=2, trade_id=None):
     with sessions.begin() as session:
         session.add(ActsPaperEvent(sequence=sequence,
-            event_key=f"{snapshot_id}:{sequence}:{kind}", event_type=kind,
-            snapshot_id=snapshot_id, trade_id=trade_id,
-            previous_hash="a" * 64, event_hash="b" * 64, payload=json.dumps(payload)))
+                                   event_key=f"{snapshot_id}:{sequence}:{kind}", event_type=kind,
+                                   snapshot_id=snapshot_id, trade_id=trade_id,
+                                   previous_hash="a" * 64, event_hash="b" * 64, payload=json.dumps(payload)))
 
 
 def test_six_strategies_and_compact_gross_totals(session_factory):
@@ -90,8 +91,9 @@ def test_six_strategies_and_compact_gross_totals(session_factory):
     result = summary(session_factory, AT)
     assert [row["strategy_id"] for row in result["strategies"]] == ["ACTS_V2", *STRATEGIES]
     assert result["totals"] == {"realized_gross_pnl_today": 120,
-        "unrealized_gross_pnl": -35, "combined_gross_pnl": 85,
-        "open_positions": 1, "trades_today": 2}
+                                "unrealized_gross_pnl": -35, "combined_gross_pnl": 85,
+                                "open_positions": 1, "unresolved_exposures": 0,
+                                "expired_unpriced_count": 0, "trades_today": 2}
     assert result["accounting_status"] == "GROSS_ONLY"
     assert all(row["accounting_status"] == "GROSS_ONLY" for row in result["strategies"])
     assert all("net" not in str(key).lower() for key in result["totals"])
@@ -106,7 +108,7 @@ def test_unknown_mark_and_unresolved_exposure_propagate(session_factory):
     seed(session_factory)
     parallel_trade(session_factory, "ORB_15", "open", "OPEN", trade_doc(mark=55))
     parallel_event(session_factory, "ORB_15", 1, "MARK",
-        {"available": False, "reason": "MISSING_EXACT_CONTRACT"}, trade_id="open")
+                   {"available": False, "reason": "MISSING_EXACT_CONTRACT"}, trade_id="open")
     result = summary(session_factory, AT)
     assert result["strategies"][1]["unrealized_gross_pnl"] is None
     assert result["strategies"][1]["today_trades"][0]["current_debit"] is None
@@ -114,7 +116,8 @@ def test_unknown_mark_and_unresolved_exposure_propagate(session_factory):
 
     acts_trade(session_factory, "unresolved", "UNRESOLVED_EXPOSURE", trade_doc(mark=999))
     result = summary(session_factory, AT)
-    assert result["totals"]["open_positions"] == 2
+    assert result["totals"]["open_positions"] == 1
+    assert result["totals"]["unresolved_exposures"] == 1
     assert result["strategies"][0]["unrealized_gross_pnl"] is None
 
 
@@ -150,13 +153,13 @@ def test_entry_debit_is_not_presented_as_a_current_quote_before_first_mark(sessi
 def test_parallel_decision_rejections_count_without_trade_rows(session_factory):
     seed(session_factory)
     parallel_event(session_factory, "ORB_30", 1, "OBSERVATION",
-        {"decision": {"status": "NO_SETUP", "blockers": ["NO_SETUP"]}})
+                   {"decision": {"status": "NO_SETUP", "blockers": ["NO_SETUP"]}})
     parallel_event(session_factory, "ORB_30", 2, "OBSERVATION",
-        {"decision": {"status": "WATCH", "blockers": ["BAR_ALREADY_EVALUATED"]}})
+                   {"decision": {"status": "WATCH", "blockers": ["BAR_ALREADY_EVALUATED"]}})
     parallel_event(session_factory, "ORB_30", 3, "OBSERVATION",
-        {"decision": {"status": "ENTRY_REJECTED", "blockers": ["MAX_TRADES_PER_DAY_REACHED"]}})
+                   {"decision": {"status": "ENTRY_REJECTED", "blockers": ["MAX_TRADES_PER_DAY_REACHED"]}})
     parallel_event(session_factory, "ORB_30", 4, "OBSERVATION",
-        {"decision": {"status": "WATCH", "blockers": ["ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT"]}})
+                   {"decision": {"status": "WATCH", "blockers": ["ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT"]}})
     row = next(item for item in summary(session_factory, AT)["strategies"] if item["strategy_id"] == "ORB_30")
     assert row["entry_rejections_today"] == 1
     assert row["latest_rejection_reason"] == "MAX_TRADES_PER_DAY_REACHED"
@@ -168,12 +171,12 @@ def test_later_fill_rejection_and_acts_rejections_are_counted_once(session_facto
     seed(session_factory)
     parallel_trade(session_factory, "ORB_15", "rejected", "ENTRY_REJECTED", trade_doc(entry=False))
     parallel_event(session_factory, "ORB_15", 1, "ENTRY_REJECTED",
-        {"reason": "FILL_ECONOMICS_OUTSIDE_RISK"}, trade_id="rejected")
+                   {"reason": "FILL_ECONOMICS_OUTSIDE_RISK"}, trade_id="rejected")
     acts_trade(session_factory, "acts-rejected", "ENTRY_REJECTED", trade_doc(entry=False))
     acts_event(session_factory, 1, "ACTS_ENTRY_REJECTED",
-        {"strategy_version": "ACTS_V2", "reason": "UNKNOWN_REQUIRED_DEPTH"}, trade_id="acts-rejected")
+               {"strategy_version": "ACTS_V2", "reason": "UNKNOWN_REQUIRED_DEPTH"}, trade_id="acts-rejected")
     acts_event(session_factory, 2, "ACTS_OBSERVATION",
-        {"strategy_version": "ACTS_V2", "latest": {"status": "ENTRY_REJECTED"}})
+               {"strategy_version": "ACTS_V2", "latest": {"status": "ENTRY_REJECTED"}})
     result = summary(session_factory, AT)
     assert result["strategies"][0]["entry_rejections_today"] == 1
     assert result["strategies"][1]["entry_rejections_today"] == 1
@@ -209,6 +212,7 @@ def test_endpoint_reads_only_and_missing_schema_is_503(session_factory):
     seed(session_factory)
     app.dependency_overrides[get_session_factory] = lambda: session_factory
     flushed = []
+
     def on_flush(*_):
         flushed.append(True)
         raise AssertionError("monitor attempted a write")
@@ -232,3 +236,47 @@ def test_endpoint_reads_only_and_missing_schema_is_503(session_factory):
     finally:
         app.dependency_overrides.clear()
         empty_engine.dispose()
+
+
+def test_orb_rejections_are_distinct_causal_signals_and_pending_failures(session_factory):
+    seed(session_factory)
+    for index in range(115):
+        parallel_event(session_factory, "ORB_15", index + 1, "OBSERVATION", {
+            "decision": {"status": "ENTRY_REJECTED", "direction": "BULL",
+                         "features": {"breakout_timestamp": AT.isoformat()},
+                         "blockers": ["MAX_OPEN_POSITIONS_REACHED"]}})
+    row = summary(session_factory, AT)["strategies"][1]
+    assert row["entry_rejections_today"] == 1
+    for index, direction in enumerate(("BULL", "BEAR"), 116):
+        parallel_event(session_factory, "ORB_15", index, "OBSERVATION", {
+            "decision": {"status": "ENTRY_REJECTED", "direction": direction,
+                         "features": {"breakout_timestamp": (AT + timedelta(minutes=1)).isoformat()},
+                         "blockers": ["MIN_CREDIT_REQUIRED"]}})
+    # Real fill rejection is independent of observation-level signal failures.
+    parallel_event(session_factory, "ORB_15", 118, "ENTRY_REJECTED",
+                   {"reason": "ENTRY_TTL_EXCEEDED"}, trade_id="real-pending-trade")
+    parallel_event(session_factory, "ORB_15", 119, "OBSERVATION", {
+        "decision": {"status": "BLOCKED", "blockers": ["ACTIVE_POSITION_BLOCKS_ENTRY"]}})
+    row = summary(session_factory, AT)["strategies"][1]
+    assert row["entry_rejections_today"] == 4
+    assert row["latest_rejection_reason"] == "ENTRY_TTL_EXCEEDED"
+
+
+def test_unpriced_expiry_is_separate_from_open_unresolved_and_priced_totals(session_factory):
+    seed(session_factory)
+    acts_trade(session_factory, "open", "OPEN", trade_doc(mark=20))
+    parallel_trade(session_factory, "ORB_15", "unresolved", "UNRESOLVED_EXPOSURE", trade_doc(mark=999))
+    unpriced = trade_doc(exit=False)
+    unpriced.update(expiry_terminalization=True, exit_pricing_status="UNAVAILABLE",
+                    terminalized_at=AT.isoformat(), exit_reason="CONTRACT_EXPIRED_UNPRICED")
+    parallel_trade(session_factory, "ORB_30", "expired", "CLOSED", unpriced)
+    parallel_trade(session_factory, "ORB_60", "priced", "CLOSED", trade_doc(exit=True, gross=123))
+    result = summary(session_factory, AT)
+    assert result["totals"]["open_positions"] == 1
+    assert result["totals"]["unresolved_exposures"] == 1
+    assert result["totals"]["expired_unpriced_count"] == 1
+    assert result["totals"]["realized_gross_pnl_today"] == 123
+    orb30 = result["strategies"][2]
+    assert orb30["wins_today"] == orb30["losses_today"] == orb30["realized_gross_pnl_today"] == 0
+    assert orb30["today_trades"][0]["realized_gross_pnl"] is None
+    assert orb30["today_trades"][0]["terminal_status"] == "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE"

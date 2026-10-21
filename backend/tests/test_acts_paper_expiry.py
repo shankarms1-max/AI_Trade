@@ -116,7 +116,7 @@ def test_v2_pending_fill_rechecks_expiry(engine):
     following = _next(raw, candidate=candidate, seconds=24 * 3600)
     paper.process_snapshot(_capture(engine, following))
     state, doc = stored(paper, ActsPaperTrade)
-    assert state == "ENTRY_REJECTED" and doc["rejection_reason"] == "EXPIRED_CONTRACT_ENTRY_FORBIDDEN"
+    assert state == "ENTRY_REJECTED" and doc["rejection_reason"] == "CONTRACT_EXPIRED_BEFORE_FILL"
     assert doc.get("entry_credit") is None
     verify_acts_paper_journal(paper.sessions)
 
