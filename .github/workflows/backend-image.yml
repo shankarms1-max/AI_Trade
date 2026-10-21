@@ -1,0 +1,107 @@
+
+name: Build Backend Image
+
+
+
+on:
+
+  workflow_dispatch:
+
+  push:
+
+    paths:
+
+      - '.github/workflows/backend-image.yml'
+
+
+
+permissions:
+
+  contents: read
+
+  packages: write
+
+
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+
+        uses: actions/checkout@v4
+
+
+
+      - name: Docker Buildx
+
+        uses: docker/setup-buildx-action@v3
+
+
+
+      - name: Build backend image
+
+        uses: docker/build-push-action@v6
+
+        with:
+
+          context: .
+
+          file: backend/Dockerfile
+
+          push: false
+
+          tags: ai-trade-backend:validation
+
+          load: true
+
+
+
+      - name: Run regression tests
+
+        run: |
+
+          docker run --rm \
+
+            -v "$PWD/tests:/app/tests:ro" \
+
+            --entrypoint sh \
+
+            ai-trade-backend:validation \
+
+            -c "python -m pip install -q pytest && python -m pytest /app/tests/test_paper_expiry_terminalization.py /app/tests/test_parallel_paper_expiry.py /app/tests/test_acts_paper_expiry.py /app/tests/test_acts_paper_trade_cap.py /app/tests/test_phase15_exit_book.py /app/tests/test_phase15_monitor.py -q"
+
+
+
+      - name: Login to GitHub Container Registry
+
+        if: success()
+
+        uses: docker/login-action@v3
+
+        with:
+
+          registry: ghcr.io
+
+          username: ${{ github.actor }}
+
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
+
+      - name: Publish validated image
+
+        if: success()
+
+        run: |
+
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}/backend:${GITHUB_SHA}"
+
+          docker tag ai-trade-backend:validation "$IMAGE"
+
+          docker push "$IMAGE"
+
