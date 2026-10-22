@@ -32,7 +32,18 @@ def check(sessions, config, instrument, now):
         paper = session.get(CommodityPaperCursor, instrument)
         if not spec.market_session.contains(now):
             return {"healthy": not active, "reason": "ACTIVE_EXPOSURE_OUTSIDE_SESSION" if active else "SESSION_CLOSED"}
-        if now > policy.evidence.valid_until:
+        current_evidence = policy.evidence
+        if config.auto_contract_renewal:
+            from app.commodity_acts.paper_naked import NakedContractEvidence
+            latest = json.loads(paper.latest_json) if paper else {}
+            raw_evidence = latest.get("contract_evidence")
+            if not raw_evidence:
+                start = datetime.combine(now.astimezone(IST).date(), spec.market_session.start, IST)
+                grace = not active and now <= start + timedelta(seconds=90)
+                return {"healthy": grace, "reason": "SESSION_START_GRACE" if grace else "CONTRACT_RENEWAL_UNAVAILABLE"}
+            if raw_evidence:
+                current_evidence = NakedContractEvidence.model_validate(raw_evidence)
+        if now > current_evidence.valid_until:
             return {"healthy": False, "reason": "CONTRACT_EVIDENCE_EXPIRED"}
         start = datetime.combine(now.astimezone(IST).date(), spec.market_session.start, IST)
         points = [datetime.fromisoformat(row.observed_at) if row and row.observed_at else None

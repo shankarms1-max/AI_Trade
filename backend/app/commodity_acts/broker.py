@@ -125,7 +125,7 @@ def master_expiry(row: dict) -> date:
         raise CommodityDataError("COMMODITY_EXPIRY_ENCODING_UNSUPPORTED") from None
 
 
-def resolve_master(response: Any, spec: InstrumentAlias, today: date) -> tuple[dict, list[dict]]:
+def resolve_master(response: Any, spec: InstrumentAlias, today: date, *, renewal_policy=None, at=None, required_options=()) -> tuple[dict, list[dict]]:
     if not isinstance(response, list):
         raise CommodityDataError("FUTURE_UNRESOLVED")
     records = []
@@ -151,16 +151,24 @@ def resolve_master(response: Any, spec: InstrumentAlias, today: date) -> tuple[d
                and str(row.get("pOptionType", "")).upper() == "XX"]
     if not futures:
         raise CommodityDataError("FUTURE_UNRESOLVED")
-    first = min(row["resolved_expiry"] for row in futures)
-    futures = [row for row in futures if row["resolved_expiry"] == first]
-    if len(futures) != 1:
-        raise CommodityDataError("AMBIGUOUS_COMMODITY_FUTURE")
-    options = [row for row in records if str(row.get("pInstType", "")).upper().startswith("OPT")
-               and str(row.get("pOptionType", "")).upper() in ("CE", "PE")]
-    if not options:
-        raise CommodityDataError("OPTION_EXPIRY_UNRESOLVED")
-    expiry = min(row["resolved_expiry"] for row in options)
-    options = [row for row in options if row["resolved_expiry"] == expiry]
+    if renewal_policy is not None:
+        from app.commodity_acts.contracts import choose, RenewalError
+        try:
+            future, options = choose(records, spec, renewal_policy, at, required_options)
+        except RenewalError as exc:
+            raise CommodityDataError(str(exc)) from None
+        futures = [future]
+    else:
+        first = min(row["resolved_expiry"] for row in futures)
+        futures = [row for row in futures if row["resolved_expiry"] == first]
+        if len(futures) != 1:
+            raise CommodityDataError("AMBIGUOUS_COMMODITY_FUTURE")
+        options = [row for row in records if str(row.get("pInstType", "")).upper().startswith("OPT")
+                   and str(row.get("pOptionType", "")).upper() in ("CE", "PE")]
+        if not options:
+            raise CommodityDataError("OPTION_EXPIRY_UNRESOLVED")
+        expiry = min(row["resolved_expiry"] for row in options)
+        options = [row for row in options if row["resolved_expiry"] == expiry]
     seen, tokens = set(), {futures[0]["resolved_token"]}
     for row in options:
         raw = number(row.get("dStrikePrice;"), positive=True)
@@ -179,13 +187,16 @@ def resolve_master(response: Any, spec: InstrumentAlias, today: date) -> tuple[d
 
 class KotakCommodityMarketData:
     def __init__(self, client: MarketReadClient, *, strikes_each_side: int = 10,
-                 clock: Callable[[], datetime] = lambda: datetime.now(IST), max_quote_age_seconds: int = 30):
+                 clock: Callable[[], datetime] = lambda: datetime.now(IST), max_quote_age_seconds: int = 30, renewal_policy=None):
         assert_market_only(client)
         if not 5 <= strikes_each_side <= 10:
             raise CommodityDataError("COMMODITY_CAPTURE_RANGE_INVALID")
         self._client, self._clock = client, clock
         self._range, self._max_age = strikes_each_side, max_quote_age_seconds
         self._master_cache: dict[tuple, tuple] = {}
+        self._renewal_policy = renewal_policy
+        self._daily_rows: dict[tuple, Any] = {}
+        self._master_verified_at: datetime | None = None
 
     @staticmethod
     def _call(method: Callable, **kwargs):
@@ -221,11 +232,23 @@ class KotakCommodityMarketData:
     def capture(self, spec: InstrumentSpec, *, required_options=()) -> CommoditySnapshot:
         started = self._clock()
         key = spec.instrument_id, spec.underlying, started.date()
-        if key not in self._master_cache:
+        if self._renewal_policy is not None:
+            if key not in self._daily_rows:
+                response = self._call(self._client.search_scrip, exchange_segment=SEGMENT,
+                                      symbol=spec.underlying, ignore_50multiple=True)
+                self._daily_rows = {key: response}
+                self._master_verified_at = self._clock()
+            self._master_cache = {key: resolve_master(self._daily_rows[key], spec, started.date(),
+                renewal_policy=self._renewal_policy, at=started, required_options=required_options)}
+        elif key not in self._master_cache:
             response = self._call(self._client.search_scrip, exchange_segment=SEGMENT,
                                   symbol=spec.underlying, ignore_50multiple=True)
             self._master_cache = {key: resolve_master(response, spec, started.date())}
         future, options = self._master_cache[key]
+        renewal = None
+        if self._renewal_policy is not None:
+            from app.commodity_acts.contracts import evidence
+            renewal = evidence(future, options, spec, self._master_verified_at)
         quote = self._quotes([future]).get(future["resolved_token"], {})
         future_price = number(quote.get("ltp"), positive=True)
         if future_price is None:
@@ -275,4 +298,6 @@ class KotakCommodityMarketData:
                         "expiry": "SDK_DDMMMYYYY_CHECKED_AGAINST_MCX_UNIX_EXPIRY",
                         "strike": "SDK_3_0_7_SCRIP_SEARCH_DSTRIKEPRICE_DIV100",
                         "depth_unit": "OPERATOR_CONFIRMED_KOTAK_MCX_UNDERLYING_UNITS_2026_10_22_NO_CONVERSION", "tick_size": "UNCONFIRMED_RAW_MASTER_RETAINED",
-                        "option_future_link": "SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED"})
+                        "option_future_link": "SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED",
+                        **({"option_future_link": "KOTAK_PASSETCODE_EXACT_FUTURE_TOKEN", "tick_size": "MASTER_PRECISION_VERIFIED",
+                            "contract_evidence": renewal.model_dump_json()} if renewal is not None else {})})

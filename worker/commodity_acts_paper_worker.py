@@ -60,7 +60,8 @@ def main(argv=None):
         assert spec is not None
         service = CommodityResearch(sessions, settings, config, spec)
         market = make_adapter(settings, strikes_each_side=config.strikes_each_side,
-                              max_quote_age_seconds=config.max_quote_age_seconds, key_file=config.market_data_key_file)
+                              max_quote_age_seconds=config.max_quote_age_seconds, key_file=config.market_data_key_file,
+                              renewal_policy=config.trading_policy(args.instrument) if config.auto_contract_renewal else None)
         assert_market_only(market)
 
         def run():

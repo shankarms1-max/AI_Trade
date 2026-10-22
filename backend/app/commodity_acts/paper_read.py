@@ -36,12 +36,15 @@ def summary(sessions, config, at):
                 market_open = spec.market_session.contains(at)
                 configured = policy is not None
                 evidence = policy.evidence.model_dump(mode="json") if policy else None
-                if policy: max_age = policy.max_quote_age_seconds
+                if policy:
+                    max_age = policy.max_quote_age_seconds
             except (ValueError, TypeError, KeyError):
                 market_open, configured, evidence = None, False, None
             fresh_marks = bool(open_rows) and all(doc.get("mark_at") and doc.get("unrealized_gross") is not None
                 and 0 <= (at-datetime.fromisoformat(doc["mark_at"])).total_seconds() <= doc["policy"]["max_quote_age_seconds"] for doc in open_rows)
             latest = json.loads(cursor.latest_json) if cursor else None
+            if config.auto_contract_renewal:
+                evidence = latest.get("contract_evidence") if latest else None
             observed_at = datetime.fromisoformat(latest["observed_at"]) if latest and latest.get("observed_at") else None
             age = (at-observed_at).total_seconds() if observed_at else None
             freshness = ("UNAVAILABLE" if age is None else "FUTURE_OBSERVATION" if age < 0 else

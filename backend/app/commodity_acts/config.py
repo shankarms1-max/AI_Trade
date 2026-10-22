@@ -85,6 +85,7 @@ class CommoditySettings(BaseSettings):
     minimum_option_pairs: int = Field(default=3, ge=1, le=21)
     history_limit: int = Field(default=5000, ge=100, le=10000)
     market_data_key_file: str | None = None
+    auto_contract_renewal: bool = False
     trading_enabled: bool = False
     paper_policies_json: str = "{}"
     global_max_positions: int = Field(default=2, ge=1, le=2)

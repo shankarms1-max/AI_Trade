@@ -73,12 +73,28 @@ The October 22 evidence binds CRUDE future 573423 / November 19 to options Novem
 precision gives CRUDE futures/options ticks 1.00/0.05 and NAT ticks 0.10/0.05.
 Do not use the earlier NAT diagnostic's incorrectly labelled documented future
 tick (0.05); the retained raw master tick 10 / precision 2 establishes 0.10.
-Both dated policy records currently expire October 23 at 23:30 IST. Contract
-identity changes or evidence expiry block entries. Renew verified contract evidence
-before using another expiry/session; never bypass the pinned identity guard.
-NAT's October 23 option is already past its October 22 20:00 entry cutoff, so a
-running worker does not imply NAT entry eligibility. Keep normal holiday/session
-restrictions; no session is extended to manufacture a paper trade.
+The base policy retains its originally dated evidence for reproducibility. With
+`COMMODITY_ACTS_AUTO_CONTRACT_RENEWAL=true` (default false), actual master metadata
+and fresh captures produce new evidence valid only through that verified session.
+The explicit option `pAssetCode` must match exactly one future token; quantities,
+precision/ticks and causal dates must validate. No independent nearest-future
+assumption is used. The first entry-eligible expiry is selected using the unchanged
+minimum DTE, TTL buffer and pre-expiry cutoff. The October 22 master identifies the
+next eligible NAT option as November 20, linked to future 574320 / November 24;
+that metadata lookup is not a claim of fresh November quote depth.
+
+Held contracts pin capture while nonexpired, so rollover cannot drop executable
+exit quotes. Pending and open trades keep their original stored policy/hash.
+Renewal failures block new entries while frozen position management continues.
+Evidence is appended through normal PAPER_OBSERVATION events and new trade policy
+records; historical snapshots, policies and journals are never rewritten. Expired
+unresolved exposure remains reserved and is never synthetically closed. Alpha
+history resets on the actual future/option identity, never mixing contract months.
+
+The next-session verification job uses only local read-only API endpoints. It
+records genuine timestamps, Alpha/rank/warnings, decisions and actual simulated
+fills. Warm-up or no natural trade is not an operational failure. Stale processing,
+failed renewal, unresolved exposure or an unfilled forced exit is reported.
 
 ## Deployment scope
 
@@ -102,3 +118,8 @@ Replace crudeoilm/CRUDEOILM with natgasmini/NATGASMINI for the other instrument.
 A running scheduler outside the session performs no market polling. Readiness,
 Alpha warm-up, entry eligibility, actual fills and process liveness are separate.
 Never report a trade without persisted simulated fill evidence.
+
+The renewal follow-up uses versioned read-only source mounts and rolling Commodity
+worker replacement, with the other worker kept running. No application image is
+rebuilt. Runtime manifests record the mounted source commit and checksums separately
+from the unchanged base image. NIFTY services are never accessed or changed.

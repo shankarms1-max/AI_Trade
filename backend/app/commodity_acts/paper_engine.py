@@ -30,7 +30,8 @@ class CommodityPaperEngine:
         self.research, self.sessions, self.config = research, research.sessions, research.config
         self.spec, self.instrument, self.clock = research.spec, research.spec.instrument_id, research.clock
         self.scorer = research.acts_config
-        self.policy = self.config.trading_policy(self.instrument)
+        self.base_policy = self.config.trading_policy(self.instrument)
+        self.policy = self.base_policy
         if margin_reader is not None:
             assert_market_only(margin_reader)
         self.margin_reader = margin_reader
@@ -70,6 +71,7 @@ class CommodityPaperEngine:
         own_realized = sum(min(doc["gross_realized_pnl"], doc.get("net_realized_pnl") if doc.get("net_realized_pnl") is not None
                                else doc["gross_realized_pnl"]) for row, doc in closed if row.instrument_id == self.instrument)
         reserved = sum(max(reservation(d := json.loads(row.document)), -(d.get("unrealized_gross") or 0)) for row in active)
+
         def loss_reservation(doc):
             loss = max(reservation(doc), -(doc.get("unrealized_gross") or 0))
             net = load_policy(doc["policy"]).net(-loss, current.timestamp_ist.date(),
@@ -146,7 +148,8 @@ class CommodityPaperEngine:
                     value = min(value, doc["unrealized_net"])
             if value is not None:
                 total += value
-                if other.instrument_id == self.instrument: own += value
+                if other.instrument_id == self.instrument:
+                    own += value
         global_limit = json.loads(control.policy_json).get("daily_loss")
         return ("INSTRUMENT_DAILY_LOSS" if own <= -policy.daily_loss_limit else
                 "GLOBAL_DAILY_LOSS" if global_limit is not None and total <= -global_limit else None)
@@ -354,6 +357,14 @@ class CommodityPaperEngine:
             research_doc = json.loads(research.document)
             alpha = AlphaFeatureSnapshot.model_validate(research_doc["alpha"])
         known = self.clock()
+        renewal_failure = None
+        if self.config.auto_contract_renewal:
+            from app.commodity_acts.contracts import renew, RenewalError
+            try:
+                self.policy = renew(self.base_policy, current, self.spec, known)
+            except RenewalError as exc:
+                # Failed renewal blocks new entries, never frozen position management.
+                self.policy, renewal_failure = self.base_policy, str(exc)
         if current.timestamp_ist > known:
             raise ValueError("COMMODITY_PAPER_FUTURE_OBSERVATION")
         ctx = build_context(current, self.research._history(current), self.spec, known, self.config.max_quote_age_seconds)
@@ -376,7 +387,7 @@ class CommodityPaperEngine:
             known = self.clock()
             ctx["decided_at"] = known.isoformat()
             ctx["acts"]["alpha"] = alpha_evidence(alpha, known, current.future_instrument_id,
-                                                   current.future_expiry, current.expiry)
+                                                  current.future_expiry, current.expiry)
             state = json.loads(cursor.state_json)
             identity = [current.session_id, current.future_token, current.future_expiry.isoformat(), current.expiry.isoformat()]
             if state.get("identity") != identity:
@@ -391,19 +402,24 @@ class CommodityPaperEngine:
             candidate, rejected = (candidates(current, direction, ctx, self.policy, known,
                 deferred_margin=self.margin_reader is not None)
                 if self.enabled and self.policy is not None and direction is not None else (None, {}))
-            blockers = []
-            if not self.enabled: blockers.append("PAPER_ACTIVATION_DISABLED")
-            if self.policy is None: blockers.append("PAPER_POLICY_UNCONFIGURED")
+            blockers = [renewal_failure] if renewal_failure else []
+            if not self.enabled:
+                blockers.append("PAPER_ACTIVATION_DISABLED")
+            if self.policy is None:
+                blockers.append("PAPER_POLICY_UNCONFIGURED")
             if self.policy is not None:
                 at, forced = current.timestamp_ist, self.spec.market_session.forced_exit
                 seconds_to_forced = (datetime.combine(at.date(), forced, at.tzinfo)-max(at, known)).total_seconds()
                 if seconds_to_forced <= self.policy.entry_ttl_seconds or not self.spec.market_session.contains(at) or not self.spec.market_session.contains(known):
                     blockers.append("SESSION_ENTRY_CLOSED")
-                if not isinstance(self.policy, NakedPaperPolicy): blockers.append("LEGACY_SPREAD_ENTRIES_DISABLED")
+                if not isinstance(self.policy, NakedPaperPolicy):
+                    blockers.append("LEGACY_SPREAD_ENTRIES_DISABLED")
                 if isinstance(self.policy, NakedPaperPolicy) and max(at, known) >= self.policy.expiry_cutoff():
                     blockers.append("PRE_EXPIRY_ENTRY_CUTOFF")
-                if (current.expiry - at.date()).days < self.policy.min_entry_dte: blockers.append("EXPIRY_ENTRY_FORBIDDEN")
-                if self.policy.kill_switch: blockers.append("KILL_SWITCH")
+                if (current.expiry - at.date()).days < self.policy.min_entry_dte:
+                    blockers.append("EXPIRY_ENTRY_FORBIDDEN")
+                if self.policy.kill_switch:
+                    blockers.append("KILL_SWITCH")
                 if candidate is not None:
                     blockers.extend(self._risk(rows, current, known, candidate_risk(candidate), self.policy))
                     global_policy = self._global_policy(self.policy)
@@ -415,8 +431,10 @@ class CommodityPaperEngine:
                         ctx["decided_at"] = known.isoformat()
                         ctx["acts"]["alpha"] = alpha_evidence(alpha, known, current.future_instrument_id, current.future_expiry, current.expiry)
                         _, failure = execute(current, candidate.model_dump(mode="json"), self.policy, known, entry=True)
-                        if failure or self.policy.metadata_reason(current, known): blockers.append("QUOTE_EXPIRED_DURING_MARGIN_CHECK")
-                        if known >= self.policy.expiry_cutoff(): blockers.append("PRE_EXPIRY_ENTRY_CUTOFF")
+                        if failure or self.policy.metadata_reason(current, known):
+                            blockers.append("QUOTE_EXPIRED_DURING_MARGIN_CHECK")
+                        if known >= self.policy.expiry_cutoff():
+                            blockers.append("PRE_EXPIRY_ENTRY_CUTOFF")
                         if (datetime.combine(at.date(), forced, at.tzinfo)-known).total_seconds() <= self.policy.entry_ttl_seconds or not self.spec.market_session.contains(known):
                             blockers.append("SESSION_ENTRY_CLOSED")
                         if self.policy.max_broker_margin is not None and (margin is None or margin["required_margin"] > self.policy.max_broker_margin):
@@ -452,6 +470,9 @@ class CommodityPaperEngine:
                 "observed_at": current.timestamp_ist, "processed_at": known, "snapshot_id": sid, "decision": decision,
                 "candidate": candidate, "risk_blocks": sorted(set(blockers)), "broker_orders_enabled": False,
                 "paper_enabled": self.enabled, "margin_status": candidate.construction_evidence["margin"]["status"] if candidate else "MARGIN_UNVERIFIED"})
+            if self.config.auto_contract_renewal:
+                latest.update(contract_evidence=self.policy.evidence.model_dump(mode="json") if not renewal_failure else None,
+                              contract_renewal_status=renewal_failure or "VERIFIED")
             latest.update(future_price=current.future_price, future_symbol=current.future_instrument_id,
                 future_expiry=current.future_expiry.isoformat(), option_expiry=current.expiry.isoformat(),
                 source_market_timestamp=current.source_market_timestamp.isoformat() if current.source_market_timestamp else None,
