@@ -70,10 +70,9 @@ class NakedPaperPolicy(PaperPolicy):
         return super().metadata_reason(snapshot, known_at)
 
     def net(self, gross, day, entry_day=None):
-        # Parent validates the complete, dated cost model. A single option has
-        # exactly two leg executions, not the legacy spread's four.
-        legacy = super().net(gross, day, entry_day)
-        return None if legacy is None else float(Decimal(str(gross)) - 2 * Decimal(str(self.all_in_cost_per_leg_execution)))
+        # Share dated-evidence validation, but deduct from gross exactly once:
+        # one SELL and one BUY, versus four executions for a legacy spread.
+        return self._net_after_execution_costs(gross, day, entry_day, executions=2)
 
 
 def load_policy(document):

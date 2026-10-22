@@ -107,11 +107,14 @@ class PaperPolicy(BaseModel):
         return None
 
     def net(self, gross: float, day: date, entry_day: date | None = None):
+        return self._net_after_execution_costs(gross, day, entry_day, executions=4)
+
+    def _net_after_execution_costs(self, gross: float, day: date, entry_day: date | None, *, executions: int):
         if (self.all_in_cost_per_leg_execution is None or self.cost_effective_from is None or self.cost_effective_to is None
                 or not self.cost_effective_from <= day <= self.cost_effective_to
                 or entry_day is not None and not self.cost_effective_from <= entry_day <= self.cost_effective_to):
             return None
-        return float(Decimal(str(gross)) - 4 * Decimal(str(self.all_in_cost_per_leg_execution)))
+        return float(Decimal(str(gross)) - executions * Decimal(str(self.all_in_cost_per_leg_execution)))
 
 
 def margin_for(policy: PaperPolicy, short_token, hedge_token, expiry, at):

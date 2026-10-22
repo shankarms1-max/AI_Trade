@@ -132,6 +132,56 @@ def test_single_option_costs_are_two_executions_and_legacy_policy_is_unchanged()
     assert digest(load_policy(json_value(old))) == digest(old)
 
 
+@pytest.mark.parametrize("instrument", ["CRUDEOILM", "NATGASMINI"])
+@pytest.mark.parametrize("legacy,executions", [(False, 2), (True, 4)])
+@pytest.mark.parametrize("gross,expected_naked,expected_spread", [(100, 95.5, 91), (0, -4.5, -9), (-100, -104.5, -109)])
+def test_cost_deduction_once_for_wins_breakeven_and_losses(instrument, legacy, executions,
+                                                         gross, expected_naked, expected_spread):
+    configured = policy(instrument, legacy=legacy, all_in_cost_per_leg_execution=2.25,
+        cost_source="SYNTHETIC COMPLETE COST MODEL", cost_model="COMPLETE_FLAT_PER_EXECUTED_LEG",
+        cost_effective_from=AT.date(), cost_effective_to=AT.date())
+    expected = expected_spread if legacy else expected_naked
+    assert configured.net(gross, AT.date(), AT.date()) == expected
+    assert gross - expected == executions * 2.25
+    restored = load_policy(json_value(configured))
+    assert restored.net(gross, AT.date(), AT.date()) == expected
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_net_unavailable_without_costs_or_outside_either_execution_date(legacy):
+    assert policy(legacy=legacy).net(100, AT.date(), AT.date()) is None
+    configured = policy(legacy=legacy, all_in_cost_per_leg_execution=2,
+        cost_source="SYNTHETIC COMPLETE COST MODEL", cost_model="COMPLETE_FLAT_PER_EXECUTED_LEG",
+        cost_effective_from=AT.date(), cost_effective_to=(AT+timedelta(days=1)).date())
+    assert configured.net(100, (AT+timedelta(days=1)).date(), AT.date()) == (92 if legacy else 96)
+    for offset in (-1, 2):
+        outside = (AT+timedelta(days=offset)).date()
+        assert configured.net(100, outside, AT.date()) is None
+        assert configured.net(100, AT.date(), outside) is None
+
+
+@pytest.mark.parametrize("instrument", ["CRUDEOILM", "NATGASMINI"])
+def test_naked_mark_and_realized_net_deduct_two_costs_after_restart(case, instrument):
+    case[2][instrument].policy = policy(instrument, all_in_cost_per_leg_execution=2.25,
+        cost_source="SYNTHETIC COMPLETE COST MODEL", cost_model="COMPLETE_FLAT_PER_EXECUTED_LEG",
+        cost_effective_from=AT.date(), cost_effective_to=AT.date())
+    step(case, 0, instrument=instrument)
+    step(case, 15, instrument=instrument)
+    step(case, 30, instrument=instrument)
+    state, marked = positions(case, instrument)[0]
+    assert state == "OPEN"
+    assert marked["unrealized_net"] == pytest.approx(marked["unrealized_gross"] - 4.5)
+    step(case, 45, instrument=instrument, scale=.2)
+    state, requested = positions(case, instrument)[0]
+    assert state == "PENDING_EXIT" and requested.get("exit_timestamp") is None
+    case[2][instrument] = CommodityPaperEngine(case[1][instrument])
+    step(case, 60, instrument=instrument, scale=.2)
+    state, closed = positions(case, instrument)[0]
+    assert state == "CLOSED"
+    assert closed["net_realized_pnl"] == pytest.approx(closed["gross_realized_pnl"] - 4.5)
+    verify(case[0], instrument)
+
+
 def test_stress_cap_is_required_and_never_replaced_by_spread_width():
     snapshot = raw()
     chosen, rejected = candidates(snapshot, "BULL", {}, policy(max_stress_loss_per_trade=1), AT+timedelta(seconds=1))
