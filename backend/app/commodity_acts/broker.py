@@ -8,6 +8,10 @@ SDK's strike filters compare dStrikePrice; to requested strike * 100.
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from time import sleep
+from pathlib import Path
+import stat
+
+from pydantic import SecretStr
 from typing import Any, Callable, Protocol
 
 from app.alpha.clock import IST
@@ -53,7 +57,25 @@ class MarketOnlySDK:
         return self.__quote(**kwargs)
 
 
-def make_adapter(settings, **kwargs):
+def make_adapter(settings, *, key_file=None, **kwargs):
+    if key_file:
+        # Deployment secret, mounted read-only only into the commodity worker.
+        # Keep the actual key out of Docker environment/argv and all messages.
+        path = Path(key_file)
+        try:
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o077:
+                raise ValueError("unsafe secret permissions")
+            with path.open("rb") as stream:
+                value = stream.read(16385)
+            key = value.decode("utf-8").strip()
+            if not key or len(value) > 16384 or any(c.isspace() for c in key) or key.startswith("COMMODITY_DISABLED"):
+                raise ValueError("invalid secret")
+            settings = settings.model_copy(update={"kotak_consumer_key": SecretStr(key)})
+            del value, key
+        except (OSError, ValueError, UnicodeError):
+            raise CommodityDataError("COMMODITY_MARKET_DATA_SECRET_FILE_REFUSED") from None
+
     # Existing consumer-key-only read authentication; no trading adapter import.
     from app.broker.kotak.auth import create_market_data_client
     sdk = create_market_data_client(settings)

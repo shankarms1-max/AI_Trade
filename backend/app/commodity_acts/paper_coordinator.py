@@ -1,5 +1,6 @@
 """Reuse V1 capture/Alpha intact; recover the separate V2 paper stream after gaps."""
 from datetime import datetime
+from contextvars import ContextVar
 
 from sqlalchemy import inspect, select
 
@@ -9,23 +10,40 @@ from app.commodity_acts.paper_engine import CommodityPaperEngine
 from app.commodity_acts.paper_models import CommodityPaperCursor, CommodityPaperPosition
 from app.commodity_acts.paper_policy import ACTIVE
 from app.commodity_acts.service import CommodityResearch
+from app.research.manifest import digest
 import json
 
 
 class CommodityPaperCoordinator(CommodityResearch):
     def __init__(self, *args, margin_reader=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self._observation_history = ContextVar("commodity_observation_history", default=None)
         with self.sessions() as session:
             present = inspect(session.get_bind()).has_table("commodity_paper_cursors")
         if not present and self.config.trading_enabled:
             raise RuntimeError("COMMODITY_PAPER_MIGRATION_REQUIRED")
         self.paper = CommodityPaperEngine(self, margin_reader=margin_reader) if present else None
 
+    def _history(self, current):
+        shared = self._observation_history.get()
+        if shared is None:
+            return super()._history(current)
+        key = digest(current)
+        if key not in shared:
+            shared[key] = super()._history(current)
+        return shared[key]
+
     def process_snapshot(self, snapshot_id):
-        result = super().process_snapshot(snapshot_id)
-        if self.paper:
-            self.paper.process_snapshot(snapshot_id)
-        return result
+        # One observation uses one causal history view for Alpha and paper.
+        # The cache never survives an observation, exception or thread/task.
+        token = self._observation_history.set({})
+        try:
+            result = super().process_snapshot(snapshot_id)
+            if self.paper:
+                self.paper.process_snapshot(snapshot_id)
+            return result
+        finally:
+            self._observation_history.reset(token)
 
     def capture_once(self, market, at):
         assert_market_only(market)

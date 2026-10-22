@@ -15,7 +15,7 @@ from app.commodity_acts.config import RESEARCH_SCOPE, STAGE, VERSION, CommodityS
 from app.commodity_acts.context import build_context
 from app.commodity_acts.domain import CommoditySnapshot
 from app.commodity_acts.geometry import geometry
-from app.commodity_acts.models import CommodityActsCursor, CommodityActsDecision, CommodityActsEvent, CommodityMarketSnapshotRecord
+from app.commodity_acts.models import CommodityActsDecision, CommodityActsEvent, CommodityMarketSnapshotRecord
 from app.commodity_acts.repository import append_event, bucket, locked_cursor, save_snapshot, verify_journal
 from app.research.manifest import canonical, digest, json_value
 from app.scalper_lab.acts import alpha_evidence
@@ -43,16 +43,8 @@ class CommodityResearch:
         verify_journal(sessions, spec.instrument_id)
 
     def _history(self, current):
-        with self.sessions() as session:
-            rows = session.scalars(select(CommodityMarketSnapshotRecord).where(
-                CommodityMarketSnapshotRecord.instrument_id == self.spec.instrument_id,
-                CommodityMarketSnapshotRecord.captured_at < current.timestamp_ist).order_by(
-                    CommodityMarketSnapshotRecord.captured_at.desc()).limit(self.config.history_limit)).all()
-            history = [CommoditySnapshot.model_validate_json(row.snapshot_json) for row in reversed(rows)]
-        return [row for row in history if row.instrument_id == current.instrument_id
-                and row.snapshot_persisted_at is not None and row.snapshot_persisted_at <= current.timestamp_ist
-                and (row.future_token, row.future_instrument_id, row.future_expiry, row.expiry) ==
-                    (current.future_token, current.future_instrument_id, current.future_expiry, current.expiry)]
+        from app.commodity_acts.history import load_history
+        return load_history(self, current)
 
     def _alpha(self, snapshot_id, current, history, state):
         previous = state.get("alpha")
@@ -86,7 +78,7 @@ class CommodityResearch:
         with self.sessions.begin() as session:
             cursor = locked_cursor(session, self.spec.instrument_id)
             if session.scalar(select(CommodityActsDecision.id).where(CommodityActsDecision.instrument_id == self.spec.instrument_id,
-                                                                      CommodityActsDecision.snapshot_id == snapshot_id)) is not None:
+                                                                     CommodityActsDecision.snapshot_id == snapshot_id)) is not None:
                 return "DUPLICATE"
             if cursor.observed_at and current.timestamp_ist <= datetime.fromisoformat(cursor.observed_at):
                 raise ValueError("COMMODITY_OUT_OF_ORDER_OBSERVATION")
