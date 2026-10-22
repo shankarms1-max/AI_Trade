@@ -34,6 +34,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Phase 15 positions and journal", () => {
+  it("shows unpriced expiry as terminal evidence without a fill time or fake zero P&L", async () => {
+    vi.mocked(api.phase15Journal).mockResolvedValue(page([trade({ state: "CLOSED",
+      expiry_terminalization: true, terminal_status: "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE",
+      terminalized_at: "2026-10-15T09:15:05+05:30", exit_timestamp: null,
+      exit_reason: "CONTRACT_EXPIRED_UNPRICED", exit_pricing_status: "UNAVAILABLE",
+      current_debit: null, current_unrealized_gross_pnl: null, realized_gross_pnl: null,
+      mark_available: false })]));
+    render(<Phase15Journal/>);
+    const table = await screen.findByRole("table", { name: "Paper trade journal" });
+    expect(within(table).getByText("EXIT PRICE UNAVAILABLE")).toBeInTheDocument();
+    expect(within(table).getAllByText("CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE")).toHaveLength(2);
+    expect(within(table).queryByText("REALIZED GROSS")).not.toBeInTheDocument();
+    expect(within(table).queryByText(/₹0/)).not.toBeInTheDocument();
+    expect(within(table).getByText("Expiry terminalized (not a fill)")).toBeInTheDocument();
+  });
+
   it("keeps overview, positions and journal independently visible", async () => {
     render(<Phase15Page/>);
     expect(screen.getByRole("heading", { name: "OVERVIEW" })).toBeInTheDocument();

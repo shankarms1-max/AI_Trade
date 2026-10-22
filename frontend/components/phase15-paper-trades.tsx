@@ -46,7 +46,8 @@ function ResearchDetails({ trade }: { trade: Phase15PaperTrade }) {
       <div><dt>Best gross points</dt><dd>{number(trade.best_gross_points)}</dd></div>
       <div><dt>Holding duration</dt><dd>{duration(trade.holding_seconds)}</dd></div>
       <div><dt>Entry reason</dt><dd title={trade.entry_reason ?? undefined}>{blockerLabel(trade.entry_reason)}</dd></div>
-      <div><dt>Exit reason</dt><dd title={trade.exit_reason ?? undefined}>{trade.exit_reason ?? "N/A"}</dd></div>
+      <div><dt>Exit reason</dt><dd title={trade.exit_reason ?? undefined}>{trade.terminal_status ?? trade.exit_reason ?? "N/A"}</dd></div>
+      <div><dt>Expiry terminalized (not a fill)</dt><dd>{timestamp(trade.terminalized_at)}</dd></div>
       <div><dt>Exit policy</dt><dd>{trade.exit_policy_version ?? "UNAVAILABLE"}</dd></div>
       <div><dt>Score / band</dt><dd>{number(trade.opportunity_score)} / {trade.score_band ?? "N/A"}</dd></div>
       <div><dt>Stored allowed widths</dt><dd>{trade.policy_allowed_widths.length ? trade.policy_allowed_widths.join(", ") : "N/A"}</dd></div>
@@ -141,9 +142,9 @@ function JournalPage({ date, strategy, state, offset, onPage }: {
         <td>{number(trade.short_strike, 0)} / {number(trade.hedge_strike, 0)}</td><td>{number(trade.spread_width, 0)} pts</td>
         <td>{number(trade.entry_credit)}</td><td>{number(trade.state === "CLOSED" ? trade.exit_debit : trade.mark_available ? trade.current_debit : null)}
           {trade.state === "OPEN" && !trade.mark_available && <small>MARK UNAVAILABLE</small>}</td>
-        <td><Gross trade={trade}/><small>{trade.state === "CLOSED" ? "REALIZED GROSS" : "GROSS MTM"}</small></td>
+        <td><Gross trade={trade}/><small>{trade.expiry_terminalization ? "EXIT PRICE UNAVAILABLE" : trade.state === "CLOSED" ? "REALIZED GROSS" : "GROSS MTM"}</small></td>
         <td>{number(trade.mfe)} / {number(trade.mae)}</td><td>{duration(trade.holding_seconds)}</td>
-        <td>{blockerLabel(trade.entry_reason)}<small>{trade.exit_reason ?? trade.rejection_reason ?? trade.unresolved_reason ?? "N/A"}</small><small>{trade.exit_policy_version ?? "UNAVAILABLE"}</small></td>
+        <td>{blockerLabel(trade.entry_reason)}<small>{trade.terminal_status ?? trade.exit_reason ?? trade.rejection_reason ?? trade.unresolved_reason ?? "N/A"}</small><small>{trade.exit_policy_version ?? "UNAVAILABLE"}</small></td>
         <td><ResearchDetails trade={trade}/></td>
       </tr>)}</tbody></table></div> : <Empty>NO PAPER TRADES MATCH THESE FILTERS</Empty>}
     <Pagination page={data} onPage={onPage}/>

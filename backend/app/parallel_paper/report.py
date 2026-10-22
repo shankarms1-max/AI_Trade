@@ -13,12 +13,14 @@ from app.acts_paper.models import ActsPaperCursor, ActsPaperTrade
 from app.parallel_paper.config import STRATEGIES, VERSIONS
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperTrade
 from app.research.manifest import json_value
+from app.paper import expiry
 from app.scalper.repository import IST
 
 
 def statistics(rows: list[tuple[str, dict]], at: datetime) -> dict:
     entries = [(state, doc) for state, doc in rows if doc.get("entry_timestamp")]
-    closed = sorted([doc for state, doc in entries if state == "CLOSED"],
+    closed = sorted([doc for state, doc in entries
+                     if state == "CLOSED" and not expiry.is_unpriced(doc)],
                     key=lambda doc: doc["exit_timestamp"])
     pnl = [(doc.get("final_outcome") or {})["gross_rupees"] for doc in closed]
     wins, losses = [value for value in pnl if value > 0], [value for value in pnl if value < 0]
@@ -39,7 +41,13 @@ def statistics(rows: list[tuple[str, dict]], at: datetime) -> dict:
         value is None for value in marks)
     return {"trades_today": len(today), "realized_pnl_today": realized,
             "unrealized_pnl": None if unknown else sum(marks),
-            "open_position": active, "trades": len(entries), "closed_trades": len(closed),
+            "open_position": active,
+            "open_position_count": sum(state == "OPEN" for state, _ in rows),
+            "unresolved_exposure_count": sum(state == "UNRESOLVED_EXPOSURE" for state, _ in rows),
+            "expired_unpriced_count": sum(state == "CLOSED" and expiry.is_unpriced(doc) for state, doc in rows),
+            "expired_unpriced_evidence": [doc for state, doc in rows
+                                          if state == "CLOSED" and expiry.is_unpriced(doc)],
+            "trades": len(entries), "closed_trades": len(closed),
             "wins": len(wins), "losses": len(losses), "breakeven": sum(value == 0 for value in pnl),
             "win_rate": len(wins) / len(pnl) if pnl else None,
             "gross_pnl": sum(pnl), "average_pnl": mean(pnl) if pnl else None,

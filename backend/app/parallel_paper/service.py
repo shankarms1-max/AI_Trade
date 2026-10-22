@@ -17,7 +17,7 @@ from app.parallel_paper.decisions import decide, entry_committed
 from app.parallel_paper.indicators import ema, supertrend
 from app.parallel_paper.market import ParallelMarketRepository
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
-from app.paper import exit_book, mirror_exit
+from app.paper import exit_book, expiry, mirror_exit
 from app.research.manifest import canonical, digest, json_value
 from app.risk.event_checks import ConfiguredMarketEventProvider
 from app.scalper.config import ScalperConfig
@@ -43,6 +43,7 @@ def _lab(row: ParallelPaperTrade) -> LabTrade:
         entry_quotes=doc.get("entry_quotes"), entry_spot=doc.get("underlying_entry_price"),
         exit_timestamp=datetime.fromisoformat(doc["exit_timestamp"]) if doc.get("exit_timestamp") else None,
         exit_reason=doc.get("exit_reason"), outcome=doc.get("final_outcome"),
+        expiry_terminalization=expiry.is_unpriced(doc),
         best_gross_points=doc.get("best_gross_points", 0), mae=doc.get("mae", 0), mfe=doc.get("mfe", 0))
 
 
@@ -112,12 +113,28 @@ class ParallelPaperService:
         with sessions() as session:
             self._assert_entry_policy_upgrade_safe(session)
 
+    def _terminalize_expired(self, session: Session, cursor: ParallelPaperCursor, snapshot_id: int,
+                             raw: ScalperMarketSnapshot, trade: ParallelPaperTrade) -> bool:
+        doc = json.loads(trade.document)
+        state = expiry.terminalize(trade.state, doc, raw.captured_at, snapshot_id)
+        if state is None:
+            return False
+        trade.state, trade.document = state, canonical(doc)
+        self._emit(session, cursor, snapshot_id, raw,
+                   "ENTRY_REJECTED" if state == "ENTRY_REJECTED" else "CONTRACT_EXPIRED_UNPRICED", trade,
+                   reason=doc.get("rejection_reason") if state == "ENTRY_REJECTED" else "CONTRACT_EXPIRED_UNPRICED",
+                   lifecycle_version=expiry.VERSION)
+        return True
+
     @staticmethod
-    def _assert_entry_policy_upgrade_safe(session: Session) -> None:
+    def _assert_entry_policy_upgrade_safe(session: Session, at: datetime | None = None) -> None:
         rows = session.scalars(select(ParallelPaperTrade).where(
             ParallelPaperTrade.strategy_id.in_(STRATEGIES), ParallelPaperTrade.state.in_(ACTIVE)))
         for row in rows:
-            policy = json.loads(row.document).get("policy", {})
+            doc = json.loads(row.document)
+            if expiry.expired(doc, at or datetime.now(IST)):
+                continue
+            policy = doc.get("policy", {})
             if policy.get("entry_policy_version") != ENTRY_POLICY_VERSION:
                 raise RuntimeError("PARALLEL_PAPER_ENTRY_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
             if policy.get("exit_book_policy") != exit_book.policy():
@@ -204,6 +221,8 @@ class ParallelPaperService:
     def _transition(self, session: Session, cursor: ParallelPaperCursor, snapshot_id: int,
                     raw: ScalperMarketSnapshot, points: list[MarketPoint], bars: list[Bar], trade: ParallelPaperTrade,
                     rows: list[ParallelPaperTrade], blocked: bool) -> None:
+        if self._terminalize_expired(session, cursor, snapshot_id, raw, trade):
+            return
         if trade.state == "UNRESOLVED_EXPOSURE":
             return
         config = self.configs[trade.strategy_id]
@@ -331,7 +350,6 @@ class ParallelPaperService:
                 raise RuntimeError("PARALLEL_PAPER_MIGRATION_REQUIRED")
             cursor = session.get(ParallelPaperCursor, strategy)
             assert cursor is not None
-            self._assert_entry_policy_upgrade_safe(session)
             if session.scalar(select(ParallelPaperEvent.sequence).where(
                     ParallelPaperEvent.strategy_id == strategy,
                     ParallelPaperEvent.event_key == f"{snapshot_id}:SESSION:OBSERVATION")) is not None:
@@ -339,6 +357,10 @@ class ParallelPaperService:
             if cursor.observed_at and raw.captured_at <= datetime.fromisoformat(cursor.observed_at):
                 raise ValueError("PARALLEL_PAPER_OUT_OF_ORDER")
             rows = self._trades(session, strategy)
+            for trade in rows:
+                if trade.state in ACTIVE:
+                    self._terminalize_expired(session, cursor, snapshot_id, raw, trade)
+            self._assert_entry_policy_upgrade_safe(session, raw.captured_at)
             blocked = any(event.block_entries for event in self.events[strategy].events_at(raw.captured_at))
             for trade in rows:
                 if trade.state in ACTIVE:
@@ -346,6 +368,12 @@ class ParallelPaperService:
             state = json.loads(cursor.state_json)
             decision = decide(strategy, points, bars, raw.captured_at, state, self.experiment)
             decision.update(snapshot_id=snapshot_id, market_data=source, policy_hash=self.hashes[strategy])
+            # Management above always runs. An ORB signal while exposure remains
+            # active is a diagnostic, not another attempted/rejected trade.
+            if (strategy.startswith("ORB_") and decision["status"] == "ENTER"
+                    and any(row.state in ACTIVE for row in rows)):
+                decision["status"] = "BLOCKED"
+                decision["blockers"] = ["ACTIVE_POSITION_BLOCKS_ENTRY"]
             if decision["status"] == "ENTER":
                 built = build_candidates(raw, _construction_signal(raw, decision["direction"]), config)
                 candidate = built.candidates[0] if built.candidates else None
@@ -428,7 +456,10 @@ class ParallelPaperService:
             rows = session.scalars(select(ParallelPaperTrade).where(
                 ParallelPaperTrade.state.in_(("PENDING_PAPER_ENTRY", "OPEN")))).all()
             for row in rows:
-                candidate = json.loads(row.document)["candidate"]
+                doc = json.loads(row.document)
+                if expiry.expired(doc, at or datetime.now(IST)):
+                    continue
+                candidate = doc["candidate"]
                 contracts.extend(OptionContractSnapshot.model_validate(candidate[name])
                                  for name in ("short_leg", "long_leg"))
         return list({(leg.exchange, leg.instrument_token, leg.expiry, leg.strike,

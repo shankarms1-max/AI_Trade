@@ -41,7 +41,7 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
         <td>{amount(trade.state === "CLOSED" ? trade.realized_gross_pnl : trade.current_unrealized_gross_pnl)}</td>
         <td>{number(trade.mfe)}</td><td>{number(trade.mae)}</td><td>{holding(trade.holding_seconds)}</td>
         <td>{blockerLabel(trade.entry_reason)}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
-        <td title={trade.exit_reason ?? undefined}>{blockerLabel(trade.exit_reason)}</td>
+        <td title={trade.exit_reason ?? undefined}>{trade.terminal_status ?? blockerLabel(trade.exit_reason)}</td>
         <td><Badge value={trade.state}/></td>
       </tr>)}</tbody>
     </table></div> : <Empty>NO ENTERED TRADES TODAY</Empty>}
@@ -65,11 +65,13 @@ export function Phase15Monitor() {
         <Metric label="Live Unrealized Gross" value={amount(data.totals.unrealized_gross_pnl)}/>
         <Metric label="Combined Gross" value={amount(data.totals.combined_gross_pnl)}/>
         <Metric label="Open Positions" value={integer(data.totals.open_positions)}/>
+        <Metric label="Unresolved Exposures" value={integer(data.totals.unresolved_exposures)}/>
+        <Metric label="Expired Unpriced" value={integer(data.totals.expired_unpriced_count)}/>
         <Metric label="Trades Today" value={integer(data.totals.trades_today)}/>
       </div>
       <div className="phase15-asof">As of {timeIST(data.as_of)} · Paper marks and realized gross are shown separately.</div>
       <div className="table-wrap"><table aria-label="Phase 15 strategies"><thead><tr>
-        <th>Strategy</th><th>Trades Today</th><th>W / L</th><th>Rejected</th><th>Open</th>
+        <th>Strategy</th><th>Trades Today</th><th>W / L</th><th>Rejected</th><th>Open</th><th>Unresolved</th><th>Expired Unpriced</th>
         <th>Realized Gross</th><th>Live MTM</th><th>Latest Status</th><th>Blocker</th>
       </tr></thead><tbody>{data.strategies.map(strategy => <Fragment key={strategy.strategy_id}>
         <tr>
@@ -81,12 +83,13 @@ export function Phase15Monitor() {
           <td>{integer(strategy.trades_today)}</td>
           <td>{integer(strategy.wins_today)} / {integer(strategy.losses_today)}</td>
           <td>{integer(strategy.entry_rejections_today)}</td><td>{integer(strategy.open_position_count)}</td>
+          <td>{integer(strategy.unresolved_exposure_count)}</td><td>{integer(strategy.expired_unpriced_count)}</td>
           <td>{amount(strategy.realized_gross_pnl_today)}</td><td>{amount(strategy.unrealized_gross_pnl)}</td>
           <td>{strategy.latest_status ? <Badge value={strategy.latest_status}/> : "N/A"}</td>
           <td title={strategy.latest_blocker ?? undefined}>{blockerLabel(strategy.latest_blocker)}</td>
         </tr>
         {expanded === strategy.strategy_id && <tr>
-          <td colSpan={9}><TradeDetails strategy={strategy}/></td></tr>}
+          <td colSpan={11}><TradeDetails strategy={strategy}/></td></tr>}
       </Fragment>)}</tbody></table></div>
     </>}
   </section>;

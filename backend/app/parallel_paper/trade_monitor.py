@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.acts_paper.models import ActsPaperEvent, ActsPaperTrade
 from app.parallel_paper.models import ParallelPaperEvent, ParallelPaperTrade
 from app.parallel_paper.monitor import NAMES, ORDER
+from app.paper import expiry
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST, _aware
 
@@ -123,6 +124,11 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
     rejected = _dict(doc.get("candidate_rejections") or decision.get("candidate_rejections"))
     return {
         "trade_id": row.trade_id, "strategy_id": row.strategy_id,
+        "expiry_terminalization": expiry.is_unpriced(doc),
+        "exit_pricing_status": doc.get("exit_pricing_status"),
+        "terminalized_at": doc.get("terminalized_at"),
+        "previous_unresolved_reason": doc.get("previous_unresolved_reason"),
+        "terminal_status": expiry.LABEL if expiry.is_unpriced(doc) else None,
         "display_name": NAMES[row.strategy_id], "state": row.state, "direction": doc.get("direction"),
         "decision_timestamp": doc.get("decision_timestamp"), "entry_timestamp": entry,
         "exit_timestamp": exit_at, "short_strike": short_strike, "hedge_strike": hedge_strike,
@@ -140,9 +146,11 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
         "exit_policy_version": doc.get("exit_policy_version"), "policy_hash": doc.get("policy_hash"),
         "policy_allowed_widths": [value for value in execution.get("allowed_widths", [])
                                   if _number(value) is not None],
-        "rejection_reason": doc.get("rejection_reason"), "unresolved_reason": doc.get("unresolved_reason"),
+        "rejection_reason": doc.get("rejection_reason"),
+        "unresolved_reason": doc.get("unresolved_reason") if row.state == "UNRESOLVED_EXPOSURE" else None,
         "latest_mark_timestamp": mark_at.isoformat() if mark_at else None,
         "mark_available": available, "mark_unavailable_reason": None if available else (
+            "CONTRACT_EXPIRED_UNPRICED" if expiry.is_unpriced(doc) else
             mark.get("reason") or doc.get("unresolved_reason") or "NO_CURRENT_EXACT_MARK"),
         "mark_quality_warning": mark.get("quality_warning") if available else None,
         "accounting_status": "GROSS_ONLY",

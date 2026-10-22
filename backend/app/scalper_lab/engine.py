@@ -40,6 +40,7 @@ class LabTrade:
     exit_thesis: dict[str, Any] | None = None
     exit_quotes: dict[str, Any] | None = None
     outcome: dict[str, Any] | None = None
+    expiry_terminalization: bool = False
     rejection_reason: str | None = None
     best_gross_points: float = 0
     mae: float = 0
@@ -164,7 +165,8 @@ def _risk_blockers(ledger: Ledger, config: ScalperConfig, at: datetime,
                    event_blocked: bool) -> list[str]:
     reasons: list[str] = []
     today = [trade for trade in ledger.trades if trade.decision["timestamp"][:10] == str(at.date())]
-    closed = [trade for trade in today if trade.state == "CLOSED"]
+    closed = [trade for trade in today if trade.state == "CLOSED"
+              and not trade.expiry_terminalization]
     settled = sorted(closed, key=_exited_at)
     losses = [trade for trade in settled if _outcome(trade)["gross_rupees"] < 0]
     streak = 0
