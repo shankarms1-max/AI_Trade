@@ -17,6 +17,29 @@ const dashboardMock=vi.mocked(api.dashboard);
 beforeEach(()=>{dashboardMock.mockReset();vi.mocked(api.phase15Summary).mockReset();vi.mocked(api.phase15Summary).mockRejectedValue(new Error("unavailable"));vi.mocked(api.snapshots).mockResolvedValue([]);vi.mocked(api.pipelines).mockResolvedValue([]);vi.mocked(api.candidatesList).mockResolvedValue([]);vi.mocked(api.riskList).mockResolvedValue([]);vi.mocked(api.systemEvents).mockResolvedValue([]);vi.mocked(api.systemHealth).mockRejectedValue(new Error("unavailable"));vi.mocked(api.systemMetrics).mockRejectedValue(new Error("unavailable"));});afterEach(cleanup);
 
 describe("dashboard",()=>{
+  it.each([
+    ["components", null], ["components", undefined],
+    ["reasons", null], ["reasons", undefined],
+    ["features", null], ["features", undefined],
+  ] as const)("keeps the dashboard usable with scalper %s = %s",async(field,value)=>{
+    const data=fixture();
+    const signal={timestamp:new Date().toISOString(),direction:"BULL",strength:"STRONG",score:91,
+      components:{momentum:24},contradiction_penalty:0,reasons:["MOMENTUM_BULL"],warnings:[],confirmation_count:2,confirmed:true};
+    const snapshot={id:9,timestamp:new Date().toISOString(),spot:22430,signal,
+      features:{executable_book_coverage:1,median_spread_pct:2}};
+    // Model an incomplete runtime API response, including omitted JSON fields.
+    data.scalper=JSON.parse(JSON.stringify({enabled:false,mode:"PAPER",schema_ready:true,interval_seconds:15,
+      kill_switch:false,score_threshold:80,minimum_confirmations:2,current_position:null,timeline:[],
+      latest_snapshot:field==="features"?{...snapshot,features:value}:{...snapshot,signal:{...signal,[field]:value}},
+    })) as DashboardData["scalper"];
+    dashboardMock.mockResolvedValue(data);render(<Dashboard/>);
+    expect(await screen.findByRole("heading",{name:"Signal components"})).toBeInTheDocument();
+    expect(screen.getByLabelText("Scalper intraday paper engine")).toHaveTextContent("91.0");
+    expect(screen.getByText("Market Research Dashboard")).toBeInTheDocument();
+    expect(screen.getAllByText("22,421.95").length).toBeGreaterThan(0);
+    if(field!=="components") expect(screen.getByText("24.0")).toBeInTheDocument();
+    if(field!=="reasons") expect(screen.getByText("MOMENTUM BULL")).toBeInTheDocument();
+  });
   it("uses authoritative forward-paper mode and counts without legacy inference",async()=>{
     const data=fixture();data.execution_mode="PAPER";data.forward_paper={pending:2,open:0,closed:3,unresolved:1,rejected:4,profitability_claim:false};
     data.risk!.execution_mode="DECISION_ONLY";data.open_shadow_trade=trade;data.shadow_trades=[trade];
