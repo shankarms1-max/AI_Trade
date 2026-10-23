@@ -13,11 +13,11 @@ describe("iPhone web app metadata", () => {
   it("opens the dedicated monitor in standalone mode without offline caching", () => {
     const data = manifest();
     expect(data).toMatchObject({
-      name: "NIFTY Research Terminal",
-      short_name: "NIFTY Research",
-      description: "Read-only NIFTY strategy research terminal",
+      name: "AI Trade — Research Intelligence",
+      short_name: "AI Trade",
+      description: "Private NIFTY and Commodity paper research analytics",
       start_url: "/phase15", scope: "/", display: "standalone",
-      background_color: "#08111A", theme_color: "#08111A",
+      background_color: "#0c0c13", theme_color: "#0c0c13",
     });
     expect(data.icons).toEqual([
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -32,6 +32,7 @@ describe("iPhone web app metadata", () => {
     expect(metadata.manifest).toBe("/manifest.webmanifest");
     expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "NIFTY Research", statusBarStyle: "black-translucent" });
     expect(metadata.icons).toMatchObject({ apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] });
-    expect(viewport).toMatchObject({ viewportFit: "cover", themeColor: "#08111A", colorScheme: "dark" });
+    expect(viewport).toMatchObject({ viewportFit: "cover", colorScheme: "dark light" });
+    expect(viewport.themeColor).toEqual([{ media: "(prefers-color-scheme: dark)", color: "#0c0c13" }, { media: "(prefers-color-scheme: light)", color: "#f5f6fa" }]);
   });
 });

@@ -1,8 +1,10 @@
 "use client";
 
+import { ResponsiveTable } from "@/components/responsive-table";
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { dateIST, integer, money, number, timeIST } from "@/lib/format";
+import { observationState } from "@/lib/monitoring";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Panel, SectionError } from "@/components/ui";
 import { blockerLabel } from "@/components/phase15-monitor";
@@ -26,14 +28,14 @@ function Gross({ trade }: { trade: Phase15PaperTrade }) {
 
 function QuoteEvidence({ title, quotes }: { title: string; quotes: Record<string, Phase15Quote> }) {
   if (!Object.keys(quotes).length) return <p className="muted">{title}: N/A</p>;
-  return <div className="phase15-evidence"><h4>{title}</h4><div className="table-wrap"><table aria-label={title}>
+  return <div className="phase15-evidence"><h4>{title}</h4><div className="table-wrap"><ResponsiveTable data-layout="book" aria-label={title}>
     <thead><tr><th>Leg / instrument</th><th>Side</th><th>Fill</th><th>Bid / Ask</th><th>Bid / Ask qty</th><th>Depth unit</th><th>Source timestamp</th><th>Tick</th></tr></thead>
     <tbody>{Object.entries(quotes).map(([leg, quote]) => <tr key={leg}>
       <td>{leg} · {quote.trading_symbol ?? quote.instrument_token ?? "N/A"}<small>{quote.exchange ?? "N/A"} · {quote.expiry ?? "N/A"} · {number(quote.strike, 0)}</small></td>
       <td>{quote.side ?? "N/A"}</td><td>{number(quote.fill_price)}</td><td>{number(quote.bid)} / {number(quote.ask)}</td>
       <td>{integer(quote.bid_quantity)} / {integer(quote.ask_quantity)}</td><td>{quote.depth_unit ?? "UNKNOWN"}</td>
       <td>{timestamp(quote.source_market_timestamp)}</td><td>{number(quote.tick_size)}</td>
-    </tr>)}</tbody></table></div></div>;
+    </tr>)}</tbody></ResponsiveTable></div></div>;
 }
 
 function ResearchDetails({ trade }: { trade: Phase15PaperTrade }) {
@@ -87,41 +89,34 @@ function Pagination({ page, onPage }: { page: Phase15TradePage; onPage: (offset:
   </div>;
 }
 
-function PositionsPage({ offset, onPage }: { offset: number; onPage: (offset: number) => void }) {
-  const loader = useCallback(() => api.phase15Positions(offset), [offset]);
-  const { data, error } = usePolling(loader, 20000);
-  if (error) return <SectionError>OPEN PAPER POSITIONS UNAVAILABLE</SectionError>;
-  if (!data) return <Empty>LOADING OPEN PAPER POSITIONS</Empty>;
-  return <>
-    <p className="phase15-capture-note">All entry dates · Latest captured marks as of {timestamp(data.as_of)} · GROSS_ONLY</p>
-    {data.items.length ? <div className="phase15-position-grid">{data.items.map(trade =>
-      <article className="phase15-position" key={`${trade.strategy_id}:${trade.trade_id}`} aria-label={`${trade.display_name} position ${trade.trade_id}`}>
-        <header><div><h3>{trade.display_name} · {trade.direction ?? "N/A"}</h3><small>{trade.trade_id}</small></div><Badge value={trade.state}/></header>
-        <div className="phase15-position-spread">Short {number(trade.short_strike, 0)} / Hedge {number(trade.hedge_strike, 0)}<strong>Width {number(trade.spread_width, 0)} pts</strong></div>
-        <dl className="phase15-trade-fields">
-          <div><dt>Entry credit</dt><dd>{number(trade.entry_credit)}</dd></div>
-          <div><dt>Current debit</dt><dd>{number(trade.mark_available ? trade.current_debit : null)}</dd></div>
-          <div><dt>Unrealized gross MTM</dt><dd><Gross trade={trade}/></dd></div>
-          <div><dt>Holding duration</dt><dd>{duration(trade.holding_seconds)}</dd></div>
-          <div><dt>MFE / MAE (points)</dt><dd>{number(trade.mfe)} / {number(trade.mae)}</dd></div>
-          <div><dt>Exit policy</dt><dd>{trade.exit_policy_version ?? "UNAVAILABLE"}</dd></div>
-          <div><dt>Entry timestamp</dt><dd>{timestamp(trade.entry_timestamp)}</dd></div>
-          <div><dt>Lot size / lots</dt><dd>{integer(trade.lot_size)} / {integer(trade.lots)}</dd></div>
-        </dl>
-        <p className={trade.mark_available ? "muted" : "phase15-mark-unavailable"}>{trade.mark_available ? "Latest exact mark" : "MARK UNAVAILABLE"} · {timestamp(trade.latest_mark_timestamp)}</p>
-        {trade.unresolved_reason && <p className="phase15-mark-unavailable">{trade.unresolved_reason}</p>}
-        <ResearchDetails trade={trade}/>
-      </article>)}</div> : <Empty>NO OPEN PAPER POSITIONS</Empty>}
-    <Pagination page={data} onPage={onPage}/>
-  </>;
+export function PositionCard({trade}:{trade:Phase15PaperTrade}) {
+  const markFreshness=observationState(trade.latest_mark_timestamp);
+  const historical=trade.mark_available&&markFreshness!=="FRESH";
+  const attention=trade.state==="UNRESOLVED_EXPOSURE"||trade.expiry_terminalization;
+  return <article className={`phase15-position ${attention?"needs-attention":""}`} aria-label={`${trade.display_name} position ${trade.trade_id}`}>
+    <header><div><h3>{trade.display_name}</h3><span>{trade.direction==="BEAR"?"BEAR CALL":trade.direction==="BULL"?"BULL PUT":"Direction N/A"}</span></div><Badge value={trade.state}/></header>
+    {trade.terminal_status&&<p className="attention-text">{trade.terminal_status}</p>}
+    <div className="position-mark"><span>{trade.state==="CLOSED"?"Realized gross":historical?"Last gross mark":"Gross mark"}</span><strong><Gross trade={trade}/></strong><small>{trade.mark_available?`${markFreshness} · Captured exact mark ${timestamp(trade.latest_mark_timestamp)}`:"MARK UNAVAILABLE"}</small></div>
+    <div className="position-legs"><span>Short {trade.short_option_type??trade.entry_quotes.short?.option_type??"N/A"} <b>{number(trade.short_strike,0)}</b></span><span>Hedge {trade.hedge_option_type??trade.entry_quotes.long?.option_type??"N/A"} <b>{number(trade.hedge_strike,0)}</b></span></div>
+    <dl className="position-prices"><div><dt>Entry credit</dt><dd>{money(trade.entry_credit)}</dd></div><div><dt>{historical?"Last marked debit":"Current debit"}</dt><dd>{money(trade.mark_available?trade.current_debit:null)}</dd></div></dl>
+    <div className="position-meta"><span>Entry {timeIST(trade.entry_timestamp)}</span><span>Holding {duration(trade.holding_seconds)}</span></div>
+    <p className="position-management">{trade.management?.requested_exit_reason?`Exit requested: ${blockerLabel(trade.management.requested_exit_reason)}`:(trade.exit_policy_version==="MIRROR_EXIT_V1"?"Exit rule: mirrored strategy signal":`Exit policy: ${trade.exit_policy_version??"N/A"}`)}{trade.management?.forced_exit_time_ist&&<> · Forced exit {trade.management.forced_exit_time_ist} IST</>}</p>
+    {trade.unresolved_reason&&<p className="attention-text">{blockerLabel(trade.unresolved_reason)}</p>}
+    <ResearchDetails trade={trade}/>
+  </article>;
 }
 
-export function Phase15Positions() {
-  const [offset, setOffset] = useState(0);
-  return <Panel title="OPEN POSITIONS" className="phase15-trade-panel">
-    <PositionsPage key={offset} offset={offset} onPage={setOffset}/>
-  </Panel>;
+function PositionsPage({offset,onPage}:{offset:number;onPage:(offset:number)=>void}) {
+  const loader=useCallback(()=>api.phase15Positions(offset),[offset]);
+  const {data,error}=usePolling(loader,20000);
+  if(error)return <SectionError>OPEN PAPER POSITIONS UNAVAILABLE · Exposure must not be assumed flat</SectionError>;
+  if(!data)return <div className="position-skeleton" aria-busy="true">Loading exact paper positions…</div>;
+  return <>
+    {data.items.length?<div className="phase15-position-grid">{data.items.map(trade=><PositionCard trade={trade} key={`${trade.strategy_id}:${trade.trade_id}`}/>)}</div>:<Empty>NO OPEN PAPER POSITIONS</Empty>}
+    {Boolean(data.offset||data.has_more)&&<Pagination page={data} onPage={onPage}/>}
+  </>;
 }
+export function Phase15Positions(){const[offset,setOffset]=useState(0);return <section className="positions-section" id="open-positions" aria-label="Open paper positions"><header className="section-title"><h2>OPEN POSITIONS</h2><span>Exact held contracts · Gross only</span></header><PositionsPage key={offset} offset={offset} onPage={setOffset}/></section>;}
 
 function todayIST() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -137,19 +132,18 @@ function JournalPage({ date, strategy, state, offset, onPage }: {
   if (!data) return <Empty>LOADING PAPER TRADE JOURNAL</Empty>;
   return <>
     <p className="phase15-capture-note">{data.date ?? "All dates"} · Decision observation date (IST) · GROSS_ONLY · Net costs unavailable</p>
-    {data.items.length ? <div className="table-wrap"><table className="phase15-journal-table" aria-label="Paper trade journal">
-      <thead><tr><th>Strategy / Trade</th><th>State / Direction</th><th>Decision / Entry / Exit (IST)</th><th>Short / Hedge</th><th>Width</th><th>Entry credit</th><th>Exit / Current debit</th><th>Realized gross / MTM</th><th>MFE / MAE (pts)</th><th>Holding</th><th>Reasons / Policy</th><th>Evidence</th></tr></thead>
-      <tbody>{data.items.map(trade => <tr key={`${trade.strategy_id}:${trade.trade_id}`}>
-        <td>{trade.display_name}<small>{trade.trade_id}</small></td><td><Badge value={trade.state}/><small>{trade.direction ?? "N/A"}</small></td>
-        <td>{timestamp(trade.decision_timestamp)}<small>Entry {timestamp(trade.entry_timestamp)}</small><small>Exit {timestamp(trade.exit_timestamp)}</small></td>
-        <td>{number(trade.short_strike, 0)} / {number(trade.hedge_strike, 0)}</td><td>{number(trade.spread_width, 0)} pts</td>
-        <td>{number(trade.entry_credit)}</td><td>{number(trade.state === "CLOSED" ? trade.exit_debit : trade.mark_available ? trade.current_debit : null)}
-          {trade.state === "OPEN" && !trade.mark_available && <small>MARK UNAVAILABLE</small>}</td>
-        <td><Gross trade={trade}/><small>{trade.expiry_terminalization ? "EXIT PRICE UNAVAILABLE" : trade.state === "CLOSED" ? "REALIZED GROSS" : "GROSS MTM"}</small></td>
-        <td>{number(trade.mfe)} / {number(trade.mae)}</td><td>{duration(trade.holding_seconds)}</td>
-        <td>{blockerLabel(trade.entry_reason)}<small>{trade.terminal_status ?? trade.exit_reason ?? trade.rejection_reason ?? trade.unresolved_reason ?? "N/A"}</small><small>{trade.exit_policy_version ?? "UNAVAILABLE"}</small></td>
+    {data.items.length?<div className="table-wrap"><ResponsiveTable className="phase15-journal-table" aria-label="Paper trade journal">
+      <thead><tr><th>Strategy / State</th><th>Time · IST</th><th>Short / Hedge</th><th>Credit / Debit</th><th>Gross P&L</th><th>Reason / Policy</th><th>Evidence</th></tr></thead>
+      <tbody>{data.items.map(trade=><tr key={`${trade.strategy_id}:${trade.trade_id}`}>
+        <td><strong>{trade.display_name}</strong><small>{trade.direction??"N/A"}</small><Badge value={trade.state}/></td>
+        <td>{timeIST(trade.entry_timestamp??trade.decision_timestamp)}<small>{dateIST(trade.decision_timestamp)} · Exit {timeIST(trade.exit_timestamp)}</small></td>
+        <td>{number(trade.short_strike,0)} / {number(trade.hedge_strike,0)}<small>{number(trade.spread_width,0)} pts</small></td>
+        <td><span>Entry {money(trade.entry_credit)}</span><small>{trade.state==="CLOSED"?"Exit":"Current"} {money(trade.state==="CLOSED"?trade.exit_debit:trade.mark_available?trade.current_debit:null)}</small></td>
+        <td><Gross trade={trade}/><small>{trade.expiry_terminalization?"EXIT PRICE UNAVAILABLE":trade.state==="CLOSED"?"REALIZED GROSS":trade.mark_available?"GROSS MTM":"MARK UNAVAILABLE"}</small></td>
+        <td>{blockerLabel(trade.entry_reason)}<small>{trade.terminal_status??trade.exit_reason??trade.rejection_reason??trade.unresolved_reason??"N/A"}</small><small>{trade.exit_policy_version??"UNAVAILABLE"}</small></td>
         <td><ResearchDetails trade={trade}/></td>
-      </tr>)}</tbody></table></div> : <Empty>NO PAPER TRADES MATCH THESE FILTERS</Empty>}
+      </tr>)}</tbody>
+    </ResponsiveTable></div>:<Empty>NO PAPER TRADES MATCH THESE FILTERS</Empty>}
     <Pagination page={data} onPage={onPage}/>
   </>;
 }
@@ -160,13 +154,14 @@ export function Phase15Journal() {
   const [state, setState] = useState("");
   const [offset, setOffset] = useState(0);
   return <Panel title="TRADE JOURNAL" className="phase15-trade-panel">
-    <div className="phase15-journal-filters">
-      <label>Date<select value={date} onChange={event => { setDate(event.target.value); setOffset(0); }}><option value="today">Today</option><option value="all">All</option></select></label>
-      <label>Strategy<select value={strategy} onChange={event => { setStrategy(event.target.value); setOffset(0); }}><option value="">All strategies</option>
+    <details className="journal-filters"><summary>Filters · {date === "today" ? "Today" : "All dates"}{strategy ? ` · ${strategy.replaceAll("_"," ")}` : ""}{state ? ` · ${state.replaceAll("_"," ")}` : ""}</summary><div className="phase15-journal-filters">
+      <label>Date<select aria-label="Date" value={date} onChange={event => { setDate(event.target.value); setOffset(0); }}><option value="today">Today</option><option value="all">All</option></select></label>
+      <label>Strategy<select aria-label="Strategy" value={strategy} onChange={event => { setStrategy(event.target.value); setOffset(0); }}><option value="">All strategies</option>
         {STRATEGIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-      <label>State<select value={state} onChange={event => { setState(event.target.value); setOffset(0); }}><option value="">All states</option>
+      <label>State<select aria-label="State" value={state} onChange={event => { setState(event.target.value); setOffset(0); }}><option value="">All states</option>
         {STATES.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
     </div>
+    </details>
     {/* A filter/page change remounts the reader: late old responses cannot overwrite the selected page. */}
     <JournalPage key={`${date}:${strategy}:${state}:${offset}`} date={date} strategy={strategy} state={state} offset={offset} onPage={setOffset}/>
   </Panel>;

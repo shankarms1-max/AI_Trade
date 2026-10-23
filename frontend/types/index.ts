@@ -34,6 +34,11 @@ export interface Phase15Trade {
   mirror_diagnostics?: Record<string, unknown> | null;
 }
 export interface Phase15Strategy {
+  direction?: string | null;
+  decision_features?: { ema_fast?: number | null; ema_slow?: number | null; pullback_anchor?: number | null;
+    pullback_depth_bps?: number | null; resumption_strength_bps?: number | null; supertrend?: number | null;
+    supertrend_direction?: string | null; rsi?: number | null; volume_ratio?: number | null;
+    opportunity_score?: number | null; score_band?: string | null; market_state?: string | null; alpha_state?: string | null };
   strategy_id: string; display_name: string; trades_today: number | null;
   wins_today: number | null; losses_today: number | null; entry_rejections_today: number | null;
   latest_rejection_reason: string | null; realized_gross_pnl_today: number | null;
@@ -50,6 +55,7 @@ export interface Phase15Summary {
   strategies: Phase15Strategy[];
 }
 export interface Phase15PaperTrade extends Omit<Phase15Trade, "mirror_diagnostics" | "false_breakout"> {
+  management?: { requested_exit_reason?: string | null; forced_exit_time_ist?: string | null };
   strategy_id: string; display_name: string; spread_width: number | null;
   short_option_type?: string | null; hedge_option_type?: string | null;
   lot_size: number | null; lots: number | null; accounting_status: "GROSS_ONLY";

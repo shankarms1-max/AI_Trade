@@ -1,3 +1,4 @@
+import { observationState } from "@/lib/monitoring";
 import { money, number, timeIST } from "@/lib/format";
 import type { Phase15OrbRange, Phase15PaperTrade } from "@/types";
 
@@ -39,20 +40,15 @@ export function OrbRange({ title, evidence, frozen = false, observedAt }: {
 }
 
 export function OptionExecution({ trade }: { trade: Phase15PaperTrade }) {
+  const quoteLabel=observationState(trade.latest_mark_timestamp)==="FRESH"?"Current exact quote":"Last captured exact quote";
   const shortEntry = trade.entry_quotes.short, hedgeEntry = trade.entry_quotes.long;
   const shortAsk = trade.mark_available ? trade.latest_mark_quotes.short?.ask : null;
   const hedgeBid = trade.mark_available ? trade.latest_mark_quotes.long?.bid : null;
   const change = shortAsk != null && shortEntry?.fill_price != null ? shortAsk - shortEntry.fill_price : null;
   return <section className="phase15-option-execution" aria-label="Option execution">
     <h4>Option execution · exact contracts</h4>
-    <div className="table-wrap"><table aria-label="Option leg execution">
-      <thead><tr><th>Leg</th><th>Entry fill</th><th>Current exact quote</th><th>Change</th></tr></thead>
-      <tbody><tr><th>Short {trade.short_option_type ?? shortEntry?.option_type ?? "N/A"} {number(trade.short_strike, 0)}</th>
-        <td>{money(shortEntry?.fill_price)}</td><td>ASK {money(shortAsk)}</td>
-        <td>{change == null ? "N/A" : `${change >= 0 ? "+" : "−"}${money(Math.abs(change))}`}</td></tr>
-      <tr><th>Hedge {trade.hedge_option_type ?? hedgeEntry?.option_type ?? "N/A"} {number(trade.hedge_strike, 0)}</th>
-        <td>{money(hedgeEntry?.fill_price)}</td><td>BID {money(hedgeBid)}</td><td>—</td></tr></tbody>
-    </table></div>
+    <div className="option-leg-grid"><div><h5>Short {trade.short_option_type ?? shortEntry?.option_type ?? "N/A"} {number(trade.short_strike,0)}</h5><dl><div><dt>Entry fill</dt><dd>{money(shortEntry?.fill_price)}</dd></div><div><dt>{quoteLabel}</dt><dd>ASK {money(shortAsk)}</dd></div><div><dt>Change</dt><dd>{change==null?"N/A":`${change>=0?"+":"−"}${money(Math.abs(change))}`}</dd></div></dl></div>
+      <div><h5>Hedge {trade.hedge_option_type ?? hedgeEntry?.option_type ?? "N/A"} {number(trade.hedge_strike,0)}</h5><dl><div><dt>Entry fill</dt><dd>{money(hedgeEntry?.fill_price)}</dd></div><div><dt>{quoteLabel}</dt><dd>BID {money(hedgeBid)}</dd></div></dl></div></div>
     <p>Entry spread credit {money(trade.entry_credit)} · Current spread debit {money(trade.mark_available ? trade.current_debit : null)}</p>
   </section>;
 }

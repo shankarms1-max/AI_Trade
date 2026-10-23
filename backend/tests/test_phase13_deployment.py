@@ -129,7 +129,10 @@ def test_frontend_supports_relative_production_api_and_standalone_output() -> No
     )
     assert 'ARG NEXT_PUBLIC_API_BASE_URL=""' in read("frontend/Dockerfile")
     assert 'output: "standalone"' in read("frontend/next.config.ts")
-    assert "`${API_BASE}${path}`" in read("frontend/lib/api.ts")
+    client = read("frontend/lib/api.ts")
+    # The unified lineage selects the independent read-only source first.
+    assert 'path.startsWith("/api/commodity-acts/") ? COMMODITY_BASE : API_BASE' in client
+    assert "`${base}${path}`" in client
 
 
 def test_backup_and_smoke_assets_are_safe_and_documented() -> None:

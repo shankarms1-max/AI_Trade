@@ -277,3 +277,16 @@ def test_endpoints_only_select_and_validate_filters(session_factory, engine, mon
         app.dependency_overrides.clear()
     with session_factory() as session:
         assert json.loads(session.scalar(select(ActsPaperTrade.document)))["gross_mark_rupees"] == 75
+
+
+def test_management_projection_uses_frozen_policy_and_persisted_exit_request(session_factory):
+    seed(session_factory)
+    doc = add(session_factory, "managed")
+    doc["mirror_exit_request"] = {"reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL", "private": "DO_NOT_EXPOSE"}
+    doc["policy"]["exit_policy"] = {"forced_exit_time_ist": "15:20:00", "secret": "DO_NOT_EXPOSE"}
+    with session_factory.begin() as session:
+        session.get(ActsPaperTrade, "managed").document = json.dumps(doc)
+    result = trades(session_factory, AT, positions=True)["items"][0]
+    assert result["management"] == {"requested_exit_reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+                                    "forced_exit_time_ist": "15:20:00"}
+    assert "DO_NOT_EXPOSE" not in json.dumps(result)

@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Dashboard } from "@/components/dashboard";
-import Page from "@/app/page";
+import Page from "@/app/nifty/research/page";
 import { HistoryTable } from "@/components/history";
 import { ShadowTradeDetail } from "@/components/shadow-pages";
 import { api } from "@/lib/api";
@@ -17,6 +17,30 @@ const dashboardMock=vi.mocked(api.dashboard);
 beforeEach(()=>{dashboardMock.mockReset();vi.mocked(api.phase15Summary).mockReset();vi.mocked(api.phase15Summary).mockRejectedValue(new Error("unavailable"));vi.mocked(api.snapshots).mockResolvedValue([]);vi.mocked(api.pipelines).mockResolvedValue([]);vi.mocked(api.candidatesList).mockResolvedValue([]);vi.mocked(api.riskList).mockResolvedValue([]);vi.mocked(api.systemEvents).mockResolvedValue([]);vi.mocked(api.systemHealth).mockRejectedValue(new Error("unavailable"));vi.mocked(api.systemMetrics).mockRejectedValue(new Error("unavailable"));});afterEach(cleanup);
 
 describe("dashboard",()=>{
+  it.each([
+    ["components", null], ["components", undefined],
+    ["reasons", null], ["reasons", undefined],
+    ["features", null], ["features", undefined],
+  ] as const)("keeps the dashboard usable with scalper %s = %s",async(field,value)=>{
+    const data=fixture();
+    const signal={timestamp:new Date().toISOString(),direction:"BULL",strength:"STRONG",score:91,
+      components:{momentum:24},contradiction_penalty:0,reasons:["MOMENTUM_BULL"],warnings:[],confirmation_count:2,confirmed:true};
+    const snapshot={id:9,timestamp:new Date().toISOString(),spot:22430,signal,
+      features:{executable_book_coverage:1,median_spread_pct:2}};
+    // Model an incomplete runtime API response, including omitted JSON fields.
+    data.scalper=JSON.parse(JSON.stringify({enabled:false,mode:"PAPER",schema_ready:true,interval_seconds:15,
+      kill_switch:false,score_threshold:80,minimum_confirmations:2,current_position:null,timeline:[],
+      latest_snapshot:field==="features"?{...snapshot,features:value}:{...snapshot,signal:{...signal,[field]:value}},
+    })) as DashboardData["scalper"];
+    dashboardMock.mockResolvedValue(data);render(<Dashboard/>);
+    expect(await screen.findByRole("heading",{name:"Signal components"})).toBeInTheDocument();
+    expect(screen.getByLabelText("Scalper intraday paper engine")).toHaveTextContent("91.0");
+    expect(screen.getByText("Market Research Dashboard")).toBeInTheDocument();
+    expect(screen.getAllByText("22,421.95").length).toBeGreaterThan(0);
+    if(field!=="components") expect(screen.getByText("24.0")).toBeInTheDocument();
+    if(field!=="reasons") expect(screen.getByText("MOMENTUM BULL")).toBeInTheDocument();
+    if(field==="features") expect(screen.getByText(/Books: N\/A/)).toBeInTheDocument();
+  });
   it("uses authoritative forward-paper mode and counts without legacy inference",async()=>{
     const data=fixture();data.execution_mode="PAPER";data.forward_paper={pending:2,open:0,closed:3,unresolved:1,rejected:4,profitability_claim:false};
     data.risk!.execution_mode="DECISION_ONLY";data.open_shadow_trade=trade;data.shadow_trades=[trade];
@@ -42,7 +66,7 @@ describe("dashboard",()=>{
   it("warns when candidate pricing uses LTP",async()=>{const data=fixture();data.candidates!.candidates[0].pricing_basis="LTP_ESTIMATE";dashboardMock.mockResolvedValue(data);render(<Dashboard/>);expect(await screen.findByText("LTP ESTIMATE")).toBeInTheDocument();});
   it.each(["SUCCESS","FAILED"] as const)("renders %s pipeline status",async(status)=>{const data=fixture();data.pipeline!.status=status;dashboardMock.mockResolvedValue(data);render(<Dashboard/>);expect((await screen.findAllByText(status)).length).toBeGreaterThan(0);});
   it("keeps terminal shell visible on API failure",async()=>{dashboardMock.mockRejectedValue(new Error("offline"));render(<Dashboard/>);expect(await screen.findByText("MARKET DATA UNAVAILABLE")).toBeInTheDocument();expect(screen.getByText("PIPELINE DATA UNAVAILABLE")).toBeInTheDocument();});
-  it("keeps the dashboard usable when Phase 15 is unavailable",async()=>{dashboardMock.mockResolvedValue(fixture());render(<Page/>);expect(await screen.findByText("PHASE 15 MONITOR UNAVAILABLE")).toBeInTheDocument();expect(screen.getByText("Market Research Dashboard")).toBeInTheDocument();expect(screen.queryByText("GROSS ONLY")).not.toBeInTheDocument();});
+  it("keeps the dashboard usable when Phase 15 is unavailable",async()=>{dashboardMock.mockResolvedValue(fixture());render(<Page/>);expect(await screen.findByText("Market Research Dashboard")).toBeInTheDocument();expect(screen.getByText("Market Research Dashboard")).toBeInTheDocument();expect(screen.queryByText("GROSS ONLY")).not.toBeInTheDocument();});
   it("contains no mock trading controls",async()=>{dashboardMock.mockResolvedValue(fixture());render(<Dashboard/>);await screen.findByText("Market Research Dashboard");expect(screen.queryByRole("button",{name:/buy|sell|place order|square off|cancel order/i})).not.toBeInTheDocument();});
   it("renders isolated scalper paper status and gross-only accounting",async()=>{const data=fixture();data.scalper={enabled:true,mode:"PAPER",schema_ready:true,interval_seconds:15,kill_switch:false,score_threshold:80,minimum_confirmations:2,latest_snapshot:{id:9,timestamp:new Date().toISOString(),spot:22430,signal:{timestamp:new Date().toISOString(),direction:"BULL",strength:"STRONG",score:91,components:{momentum:24,structure:18,futures:12,participation:13,execution:24},contradiction_penalty:0,reasons:["MOMENTUM_BULL"],warnings:[],confirmation_count:2,confirmed:true},features:{executable_book_coverage:1,median_spread_pct:2}},current_position:null,today:{trades:2,wins:1,losses:1,gross_pnl:125,rejections:1,cost_completeness:"GROSS_ONLY",net_pnl:null,profitability_claim:false},timeline:[]};dashboardMock.mockResolvedValue(data);render(<Dashboard/>);expect(await screen.findByText("Intraday credit-spread paper engine")).toBeInTheDocument();expect(screen.getByLabelText("Scalper intraday paper engine")).toHaveTextContent("PAPER");expect(screen.getByLabelText("Scalper intraday paper engine")).toHaveTextContent("GROSS ONLY");expect(screen.getByText("NO ACTIVE SCALPER POSITION")).toBeInTheDocument();});
   it("renders the statistical alpha panel and history chart",async()=>{const data=fixture();const alpha={snapshot_id:1,timestamp:new Date().toISOString(),expiry:"2026-10-08",price_source:"FUTURE",price_return:.002,alpha_1:.87,alpha_2:.83,alpha_1_direction:"STRONG_BULLISH",alpha_2_direction:"STRONG_BULLISH",joint_alpha_direction:"STRONG_BULLISH_CONFIRMATION",consecutive_confirmation_count:2,confirmed:true,evidence_quality:"HIGH",status:"READY",atm_volume_activity:1.4,atm_option_volatility:.03,warnings:[]};data.alpha=alpha;data.alpha_history=[alpha];dashboardMock.mockResolvedValue(data);render(<Dashboard/>);expect(await screen.findByText("Statistical alpha")).toBeInTheDocument();expect(screen.getByText("2 snapshots")).toBeInTheDocument();expect(screen.getByLabelText("Statistical alpha history")).toBeInTheDocument();});

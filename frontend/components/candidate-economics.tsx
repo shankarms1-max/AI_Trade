@@ -1,10 +1,11 @@
+import { ResponsiveTable } from "@/components/responsive-table";
 import { Badge } from "@/components/ui";
 import { money, number, percent, pretty } from "@/lib/format";
 import type { StrategyCandidate } from "@/types";
 
 export function CandidateTable({ candidates }: { candidates: StrategyCandidate[] }) {
   const economics = candidates.some(candidate => candidate.strategy_logic_version === "phase14_2_v1");
-  return <div className="table-wrap"><table>
+  return <div className="table-wrap"><ResponsiveTable>
     <thead><tr><th>Rank</th><th>Strategy / Family</th><th>Spread Width</th><th>Net credit</th>
       {economics && <><th>Survival / Carry</th><th>Expected Move Distance</th><th>DTE</th><th>Max Loss / lot</th><th>Theta/Gamma Balance</th></>}
       <th>Pricing</th><th>Score</th></tr></thead>
@@ -31,5 +32,5 @@ export function CandidateTable({ candidates }: { candidates: StrategyCandidate[]
         <td>{item.days_to_expiry ?? "N/A"}</td><td>{money(item.max_loss_per_lot)}</td><td>{pretty(item.theta_gamma_balance_state ?? "N/A")}</td></>}
       <td><Badge value={item.pricing_basis}/></td><td>{number(item.selection_score, 0)}</td>
     </tr>)}</tbody>
-  </table>{economics && <p className="metric-detail">Survival and carry are research scores. Expected move and theta/gamma context are proxies.</p>}</div>;
+  </ResponsiveTable>{economics && <p className="metric-detail">Survival and carry are research scores. Expected move and theta/gamma context are proxies.</p>}</div>;
 }

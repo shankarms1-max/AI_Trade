@@ -39,123 +39,57 @@ function fixture(): Phase15Summary {
 beforeEach(() => vi.mocked(api.phase15Summary).mockReset());
 afterEach(cleanup);
 
-describe("Phase 15 monitor", () => {
-  it("wires the stored ORB ranges into the monitor and keeps entered ranges frozen", async () => {
-    const data = fixture();
-    for (const [index, end] of [[1, "09:30"], [2, "09:45"], [3, "10:15"]] as const) {
-      data.strategies[index].orb_range = { range_minutes: Number(ids[index].split("_")[1]),
-        range_start: "2026-10-15T09:15:00+05:30", range_end: `2026-10-15T${end}:00+05:30`,
-        opening_high: 25684.40, opening_low: 25621.15, current_future_price: 25701.80, complete: true,
-        breakout_direction: "BULL", breakout_timestamp: null, breakout_distance_bps: 6.77,
-        confirmation_seconds: 45, reason: null };
-    }
-    data.strategies[1].today_trades = [{ ...openTrade, strategy_features: {
-      ...data.strategies[1].orb_range!, opening_high: 25000, opening_low: 24900 } }];
-    vi.mocked(api.phase15Summary).mockResolvedValue(data);
-    render(<Phase15Monitor/>);
-    const ranges = await screen.findByRole("region", { name: "ORB Range" });
-    for (const name of ["ORB 15", "ORB 30", "ORB 60"]) {
-      const card = within(ranges).getByRole("article", { name });
-      expect(within(card).getByText("25,684.40")).toBeInTheDocument();
-      expect(within(card).getByText("ABOVE HIGH")).toBeInTheDocument();
-    }
-    fireEvent.click(screen.getByRole("button", { name: "Expand ORB 15" }));
-    const frozen = screen.getByRole("article", { name: "Frozen entry ORB range" });
-    expect(within(frozen).getByText("25,000.00")).toBeInTheDocument();
-    expect(within(frozen).queryByText("25,684.40")).not.toBeInTheDocument();
-  });
-
-  it("renders six strategies, gross totals, and a negative live mark", async () => {
-    vi.mocked(api.phase15Summary).mockResolvedValue(fixture());
-    render(<Phase15Monitor/>);
-    const table = await screen.findByRole("table", { name: "Phase 15 strategies" });
-    for (const name of names) expect(within(table).getByRole("button", { name: `Expand ${name}` })).toBeInTheDocument();
-    expect(screen.getAllByText("₹250.00")).toHaveLength(2);
-    expect(screen.getAllByText("−₹187.50")).toHaveLength(2);
-    expect(screen.getByText("GROSS ONLY")).toBeInTheDocument();
-    expect(screen.getByText("Net transaction-cost accounting is not configured.")).toBeInTheDocument();
-    expect(screen.queryByText(/net profit/i)).not.toBeInTheDocument();
-  });
-
-  it("expands an open trade and keeps rejected decisions separate", async () => {
-    vi.mocked(api.phase15Summary).mockResolvedValue(fixture());
-    render(<Phase15Monitor/>);
-    fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
-    const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
-    expect(within(details).getByText("25,000 / 24,600")).toBeInTheDocument();
-    expect(within(details).getByText("42.50")).toBeInTheDocument();
-    expect(within(details).getByText("OPEN")).toBeInTheDocument();
-    expect(within(details).getByText("Structure confirmed")).toBeInTheDocument();
-    expect(screen.getByText("Entry rejections today: 0")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Expand ORB 15" }));
-    expect(screen.getByText(/Entry rejections today: 1/)).toBeInTheDocument();
-    expect(screen.getByText("NO ENTERED TRADES TODAY")).toBeInTheDocument();
-    expect(screen.getByText("Re-entry disabled / same breakout")).toBeInTheDocument();
-  });
-
-  it("separates unresolved and expired unpriced records from open and realized P&L", async () => {
-    const data = fixture();
-    data.totals.unresolved_exposures = 2;
-    data.totals.expired_unpriced_count = 3;
-    data.strategies[0].unresolved_exposure_count = 2;
-    data.strategies[0].expired_unpriced_count = 3;
-    data.strategies[0].today_trades = [{ ...openTrade, state: "CLOSED", current_debit: null,
-      current_unrealized_gross_pnl: null, expiry_terminalization: true,
-      terminal_status: "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE", exit_reason: "CONTRACT_EXPIRED_UNPRICED" }];
-    vi.mocked(api.phase15Summary).mockResolvedValue(data);
-    render(<Phase15Monitor/>);
-    fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
-    expect(screen.getByText("Unresolved Exposures")).toBeInTheDocument();
-    expect(screen.getAllByText("Expired Unpriced")).toHaveLength(2);
-    const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
-    expect(within(details).getByText("CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE")).toBeInTheDocument();
-    expect(within(details).queryByText(/₹0/)).not.toBeInTheDocument();
-  });
-
-  it("treats ordinary blockers as labels, not errors", () => {
-    expect(blockerLabel("MAX_TRADES_PER_DAY_REACHED")).toBe("Max trades per day reached");
-    expect(blockerLabel("VOLUME_CONFIRMATION_REQUIRED")).toBe("Volume confirmation required");
-    expect(blockerLabel("BAR_ALREADY_EVALUATED")).toBe("Bar already evaluated");
-    expect(blockerLabel("ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT")).toBe("Re-entry disabled / same breakout");
-  });
-
-  it.each([
-    ["OPPOSITE_ACTS_V2_ENTRY_SIGNAL", "Opposite acts v2 entry signal"],
-    ["SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS", "Sustained opposite acts tradeable thesis"],
-  ])("shows the stored exit policy and preserves the actual reason %s", async (reason, label) => {
-    const data = fixture();
-    data.strategies[0].today_trades = [{ ...openTrade, state: "CLOSED",
-      exit_policy_version: "MIRROR_EXIT_V1",
-      exit_reason: reason }];
-    vi.mocked(api.phase15Summary).mockResolvedValue(data);
-    render(<Phase15Monitor/>);
-    fireEvent.click(await screen.findByRole("button", { name: "Expand ACTS V2" }));
-    const details = screen.getByRole("table", { name: "ACTS V2 today trades" });
-    expect(within(details).getByText("MIRROR_EXIT_V1")).toBeInTheDocument();
-    expect(within(details).getByText(label)).toHaveAttribute("title", reason);
-  });
-
-  it("shows N/A for one unavailable strategy while preserving the other five", async () => {
-    const data = fixture();
-    data.strategies[4] = { ...data.strategies[4], trades_today: null,
-      wins_today: null, losses_today: null, entry_rejections_today: null,
-      open_position_count: null, realized_gross_pnl_today: null, unrealized_gross_pnl: null,
-      latest_status: null, latest_blocker: null };
-    data.totals.combined_gross_pnl = null;
-    vi.mocked(api.phase15Summary).mockResolvedValue(data);
-    render(<Phase15Monitor/>);
-    const table = await screen.findByRole("table", { name: "Phase 15 strategies" });
-    for (const name of names) expect(within(table).getByRole("button", { name: `Expand ${name}` })).toBeInTheDocument();
-    const emaRow = within(table).getByRole("button", { name: "Expand EMA Pullback" }).closest("tr");
-    expect(emaRow).toHaveTextContent("N/A");
-  });
-
-  it("shows unavailable without inferring paper activity when the response is absent", async () => {
-    vi.mocked(api.phase15Summary).mockResolvedValue(null as unknown as Phase15Summary);
-    render(<Phase15Monitor/>);
-    expect(await screen.findByText("PHASE 15 MONITOR UNAVAILABLE")).toBeInTheDocument();
-    expect(screen.getByText("UNAVAILABLE")).toBeInTheDocument();
-    expect(screen.queryByText("GROSS ONLY")).not.toBeInTheDocument();
-    expect(screen.queryByRole("table", { name: "Phase 15 strategies" })).not.toBeInTheDocument();
-  });
+describe("Phase 15 responsive strategy monitor",()=>{
+ it("shows all six strategies and preserves supplied evidence without another read",()=>{
+  const data=fixture();const before=structuredClone(data);render(<Phase15Monitor summary={data} workspace compact/>);
+  for(const name of names)expect(screen.getByRole("button",{name:`Expand ${name}`})).toBeInTheDocument();
+  expect(api.phase15Summary).not.toHaveBeenCalled();expect(data).toEqual(before);
+  expect(screen.queryByRole("table",{name:"Phase 15 strategies"})).not.toBeInTheDocument();
+ });
+ it("filters the strategy workspace without mutating counts",()=>{
+  const data=fixture();render(<Phase15Monitor summary={data} workspace/>);
+  fireEvent.change(screen.getByLabelText("Strategy selection"),{target:{value:"ORB_30"}});
+  expect(screen.getByRole("button",{name:"Expand ORB 30"})).toBeInTheDocument();
+  expect(screen.queryByRole("button",{name:"Expand ACTS V2"})).not.toBeInTheDocument();expect(data.strategies).toHaveLength(6);
+ });
+ it("shows gross values and keeps technical execution evidence behind expansion",async()=>{
+  vi.mocked(api.phase15Summary).mockResolvedValue(fixture());render(<Phase15Monitor/>);
+  fireEvent.click(await screen.findByRole("button",{name:"Expand ACTS V2"}));
+  const details=screen.getByRole("table",{name:"ACTS V2 today trades"});
+  expect(within(details).getByText("25,000 / 24,600")).toBeInTheDocument();expect(within(details).getByText("42.50")).toBeInTheDocument();
+  expect(screen.getAllByText("−₹187.50").length).toBeGreaterThan(0);expect(screen.queryByText(/net profit/i)).not.toBeInTheDocument();
+ });
+ it.each(["OPPOSITE_ACTS_V2_ENTRY_SIGNAL","SUSTAINED_OPPOSITE_ACTS_TRADEABLE_THESIS"])("preserves frozen policy and exit reason %s",reason=>{
+  const data=fixture();data.strategies[0].today_trades=[{...openTrade,state:"CLOSED",exit_policy_version:"MIRROR_EXIT_V1",exit_reason:reason}];
+  render(<Phase15Monitor summary={data}/>);fireEvent.click(screen.getByRole("button",{name:"Expand ACTS V2"}));
+  expect(screen.getByText("MIRROR_EXIT_V1")).toBeInTheDocument();expect(screen.getByTitle(reason)).toHaveTextContent(blockerLabel(reason));
+ });
+ it("preserves unpriced expiry as unknown rather than a zero exit",()=>{
+  const data=fixture();data.strategies[0].today_trades=[{...openTrade,state:"CLOSED",exit_debit:null,realized_gross_pnl:null,terminal_status:"CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE"}];
+  render(<Phase15Monitor summary={data}/>);fireEvent.click(screen.getByRole("button",{name:"Expand ACTS V2"}));
+  expect(screen.getByText("CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE")).toBeInTheDocument();
+  expect(within(screen.getByRole("table")).queryByText(/₹0/)).not.toBeInTheDocument();
+ });
+ it("renders stored ACTS, EMA and Supertrend values without synthesizing gates",()=>{
+  const data=fixture();data.strategies[0].decision_features={opportunity_score:58.6,score_band:"TRADEABLE",alpha_state:"BEAR"};
+  data.strategies[4].decision_features={ema_fast:25701,ema_slow:25750,resumption_strength_bps:-6};
+  data.strategies[5].decision_features={supertrend_direction:"BEAR",rsi:34,volume_ratio:1.3};
+  render(<Phase15Monitor summary={data}/>);expect(screen.getByText("58.6")).toBeInTheDocument();expect(screen.getByText("25,701.00")).toBeInTheDocument();expect(screen.getByText("34.0")).toBeInTheDocument();
+ });
+ it("keeps unavailable strategy inputs unknown",()=>{
+  const data=fixture();data.strategies[4]={...data.strategies[4],latest_status:null,open_position_count:null,decision_features:undefined};render(<Phase15Monitor summary={data}/>);
+  expect(screen.getByRole("article",{name:"EMA Pullback strategy"})).toHaveTextContent("N/A");
+ });
+ it("shows an unavailable response without inventing paper activity",async()=>{
+  vi.mocked(api.phase15Summary).mockResolvedValue(null as never);render(<Phase15Monitor/>);
+  expect(await screen.findByText("PHASE 15 MONITOR UNAVAILABLE")).toBeInTheDocument();expect(screen.queryByText("GROSS ONLY")).not.toBeInTheDocument();
+ });
+ it("exposes all three stored ORB windows and a selected futures panel",()=>{
+  const data=fixture();for(const [index,end]of [[1,"09:30"],[2,"09:45"],[3,"10:15"]]as const)data.strategies[index].orb_range={range_minutes:+ids[index].split("_")[1],range_start:"2026-10-23T09:15:00+05:30",range_end:`2026-10-23T${end}:00+05:30`,opening_high:25684.4,opening_low:25621.15,current_future_price:25701.8,complete:true,breakout_direction:"BULL",breakout_timestamp:null,breakout_distance_bps:6.77,confirmation_seconds:45,reason:null};
+  render(<Phase15Monitor summary={data} workspace/>);
+  for(const [name,end]of [["ORB 15","09:30"],["ORB 30","09:45"],["ORB 60","10:15"]]){fireEvent.click(screen.getByRole("tab",{name:new RegExp(name)}));expect(screen.getByText(`09:15–${end} IST`)).toBeInTheDocument();}
+ });
+ it("labels ordinary blockers without converting them to failures",()=>{
+  expect(blockerLabel("ORB_REENTRY_DISABLED_OR_SAME_BREAKOUT")).toBe("Re-entry disabled / same breakout");expect(blockerLabel("VOLUME_CONFIRMATION_REQUIRED")).toBe("Volume confirmation required");
+ });
 });

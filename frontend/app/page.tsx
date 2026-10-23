@@ -1,10 +1,3 @@
-import { Dashboard } from "@/components/dashboard";
-import { Phase15Monitor } from "@/components/phase15-monitor";
+import { UnifiedOverview } from "@/components/unified-overview";
 import { SectionBoundary } from "@/components/section-boundary";
-
-export default function Page() {
-  return <>
-    <SectionBoundary label="Phase 15 monitor"><Phase15Monitor/></SectionBoundary>
-    <SectionBoundary label="Research dashboard"><Dashboard/></SectionBoundary>
-  </>;
-}
+export default function Page(){return <SectionBoundary label="Unified overview"><UnifiedOverview/></SectionBoundary>;}
