@@ -1,0 +1,5746 @@
+{
+  "notice": "SYNTHETIC UI FIXTURES ONLY — no real observations, broker evidence or paper fills. Commodity remains disabled. Fixed browser clock: 2026-10-23T06:30:00Z.",
+  "fixtures": {
+    "/api/health": {
+      "status": "HEALTHY",
+      "current_time_ist": "2026-10-23T12:00:00+05:30",
+      "market_session_state": "OPEN",
+      "components": {
+        "database": "HEALTHY",
+        "collector_heartbeat": "HEALTHY",
+        "data_freshness": "HEALTHY",
+        "market_data": "HEALTHY",
+        "pipeline": "HEALTHY",
+        "shadow": "IDLE",
+        "ai": "DISABLED",
+        "notifications": "HEALTHY"
+      }
+    },
+    "/api/dashboard/latest": {
+      "snapshot": {
+        "id": 1,
+        "timestamp_ist": "2026-10-23T06:30:00.000Z",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      "features": {
+        "snapshot_id": 1,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "expiry": "2026-10-08",
+        "spot": 22421.95,
+        "future": 22530.3,
+        "atm_strike": 22400,
+        "data_quality": {
+          "contracts_total": 42,
+          "intraday_oi_usable": true,
+          "intraday_volume_usable": true
+        },
+        "oi_features": {
+          "contracts": [
+            {
+              "strike": 22400,
+              "option_type": "CE",
+              "open_interest": 1000,
+              "previous_open_interest": 900,
+              "change_in_open_interest": 100,
+              "volume": 20,
+              "ltp": 50,
+              "positioning_class": "LONG_BUILDUP"
+            }
+          ]
+        },
+        "pcr_features": {
+          "local_pcr_oi": 1.1,
+          "local_pcr_oi_change": 0.9
+        },
+        "support_resistance": {
+          "potential_support_clusters": [
+            {
+              "center_strike": 22300
+            }
+          ],
+          "potential_resistance_clusters": [
+            {
+              "center_strike": 22500
+            }
+          ]
+        },
+        "futures_features": {
+          "futures_basis": 108.35,
+          "futures_basis_pct": 0.48
+        },
+        "volatility_features": {
+          "india_vix": 14.46,
+          "vix_regime": "NORMAL"
+        },
+        "price_structure_features": {
+          "spot_change_pct_from_previous_snapshot": 0.42,
+          "session_open_proxy": 22350,
+          "collector_observed_high": 22450,
+          "collector_observed_low": 22320,
+          "vwap": null,
+          "vwap_available": false
+        }
+      },
+      "regime": {
+        "snapshot_id": 1,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      "ai_research": null,
+      "candidates": {
+        "snapshot_id": 1,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      "risk": {
+        "snapshot_id": 1,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      "open_shadow_trade": {
+        "id": 7,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-04T04:15:00Z",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      "open_shadow_marks": [
+        {
+          "id": 1,
+          "shadow_trade_id": 7,
+          "market_snapshot_id": 1,
+          "timestamp": "2026-10-23T12:00:00+05:30",
+          "exit_debit": 9,
+          "pnl_per_unit": 1,
+          "pnl_per_lot": 50,
+          "spot": 22420,
+          "valuation_basis": "BID_ASK"
+        }
+      ],
+      "open_shadow_thresholds": null,
+      "shadow_trades": [
+        {
+          "id": 7,
+          "market_snapshot_id_entry": 1,
+          "strategy_type": "BULL_PUT_SPREAD",
+          "expiry": "2026-10-08",
+          "entry_timestamp": "2026-10-04T04:15:00Z",
+          "entry_spot": 22400,
+          "short_leg": {
+            "strike": 22300,
+            "option_type": "PE",
+            "trading_symbol": "SHORT",
+            "ltp": 20,
+            "bid": 19,
+            "ask": 21,
+            "open_interest": 1000,
+            "volume": 20
+          },
+          "long_leg": {
+            "strike": 22200,
+            "option_type": "PE",
+            "trading_symbol": "LONG",
+            "ltp": 8,
+            "bid": 7,
+            "ask": 9,
+            "open_interest": 800,
+            "volume": 15
+          },
+          "entry_credit": 10,
+          "entry_pricing_basis": "BID_ASK",
+          "lot_size": 50,
+          "max_profit_per_unit": 10,
+          "max_loss_per_unit": 90,
+          "max_profit_per_lot": 500,
+          "max_loss_per_lot": 4500,
+          "status": "OPEN",
+          "exit_timestamp": null,
+          "exit_reason": null,
+          "exit_debit": null,
+          "realized_pnl_per_unit": null,
+          "realized_pnl_per_lot": null,
+          "mae_per_unit": -1,
+          "mfe_per_unit": 2,
+          "mae_per_lot": -50,
+          "mfe_per_lot": 100,
+          "holding_minutes": 15,
+          "source_candidate": {
+            "id": "C1"
+          },
+          "source_risk_decision": {
+            "decision": "APPROVED"
+          }
+        }
+      ],
+      "pipeline": {
+        "id": 1,
+        "market_snapshot_id": 1,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      "pipeline_health": {
+        "last_success": null,
+        "last_partial": null,
+        "last_failed": null
+      },
+      "daily_summary": {
+        "date": "2026-10-04",
+        "snapshots_collected": 1,
+        "snapshots_with_usable_oi": 1,
+        "regime_counts": {
+          "BULLISH": 1,
+          "BEARISH": 0,
+          "RANGE": 0,
+          "NO_TRADE": 0
+        },
+        "candidate_sets_created": 1,
+        "approved_risk_decisions": 1,
+        "rejected_risk_decisions": 0,
+        "shadow_entries": 0,
+        "shadow_exits": 0,
+        "shadow_realized_pnl": 0,
+        "open_shadow_trades": 0,
+        "ai_calls": 0,
+        "ai_cost": 0
+      },
+      "regime_history": [],
+      "shadow_performance": {
+        "total_trades": 0,
+        "closed_trades": 0,
+        "open_trades": 0,
+        "invalid_trades": 0,
+        "per_unit": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "win_rate": null,
+          "gross_profit": 0,
+          "gross_loss": 0,
+          "net_pnl": 0,
+          "average_win": null,
+          "average_loss": null,
+          "profit_factor": null,
+          "expectancy_per_trade": null,
+          "max_drawdown": 0
+        },
+        "per_lot": {
+          "trades": 0,
+          "wins": 0,
+          "losses": 0,
+          "win_rate": null,
+          "gross_profit": 0,
+          "gross_loss": 0,
+          "net_pnl": 0,
+          "average_win": null,
+          "average_loss": null,
+          "profit_factor": null,
+          "expectancy_per_trade": null,
+          "max_drawdown": 0
+        },
+        "average_holding_minutes": null,
+        "average_mfe_per_unit": null,
+        "average_mae_per_unit": null
+      },
+      "shadow_breakdown": {},
+      "system": {
+        "database_api": "CONNECTED",
+        "collector_interval_minutes": 3,
+        "collector_start_time": "09:18:00",
+        "collector_end_time": "15:27:00",
+        "ai_research_configured": false,
+        "server_time_ist": "2026-10-23T06:30:00.000Z"
+      },
+      "execution_mode": "PAPER",
+      "forward_paper": {
+        "pending": 0,
+        "open": 0,
+        "closed": 3,
+        "unresolved": 1,
+        "rejected": 4,
+        "profitability_claim": false
+      },
+      "alpha": {
+        "snapshot_id": 1,
+        "timestamp": "2026-10-23T12:00:00+05:30",
+        "expiry": "2026-10-27",
+        "price_source": "FUTURE",
+        "price_return": 0.002,
+        "alpha_1": 0.87,
+        "alpha_2": 0.83,
+        "alpha_1_direction": "STRONG_BULLISH",
+        "alpha_2_direction": "STRONG_BULLISH",
+        "joint_alpha_direction": "STRONG_BULLISH_CONFIRMATION",
+        "consecutive_confirmation_count": 2,
+        "confirmed": true,
+        "evidence_quality": "HIGH",
+        "status": "READY",
+        "atm_volume_activity": 1.4,
+        "atm_option_volatility": 0.03,
+        "warnings": []
+      },
+      "alpha_history": [
+        {
+          "snapshot_id": 1,
+          "timestamp": "2026-10-23T12:00:00+05:30",
+          "expiry": "2026-10-27",
+          "price_source": "FUTURE",
+          "price_return": 0.002,
+          "alpha_1": 0.87,
+          "alpha_2": 0.83,
+          "alpha_1_direction": "STRONG_BULLISH",
+          "alpha_2_direction": "STRONG_BULLISH",
+          "joint_alpha_direction": "STRONG_BULLISH_CONFIRMATION",
+          "consecutive_confirmation_count": 2,
+          "confirmed": true,
+          "evidence_quality": "HIGH",
+          "status": "READY",
+          "atm_volume_activity": 1.4,
+          "atm_option_volatility": 0.03,
+          "warnings": []
+        }
+      ]
+    },
+    "/api/phase15/summary": {
+      "mode": "PAPER",
+      "as_of": "2026-10-23T12:00:00+05:30",
+      "accounting_status": "GROSS_ONLY",
+      "totals": {
+        "realized_gross_pnl_today": 3900,
+        "unrealized_gross_pnl": null,
+        "combined_gross_pnl": null,
+        "open_positions": 2,
+        "unresolved_exposures": 1,
+        "expired_unpriced_count": 0,
+        "trades_today": 6
+      },
+      "strategies": [
+        {
+          "strategy_id": "ACTS_V2",
+          "display_name": "ACTS V2",
+          "trades_today": 1,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 0,
+          "latest_rejection_reason": null,
+          "realized_gross_pnl_today": 0,
+          "unrealized_gross_pnl": -187.5,
+          "open_position_count": 1,
+          "unresolved_exposure_count": 0,
+          "expired_unpriced_count": 0,
+          "latest_status": "WATCH",
+          "latest_blocker": null,
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [
+            {
+              "trade_id": "UI-FIXTURE-ACTS-OPEN",
+              "strategy_id": "ACTS_V2",
+              "display_name": "ACTS V2",
+              "state": "OPEN",
+              "direction": "BULL",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": null,
+              "short_strike": 25700,
+              "hedge_strike": 25300,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": 69.2,
+              "exit_debit": null,
+              "realized_gross_pnl": null,
+              "current_unrealized_gross_pnl": 52,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "DIRECTIONAL_CONTINUATION",
+              "exit_reason": null,
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": null,
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": true,
+              "mark_unavailable_reason": null,
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "PE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {
+                "short": {
+                  "ask": 100.2,
+                  "bid": 100.1,
+                  "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+                },
+                "long": {
+                  "bid": 31,
+                  "ask": 31.1,
+                  "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+                }
+              },
+              "false_breakout_first_at": null,
+              "short_option_type": "PE",
+              "hedge_option_type": "PE"
+            }
+          ],
+          "direction": "BULL",
+          "decision_features": {
+            "opportunity_score": 58.6,
+            "score_band": "TRADEABLE",
+            "market_state": "STRONG_BULL",
+            "alpha_state": "BULL"
+          }
+        },
+        {
+          "strategy_id": "ORB_15",
+          "display_name": "ORB 15",
+          "trades_today": 2,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 1,
+          "latest_rejection_reason": "MAX_TRADES_PER_DAY_REACHED",
+          "realized_gross_pnl_today": 0,
+          "unrealized_gross_pnl": 0,
+          "open_position_count": 1,
+          "unresolved_exposure_count": 0,
+          "expired_unpriced_count": 0,
+          "latest_status": "BLOCKED",
+          "latest_blocker": null,
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [
+            {
+              "trade_id": "UI-FIXTURE-ORB-OPEN",
+              "strategy_id": "ORB_15",
+              "display_name": "ORB 15",
+              "state": "OPEN",
+              "direction": "BEAR",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": null,
+              "short_strike": 25700,
+              "hedge_strike": 26100,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": 69.2,
+              "exit_debit": null,
+              "realized_gross_pnl": null,
+              "current_unrealized_gross_pnl": 52,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "CONFIRMED_OPENING_RANGE_BREAKOUT",
+              "exit_reason": null,
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": null,
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": true,
+              "mark_unavailable_reason": null,
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "CE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {
+                "short": {
+                  "ask": 100.2,
+                  "bid": 100.1,
+                  "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+                },
+                "long": {
+                  "bid": 31,
+                  "ask": 31.1,
+                  "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+                }
+              },
+              "false_breakout_first_at": null,
+              "short_option_type": "CE",
+              "hedge_option_type": "CE",
+              "strategy_features": {
+                "range_minutes": 15,
+                "range_start": "2026-10-23T09:15:00+05:30",
+                "range_end": "2026-10-23T09:30:00+05:30",
+                "opening_high": 25684.4,
+                "opening_low": 25621.15,
+                "current_future_price": 25701.8,
+                "complete": true,
+                "breakout_direction": "BEAR",
+                "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+                "breakout_distance_bps": 6.77,
+                "confirmation_seconds": 45,
+                "reason": null,
+                "status": "WATCH",
+                "blocker": null,
+                "decision_reason": null
+              }
+            },
+            {
+              "trade_id": "UI-FIXTURE-HISTORY-1",
+              "strategy_id": "ORB_15",
+              "display_name": "ORB 15",
+              "state": "CLOSED",
+              "direction": "BEAR",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": "2026-10-23T12:00:00+05:30",
+              "short_strike": 25700,
+              "hedge_strike": 26100,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": null,
+              "exit_debit": 50,
+              "realized_gross_pnl": 1300,
+              "current_unrealized_gross_pnl": null,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "DIRECTIONAL_CONTINUATION",
+              "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": null,
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": false,
+              "mark_unavailable_reason": null,
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "CE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {},
+              "false_breakout_first_at": null,
+              "short_option_type": "CE",
+              "hedge_option_type": "CE",
+              "strategy_features": {
+                "range_minutes": 15,
+                "range_start": "2026-10-23T09:15:00+05:30",
+                "range_end": "2026-10-23T09:30:00+05:30",
+                "opening_high": 25684.4,
+                "opening_low": 25621.15,
+                "current_future_price": 25701.8,
+                "complete": true,
+                "breakout_direction": "BULL",
+                "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+                "breakout_distance_bps": 6.77,
+                "confirmation_seconds": 45,
+                "reason": null,
+                "status": "WATCH",
+                "blocker": null,
+                "decision_reason": null
+              }
+            }
+          ],
+          "orb_range": {
+            "range_minutes": 15,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:30:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "BLOCKED",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "direction": "BULL",
+          "decision_features": {}
+        },
+        {
+          "strategy_id": "ORB_30",
+          "display_name": "ORB 30",
+          "trades_today": 0,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 0,
+          "latest_rejection_reason": null,
+          "realized_gross_pnl_today": 250,
+          "unrealized_gross_pnl": 0,
+          "open_position_count": 0,
+          "unresolved_exposure_count": 0,
+          "expired_unpriced_count": 0,
+          "latest_status": "WATCH",
+          "latest_blocker": null,
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [],
+          "orb_range": {
+            "range_minutes": 30,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:45:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "direction": "BULL",
+          "decision_features": {}
+        },
+        {
+          "strategy_id": "ORB_60",
+          "display_name": "ORB 60",
+          "trades_today": 2,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 0,
+          "latest_rejection_reason": null,
+          "realized_gross_pnl_today": 0,
+          "unrealized_gross_pnl": 0,
+          "open_position_count": 0,
+          "unresolved_exposure_count": 1,
+          "expired_unpriced_count": 0,
+          "latest_status": "NO_SETUP",
+          "latest_blocker": "MISSING_EXACT_CONTRACT",
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [
+            {
+              "trade_id": "UI-FIXTURE-UNRESOLVED",
+              "strategy_id": "ORB_60",
+              "display_name": "ORB 60",
+              "state": "UNRESOLVED_EXPOSURE",
+              "direction": "BULL",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": null,
+              "short_strike": 25700,
+              "hedge_strike": 25300,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": null,
+              "exit_debit": null,
+              "realized_gross_pnl": null,
+              "current_unrealized_gross_pnl": null,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "DIRECTIONAL_CONTINUATION",
+              "exit_reason": null,
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": "MISSING_EXACT_CONTRACT",
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": false,
+              "mark_unavailable_reason": "MISSING_EXACT_CONTRACT",
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "PE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {},
+              "false_breakout_first_at": null,
+              "short_option_type": "PE",
+              "hedge_option_type": "PE",
+              "strategy_features": {
+                "range_minutes": 60,
+                "range_start": "2026-10-23T09:15:00+05:30",
+                "range_end": "2026-10-23T10:15:00+05:30",
+                "opening_high": 25684.4,
+                "opening_low": 25621.15,
+                "current_future_price": 25701.8,
+                "complete": true,
+                "breakout_direction": "BULL",
+                "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+                "breakout_distance_bps": 6.77,
+                "confirmation_seconds": 45,
+                "reason": null,
+                "status": "WATCH",
+                "blocker": null,
+                "decision_reason": null
+              }
+            },
+            {
+              "trade_id": "UI-FIXTURE-HISTORY-3",
+              "strategy_id": "ORB_60",
+              "display_name": "ORB 60",
+              "state": "CLOSED",
+              "direction": "BEAR",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": "2026-10-23T12:00:00+05:30",
+              "short_strike": 25700,
+              "hedge_strike": 26100,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": null,
+              "exit_debit": 50,
+              "realized_gross_pnl": 1300,
+              "current_unrealized_gross_pnl": null,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "DIRECTIONAL_CONTINUATION",
+              "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": null,
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": false,
+              "mark_unavailable_reason": null,
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "CE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {},
+              "false_breakout_first_at": null,
+              "short_option_type": "CE",
+              "hedge_option_type": "CE",
+              "strategy_features": {
+                "range_minutes": 60,
+                "range_start": "2026-10-23T09:15:00+05:30",
+                "range_end": "2026-10-23T10:15:00+05:30",
+                "opening_high": 25684.4,
+                "opening_low": 25621.15,
+                "current_future_price": 25701.8,
+                "complete": true,
+                "breakout_direction": "BULL",
+                "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+                "breakout_distance_bps": 6.77,
+                "confirmation_seconds": 45,
+                "reason": null,
+                "status": "WATCH",
+                "blocker": null,
+                "decision_reason": null
+              }
+            }
+          ],
+          "orb_range": {
+            "range_minutes": 60,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T10:15:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "NO_SETUP",
+            "blocker": "MISSING_EXACT_CONTRACT",
+            "decision_reason": null
+          },
+          "direction": "BULL",
+          "decision_features": {}
+        },
+        {
+          "strategy_id": "EMA_PULLBACK",
+          "display_name": "EMA Pullback",
+          "trades_today": 0,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 0,
+          "latest_rejection_reason": null,
+          "realized_gross_pnl_today": 0,
+          "unrealized_gross_pnl": 0,
+          "open_position_count": 0,
+          "unresolved_exposure_count": 0,
+          "expired_unpriced_count": 0,
+          "latest_status": "WATCH",
+          "latest_blocker": "EMA_WARMUP_REQUIRED",
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [],
+          "direction": "BULL",
+          "decision_features": {
+            "ema_fast": 25701,
+            "ema_slow": 25750,
+            "pullback_anchor": 25710,
+            "resumption_strength_bps": -6
+          }
+        },
+        {
+          "strategy_id": "SUPERTREND_RSI_VOLUME",
+          "display_name": "Supertrend + RSI + Volume",
+          "trades_today": 1,
+          "wins_today": 0,
+          "losses_today": 0,
+          "entry_rejections_today": 0,
+          "latest_rejection_reason": null,
+          "realized_gross_pnl_today": 0,
+          "unrealized_gross_pnl": 0,
+          "open_position_count": 0,
+          "unresolved_exposure_count": 0,
+          "expired_unpriced_count": 0,
+          "latest_status": "WATCH",
+          "latest_blocker": null,
+          "latest_timestamp": "2026-10-23T12:00:00+05:30",
+          "accounting_status": "GROSS_ONLY",
+          "today_trades": [
+            {
+              "trade_id": "UI-FIXTURE-HISTORY-5",
+              "strategy_id": "SUPERTREND_RSI_VOLUME",
+              "display_name": "Supertrend + RSI + Volume",
+              "state": "CLOSED",
+              "direction": "BEAR",
+              "decision_timestamp": "2026-10-23T11:45:00+05:30",
+              "entry_timestamp": "2026-10-23T11:45:00+05:30",
+              "exit_timestamp": "2026-10-23T12:00:00+05:30",
+              "short_strike": 25700,
+              "hedge_strike": 26100,
+              "spread_width": 400,
+              "lot_size": 50,
+              "lots": 1,
+              "entry_credit": 70,
+              "current_debit": null,
+              "exit_debit": 50,
+              "realized_gross_pnl": 1300,
+              "current_unrealized_gross_pnl": null,
+              "mfe": 5,
+              "mae": -2,
+              "best_gross_points": 5,
+              "holding_seconds": 900,
+              "entry_reason": "DIRECTIONAL_CONTINUATION",
+              "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+              "exit_policy_version": "MIRROR_EXIT_V1",
+              "policy_hash": "stored-policy-hash",
+              "policy_allowed_widths": [
+                400
+              ],
+              "rejection_reason": null,
+              "unresolved_reason": null,
+              "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+              "mark_available": false,
+              "mark_unavailable_reason": null,
+              "accounting_status": "GROSS_ONLY",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "candidate_rejections": {
+                "STALE_QUOTE": 2
+              },
+              "mirror_diagnostics": [
+                {
+                  "name": "opposite_full_entry_signal_first_at",
+                  "observed_at": "2026-10-15T10:03:00+05:30",
+                  "opportunity_score": 58.6,
+                  "score_band": "TRADEABLE"
+                }
+              ],
+              "entry_quotes": {
+                "short": {
+                  "option_type": "CE",
+                  "fill_price": 100,
+                  "bid": 100,
+                  "ask": 100.1,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                },
+                "long": {
+                  "fill_price": 30,
+                  "bid": 29.9,
+                  "ask": 30,
+                  "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+                }
+              },
+              "exit_quotes": {},
+              "latest_mark_quotes": {},
+              "false_breakout_first_at": null,
+              "short_option_type": "CE",
+              "hedge_option_type": "CE",
+              "strategy_features": null
+            }
+          ],
+          "direction": "BULL",
+          "decision_features": {
+            "supertrend_direction": "BEAR",
+            "rsi": 34,
+            "volume_ratio": 1.3
+          }
+        }
+      ]
+    },
+    "/api/phase15/positions": {
+      "mode": "PAPER",
+      "as_of": "2026-10-23T12:00:00+05:30",
+      "date": "2026-10-23",
+      "date_basis": "DECISION_OBSERVATION_IST",
+      "accounting_status": "GROSS_ONLY",
+      "items": [
+        {
+          "trade_id": "UI-FIXTURE-ACTS-OPEN",
+          "strategy_id": "ACTS_V2",
+          "display_name": "ACTS V2",
+          "state": "OPEN",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": 78,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": -520,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": true,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {
+            "short": {
+              "ask": 109,
+              "bid": 100.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            },
+            "long": {
+              "bid": 31,
+              "ask": 31.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            }
+          },
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-ORB-OPEN",
+          "strategy_id": "ORB_15",
+          "display_name": "ORB 15",
+          "state": "OPEN",
+          "direction": "BEAR",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 26100,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": 69.2,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": 52,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "CONFIRMED_OPENING_RANGE_BREAKOUT",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": true,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "CE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {
+            "short": {
+              "ask": 100.2,
+              "bid": 100.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            },
+            "long": {
+              "bid": 31,
+              "ask": 31.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            }
+          },
+          "false_breakout_first_at": null,
+          "short_option_type": "CE",
+          "hedge_option_type": "CE",
+          "strategy_features": {
+            "range_minutes": 15,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:30:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BEAR",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-UNRESOLVED",
+          "strategy_id": "ORB_60",
+          "display_name": "ORB 60",
+          "state": "UNRESOLVED_EXPOSURE",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": "MISSING_EXACT_CONTRACT",
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": "MISSING_EXACT_CONTRACT",
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "strategy_features": {
+            "range_minutes": 60,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T10:15:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        }
+      ],
+      "limit": 100,
+      "offset": 0,
+      "has_more": false
+    },
+    "/api/phase15/journal": {
+      "mode": "PAPER",
+      "as_of": "2026-10-23T12:00:00+05:30",
+      "date": "2026-10-23",
+      "date_basis": "DECISION_OBSERVATION_IST",
+      "accounting_status": "GROSS_ONLY",
+      "items": [
+        {
+          "trade_id": "UI-FIXTURE-ACTS-OPEN",
+          "strategy_id": "ACTS_V2",
+          "display_name": "ACTS V2",
+          "state": "OPEN",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": 78,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": -520,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": true,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {
+            "short": {
+              "ask": 109,
+              "bid": 100.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            },
+            "long": {
+              "bid": 31,
+              "ask": 31.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            }
+          },
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-ORB-OPEN",
+          "strategy_id": "ORB_15",
+          "display_name": "ORB 15",
+          "state": "OPEN",
+          "direction": "BEAR",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 26100,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": 69.2,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": 52,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "CONFIRMED_OPENING_RANGE_BREAKOUT",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": true,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "CE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {
+            "short": {
+              "ask": 100.2,
+              "bid": 100.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            },
+            "long": {
+              "bid": 31,
+              "ask": 31.1,
+              "source_market_timestamp": "2026-10-23T12:00:00+05:30"
+            }
+          },
+          "false_breakout_first_at": null,
+          "short_option_type": "CE",
+          "hedge_option_type": "CE",
+          "strategy_features": {
+            "range_minutes": 15,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:30:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BEAR",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-UNRESOLVED",
+          "strategy_id": "ORB_60",
+          "display_name": "ORB 60",
+          "state": "UNRESOLVED_EXPOSURE",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": "MISSING_EXACT_CONTRACT",
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": "MISSING_EXACT_CONTRACT",
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "strategy_features": {
+            "range_minutes": 60,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T10:15:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-0",
+          "strategy_id": "ACTS_V2",
+          "display_name": "ACTS V2",
+          "state": "ENTRY_REJECTED",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": null,
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": "MAX_TRADES_PER_DAY_REACHED",
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "strategy_features": null,
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-1",
+          "strategy_id": "ORB_15",
+          "display_name": "ORB 15",
+          "state": "CLOSED",
+          "direction": "BEAR",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": "2026-10-23T12:00:00+05:30",
+          "short_strike": 25700,
+          "hedge_strike": 26100,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": 50,
+          "realized_gross_pnl": 1300,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "CE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "CE",
+          "hedge_option_type": "CE",
+          "strategy_features": {
+            "range_minutes": 15,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:30:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-2",
+          "strategy_id": "ORB_30",
+          "display_name": "ORB 30",
+          "state": "ENTRY_REJECTED",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": null,
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": "MAX_TRADES_PER_DAY_REACHED",
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "strategy_features": {
+            "range_minutes": 30,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T09:45:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-3",
+          "strategy_id": "ORB_60",
+          "display_name": "ORB 60",
+          "state": "CLOSED",
+          "direction": "BEAR",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": "2026-10-23T12:00:00+05:30",
+          "short_strike": 25700,
+          "hedge_strike": 26100,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": 50,
+          "realized_gross_pnl": 1300,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "CE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "CE",
+          "hedge_option_type": "CE",
+          "strategy_features": {
+            "range_minutes": 60,
+            "range_start": "2026-10-23T09:15:00+05:30",
+            "range_end": "2026-10-23T10:15:00+05:30",
+            "opening_high": 25684.4,
+            "opening_low": 25621.15,
+            "current_future_price": 25701.8,
+            "complete": true,
+            "breakout_direction": "BULL",
+            "breakout_timestamp": "2026-10-23T11:59:15+05:30",
+            "breakout_distance_bps": 6.77,
+            "confirmation_seconds": 45,
+            "reason": null,
+            "status": "WATCH",
+            "blocker": null,
+            "decision_reason": null
+          },
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-4",
+          "strategy_id": "EMA_PULLBACK",
+          "display_name": "EMA Pullback",
+          "state": "ENTRY_REJECTED",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": null,
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": null,
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": "MAX_TRADES_PER_DAY_REACHED",
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "strategy_features": null,
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-HISTORY-5",
+          "strategy_id": "SUPERTREND_RSI_VOLUME",
+          "display_name": "Supertrend + RSI + Volume",
+          "state": "CLOSED",
+          "direction": "BEAR",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": "2026-10-23T12:00:00+05:30",
+          "short_strike": 25700,
+          "hedge_strike": 26100,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": 50,
+          "realized_gross_pnl": 1300,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": "OPPOSITE_ORB_BREAKOUT",
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "CE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "CE",
+          "hedge_option_type": "CE",
+          "strategy_features": null,
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          }
+        },
+        {
+          "trade_id": "UI-FIXTURE-EXPIRED",
+          "strategy_id": "ACTS_V2",
+          "display_name": "ACTS V2",
+          "state": "CLOSED",
+          "direction": "BULL",
+          "decision_timestamp": "2026-10-23T11:45:00+05:30",
+          "entry_timestamp": "2026-10-23T11:45:00+05:30",
+          "exit_timestamp": null,
+          "short_strike": 25700,
+          "hedge_strike": 25300,
+          "spread_width": 400,
+          "lot_size": 65,
+          "lots": 1,
+          "entry_credit": 70,
+          "current_debit": null,
+          "exit_debit": null,
+          "realized_gross_pnl": null,
+          "current_unrealized_gross_pnl": null,
+          "mfe": 5,
+          "mae": -2,
+          "best_gross_points": 5,
+          "holding_seconds": 900,
+          "entry_reason": "DIRECTIONAL_CONTINUATION",
+          "exit_reason": "CONTRACT_EXPIRED_UNPRICED",
+          "exit_policy_version": "MIRROR_EXIT_V1",
+          "policy_hash": "stored-policy-hash",
+          "policy_allowed_widths": [
+            400
+          ],
+          "rejection_reason": null,
+          "unresolved_reason": null,
+          "latest_mark_timestamp": "2026-10-23T12:00:00+05:30",
+          "mark_available": false,
+          "mark_unavailable_reason": null,
+          "accounting_status": "GROSS_ONLY",
+          "opportunity_score": 58.6,
+          "score_band": "TRADEABLE",
+          "candidate_rejections": {
+            "STALE_QUOTE": 2
+          },
+          "mirror_diagnostics": [
+            {
+              "name": "opposite_full_entry_signal_first_at",
+              "observed_at": "2026-10-15T10:03:00+05:30",
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE"
+            }
+          ],
+          "entry_quotes": {
+            "short": {
+              "option_type": "PE",
+              "fill_price": 100,
+              "bid": 100,
+              "ask": 100.1,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            },
+            "long": {
+              "fill_price": 30,
+              "bid": 29.9,
+              "ask": 30,
+              "source_market_timestamp": "2026-10-23T11:45:00+05:30"
+            }
+          },
+          "exit_quotes": {},
+          "latest_mark_quotes": {},
+          "false_breakout_first_at": null,
+          "short_option_type": "PE",
+          "hedge_option_type": "PE",
+          "management": {
+            "requested_exit_reason": null,
+            "forced_exit_time_ist": "15:20:00"
+          },
+          "expiry_terminalization": true,
+          "terminal_status": "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE",
+          "exit_pricing_status": "UNAVAILABLE",
+          "terminalized_at": "2026-10-23T09:15:00+05:30"
+        }
+      ],
+      "limit": 100,
+      "offset": 0,
+      "has_more": false
+    },
+    "/api/snapshots": [
+      {
+        "id": 1,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 2,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 3,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 4,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 5,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 6,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 7,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 8,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 9,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 10,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 11,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 12,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 13,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 14,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 15,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 16,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 17,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 18,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 19,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      },
+      {
+        "id": 20,
+        "timestamp_ist": "2026-10-23T12:00:00+05:30",
+        "nifty_spot": 22421.95,
+        "nifty_future": 22530.3,
+        "india_vix": 14.46,
+        "lot_size": 50,
+        "atm_strike": 22400,
+        "expiry": "2026-10-08",
+        "source": "KOTAK",
+        "options": []
+      }
+    ],
+    "/api/snapshots/1": {
+      "id": 1,
+      "timestamp_ist": "2026-10-23T06:30:00.000Z",
+      "nifty_spot": 22421.95,
+      "nifty_future": 22530.3,
+      "india_vix": 14.46,
+      "lot_size": 50,
+      "atm_strike": 22400,
+      "expiry": "2026-10-08",
+      "source": "KOTAK",
+      "options": []
+    },
+    "/api/features/1": {
+      "snapshot_id": 1,
+      "timestamp": "2026-10-23T06:30:00.000Z",
+      "expiry": "2026-10-08",
+      "spot": 22421.95,
+      "future": 22530.3,
+      "atm_strike": 22400,
+      "data_quality": {
+        "contracts_total": 42,
+        "intraday_oi_usable": true,
+        "intraday_volume_usable": true
+      },
+      "oi_features": {
+        "contracts": [
+          {
+            "strike": 22400,
+            "option_type": "CE",
+            "open_interest": 1000,
+            "previous_open_interest": 900,
+            "change_in_open_interest": 100,
+            "volume": 20,
+            "ltp": 50,
+            "positioning_class": "LONG_BUILDUP"
+          }
+        ]
+      },
+      "pcr_features": {
+        "local_pcr_oi": 1.1,
+        "local_pcr_oi_change": 0.9
+      },
+      "support_resistance": {
+        "potential_support_clusters": [
+          {
+            "center_strike": 22300
+          }
+        ],
+        "potential_resistance_clusters": [
+          {
+            "center_strike": 22500
+          }
+        ]
+      },
+      "futures_features": {
+        "futures_basis": 108.35,
+        "futures_basis_pct": 0.48
+      },
+      "volatility_features": {
+        "india_vix": 14.46,
+        "vix_regime": "NORMAL"
+      },
+      "price_structure_features": {
+        "spot_change_pct_from_previous_snapshot": 0.42,
+        "session_open_proxy": 22350,
+        "collector_observed_high": 22450,
+        "collector_observed_low": 22320,
+        "vwap": null,
+        "vwap_available": false
+      }
+    },
+    "/api/regime": [
+      {
+        "snapshot_id": 1,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 2,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 3,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 4,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 5,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 6,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 7,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 8,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 9,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 10,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 11,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 12,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 13,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 14,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 15,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 16,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 17,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 18,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 19,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      },
+      {
+        "snapshot_id": 20,
+        "timestamp": "2026-10-23T06:30:00.000Z",
+        "regime": "BULLISH",
+        "bull_score": 7,
+        "bear_score": 2,
+        "range_score": 3,
+        "confidence": 82,
+        "evidence_quality": "HIGH",
+        "bull_evidence": [
+          "PRICE_SUPPORT"
+        ],
+        "bear_evidence": [],
+        "range_evidence": [],
+        "warnings": [],
+        "risk_flags": []
+      }
+    ],
+    "/api/regime/1": {
+      "snapshot_id": 1,
+      "timestamp": "2026-10-23T06:30:00.000Z",
+      "regime": "BULLISH",
+      "bull_score": 7,
+      "bear_score": 2,
+      "range_score": 3,
+      "confidence": 82,
+      "evidence_quality": "HIGH",
+      "bull_evidence": [
+        "PRICE_SUPPORT"
+      ],
+      "bear_evidence": [],
+      "range_evidence": [],
+      "warnings": [],
+      "risk_flags": []
+    },
+    "/api/ai-research/1": null,
+    "/api/alpha/1": {
+      "snapshot_id": 1,
+      "timestamp": "2026-10-23T12:00:00+05:30",
+      "expiry": "2026-10-27",
+      "price_source": "FUTURE",
+      "price_return": 0.002,
+      "alpha_1": 0.87,
+      "alpha_2": 0.83,
+      "alpha_1_direction": "STRONG_BULLISH",
+      "alpha_2_direction": "STRONG_BULLISH",
+      "joint_alpha_direction": "STRONG_BULLISH_CONFIRMATION",
+      "consecutive_confirmation_count": 2,
+      "confirmed": true,
+      "evidence_quality": "HIGH",
+      "status": "READY",
+      "atm_volume_activity": 1.4,
+      "atm_option_volatility": 0.03,
+      "warnings": []
+    },
+    "/api/strategy-candidates": [
+      {
+        "snapshot_id": 1,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 2,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 3,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 4,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 5,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 6,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 7,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 8,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 9,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 10,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 11,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 12,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 13,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 14,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 15,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 16,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 17,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 18,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 19,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      },
+      {
+        "snapshot_id": 20,
+        "eligible": true,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "candidate_count": 1,
+        "reason_codes": [],
+        "candidates": [
+          {
+            "candidate_id": "C1",
+            "strategy_type": "BULL_PUT_SPREAD",
+            "short_leg": {
+              "strike": 22300,
+              "option_type": "PE",
+              "trading_symbol": "SHORT",
+              "ltp": 20,
+              "bid": 19,
+              "ask": 21,
+              "open_interest": 1000,
+              "volume": 20
+            },
+            "long_leg": {
+              "strike": 22200,
+              "option_type": "PE",
+              "trading_symbol": "LONG",
+              "ltp": 8,
+              "bid": 7,
+              "ask": 9,
+              "open_interest": 800,
+              "volume": 15
+            },
+            "spread_width": 100,
+            "net_credit": 10,
+            "credit_to_width_ratio": 0.1,
+            "pricing_basis": "BID_ASK",
+            "selection_score": 84,
+            "support_or_resistance_reference": 22300,
+            "warnings": []
+          }
+        ]
+      }
+    ],
+    "/api/strategy-candidates/1": {
+      "snapshot_id": 1,
+      "eligible": true,
+      "strategy_type": "BULL_PUT_SPREAD",
+      "candidate_count": 1,
+      "reason_codes": [],
+      "candidates": [
+        {
+          "candidate_id": "C1",
+          "strategy_type": "BULL_PUT_SPREAD",
+          "short_leg": {
+            "strike": 22300,
+            "option_type": "PE",
+            "trading_symbol": "SHORT",
+            "ltp": 20,
+            "bid": 19,
+            "ask": 21,
+            "open_interest": 1000,
+            "volume": 20
+          },
+          "long_leg": {
+            "strike": 22200,
+            "option_type": "PE",
+            "trading_symbol": "LONG",
+            "ltp": 8,
+            "bid": 7,
+            "ask": 9,
+            "open_interest": 800,
+            "volume": 15
+          },
+          "spread_width": 100,
+          "net_credit": 10,
+          "credit_to_width_ratio": 0.1,
+          "pricing_basis": "BID_ASK",
+          "selection_score": 84,
+          "support_or_resistance_reference": 22300,
+          "warnings": []
+        }
+      ]
+    },
+    "/api/risk": [
+      {
+        "snapshot_id": 1,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 2,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 3,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 4,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 5,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 6,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 7,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 8,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 9,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 10,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 11,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 12,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 13,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 14,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 15,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 16,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 17,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 18,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 19,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "snapshot_id": 20,
+        "approved_count": 1,
+        "rejected_count": 0,
+        "not_applicable": false,
+        "decisions": [
+          {
+            "candidate_reference": "C1",
+            "decision": "APPROVED",
+            "candidate_strategy": "BULL_PUT_SPREAD",
+            "max_profit_per_lot": 500,
+            "max_loss_per_lot": 4500,
+            "reward_to_risk_ratio": 0.11,
+            "failed_checks": [],
+            "warnings": [],
+            "checks": [
+              {
+                "check_code": "DEFINED_RISK_STRUCTURE",
+                "status": "PASS",
+                "actual_value": true,
+                "threshold": true,
+                "message": "Valid"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "/api/risk/1": {
+      "snapshot_id": 1,
+      "approved_count": 1,
+      "rejected_count": 0,
+      "not_applicable": false,
+      "decisions": [
+        {
+          "candidate_reference": "C1",
+          "decision": "APPROVED",
+          "candidate_strategy": "BULL_PUT_SPREAD",
+          "max_profit_per_lot": 500,
+          "max_loss_per_lot": 4500,
+          "reward_to_risk_ratio": 0.11,
+          "failed_checks": [],
+          "warnings": [],
+          "checks": [
+            {
+              "check_code": "DEFINED_RISK_STRUCTURE",
+              "status": "PASS",
+              "actual_value": true,
+              "threshold": true,
+              "message": "Valid"
+            }
+          ]
+        }
+      ]
+    },
+    "/api/pipeline": [
+      {
+        "id": 1,
+        "market_snapshot_id": 1,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 2,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 3,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 4,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 5,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 6,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 7,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 8,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 9,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 10,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 11,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 12,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 13,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 14,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 15,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 16,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 17,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 18,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 19,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      },
+      {
+        "id": 1,
+        "market_snapshot_id": 20,
+        "status": "SUCCESS",
+        "feature_status": "SUCCESS",
+        "regime_status": "SUCCESS",
+        "ai_status": "SKIPPED",
+        "strategy_status": "SUCCESS",
+        "risk_status": "SUCCESS",
+        "shadow_status": "SUCCESS",
+        "approved_candidate_count": 1,
+        "shadow_trade_id": null,
+        "started_at": "2026-10-23T06:30:00.000Z",
+        "completed_at": "2026-10-23T06:30:00.000Z"
+      }
+    ],
+    "/api/pipeline/1": {
+      "id": 1,
+      "market_snapshot_id": 1,
+      "status": "SUCCESS",
+      "feature_status": "SUCCESS",
+      "regime_status": "SUCCESS",
+      "ai_status": "SKIPPED",
+      "strategy_status": "SUCCESS",
+      "risk_status": "SUCCESS",
+      "shadow_status": "SUCCESS",
+      "approved_candidate_count": 1,
+      "shadow_trade_id": null,
+      "started_at": "2026-10-23T06:30:00.000Z",
+      "completed_at": "2026-10-23T06:30:00.000Z"
+    },
+    "/api/shadow/trades": [
+      {
+        "id": 7,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 8,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 9,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 10,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 11,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 12,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 13,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 14,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 15,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 16,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 17,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "OPEN",
+        "exit_timestamp": null,
+        "exit_reason": null,
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": null,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      },
+      {
+        "id": 18,
+        "market_snapshot_id_entry": 1,
+        "strategy_type": "BULL_PUT_SPREAD",
+        "expiry": "2026-10-08",
+        "entry_timestamp": "2026-10-23T11:45:00+05:30",
+        "entry_spot": 22400,
+        "short_leg": {
+          "strike": 22300,
+          "option_type": "PE",
+          "trading_symbol": "SHORT",
+          "ltp": 20,
+          "bid": 19,
+          "ask": 21,
+          "open_interest": 1000,
+          "volume": 20
+        },
+        "long_leg": {
+          "strike": 22200,
+          "option_type": "PE",
+          "trading_symbol": "LONG",
+          "ltp": 8,
+          "bid": 7,
+          "ask": 9,
+          "open_interest": 800,
+          "volume": 15
+        },
+        "entry_credit": 10,
+        "entry_pricing_basis": "BID_ASK",
+        "lot_size": 50,
+        "max_profit_per_unit": 10,
+        "max_loss_per_unit": 90,
+        "max_profit_per_lot": 500,
+        "max_loss_per_lot": 4500,
+        "status": "CLOSED",
+        "exit_timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_reason": "PROFIT_CAPTURE",
+        "exit_debit": null,
+        "realized_pnl_per_unit": null,
+        "realized_pnl_per_lot": 500,
+        "mae_per_unit": -1,
+        "mfe_per_unit": 2,
+        "mae_per_lot": -50,
+        "mfe_per_lot": 100,
+        "holding_minutes": 15,
+        "source_candidate": {
+          "id": "C1"
+        },
+        "source_risk_decision": {
+          "decision": "APPROVED"
+        }
+      }
+    ],
+    "/api/shadow/trades/7": {
+      "id": 7,
+      "market_snapshot_id_entry": 1,
+      "strategy_type": "BULL_PUT_SPREAD",
+      "expiry": "2026-10-08",
+      "entry_timestamp": "2026-10-04T04:15:00Z",
+      "entry_spot": 22400,
+      "short_leg": {
+        "strike": 22300,
+        "option_type": "PE",
+        "trading_symbol": "SHORT",
+        "ltp": 20,
+        "bid": 19,
+        "ask": 21,
+        "open_interest": 1000,
+        "volume": 20
+      },
+      "long_leg": {
+        "strike": 22200,
+        "option_type": "PE",
+        "trading_symbol": "LONG",
+        "ltp": 8,
+        "bid": 7,
+        "ask": 9,
+        "open_interest": 800,
+        "volume": 15
+      },
+      "entry_credit": 10,
+      "entry_pricing_basis": "BID_ASK",
+      "lot_size": 50,
+      "max_profit_per_unit": 10,
+      "max_loss_per_unit": 90,
+      "max_profit_per_lot": 500,
+      "max_loss_per_lot": 4500,
+      "status": "OPEN",
+      "exit_timestamp": null,
+      "exit_reason": null,
+      "exit_debit": null,
+      "realized_pnl_per_unit": null,
+      "realized_pnl_per_lot": null,
+      "mae_per_unit": -1,
+      "mfe_per_unit": 2,
+      "mae_per_lot": -50,
+      "mfe_per_lot": 100,
+      "holding_minutes": 15,
+      "source_candidate": {
+        "id": "C1"
+      },
+      "source_risk_decision": {
+        "decision": "APPROVED"
+      }
+    },
+    "/api/shadow/trades/7/marks": [
+      {
+        "id": 1,
+        "shadow_trade_id": 7,
+        "market_snapshot_id": 1,
+        "timestamp": "2026-10-23T12:00:00+05:30",
+        "exit_debit": 9,
+        "pnl_per_unit": 1,
+        "pnl_per_lot": 50,
+        "spot": 22420,
+        "valuation_basis": "BID_ASK"
+      }
+    ],
+    "/api/system/health": {
+      "overall_status": "HEALTHY",
+      "current_time_ist": "2026-10-23T12:00:00+05:30",
+      "market_session_state": "OPEN",
+      "components": {
+        "database": "HEALTHY",
+        "collector_heartbeat": "HEALTHY",
+        "data_freshness": "HEALTHY",
+        "market_data": "HEALTHY",
+        "pipeline": "HEALTHY",
+        "shadow": "IDLE",
+        "ai": "DISABLED",
+        "notifications": "HEALTHY"
+      },
+      "database": {
+        "status": "HEALTHY",
+        "latency_ms": 2,
+        "safe_error_type": null,
+        "safe_error_message": null
+      },
+      "collector": {
+        "heartbeat": {
+          "status": "HEALTHY",
+          "worker_id": "collector-main",
+          "worker_status": "RUNNING",
+          "last_heartbeat_at": "2026-10-05T09:59:55+05:30",
+          "age_seconds": 5
+        },
+        "data_freshness": {
+          "status": "HEALTHY",
+          "last_snapshot_at": "2026-10-05T09:59:00+05:30",
+          "last_snapshot_id": 481,
+          "age_seconds": 60
+        },
+        "runs_today": 15,
+        "success_today": 14,
+        "failed_today": 1,
+        "success_rate_today": 93.33,
+        "consecutive_failures": 0,
+        "expected_snapshots_so_far_today": 15,
+        "actual_snapshots_today": 14,
+        "missing_snapshot_estimate": 1
+      },
+      "market_data": {
+        "status": "HEALTHY",
+        "spot_available": true,
+        "future_available": true,
+        "vix_available": true,
+        "lot_size_available": true,
+        "option_contract_count": 42,
+        "nonzero_volume_count": 30,
+        "nonzero_oi_change_count": 20,
+        "oi_current_prev_difference_count": 20,
+        "oi_mismatch_count": 0,
+        "intraday_oi_usable": true,
+        "bid_ask_coverage_pct": 90,
+        "volume_coverage_pct": 100,
+        "oi_change_coverage_pct": 100
+      },
+      "pipeline": {
+        "status": "HEALTHY",
+        "latest_pipeline_status": "SUCCESS",
+        "runs_today": 14,
+        "success_today": 14,
+        "partial_today": 0,
+        "failed_today": 0,
+        "pipeline_success_rate_today": 100,
+        "consecutive_failures": 0,
+        "latest_stage_statuses": {
+          "feature": "SUCCESS",
+          "regime": "SUCCESS",
+          "ai": "SKIPPED",
+          "strategy": "SUCCESS",
+          "risk": "SUCCESS",
+          "shadow": "SUCCESS"
+        },
+        "latest_stage_timings_ms": {
+          "features": 12,
+          "total_pipeline": 60
+        },
+        "average_total_pipeline_ms": 55,
+        "p95_total_pipeline_ms": 70,
+        "average_stage_duration_ms": {
+          "features": 11
+        },
+        "slowest_stage": "features"
+      },
+      "shadow": {
+        "status": "IDLE",
+        "open_shadow_trades": 0,
+        "shadow_entries_today": 0,
+        "shadow_exits_today": 0,
+        "latest_shadow_mark_at": null,
+        "latest_mark_age_seconds": null,
+        "unavailable_marks_today": 0,
+        "payout_anomalies_today": 0,
+        "invalid_shadow_trades_today": 0
+      },
+      "ai": {
+        "status": "DISABLED",
+        "model_configured": false,
+        "calls_today": 0,
+        "cost_today_usd": 0,
+        "last_success_at": null,
+        "last_failure_at": null,
+        "last_latency_ms": null
+      },
+      "notifications": {
+        "telegram": {
+          "status": "HEALTHY",
+          "enabled": true,
+          "configured": true,
+          "last_sent_at": "2026-10-05T09:58:00+05:30",
+          "last_failed_at": null,
+          "failed_today": 0
+        }
+      }
+    },
+    "/api/system/metrics": {
+      "date": "2026-10-05",
+      "snapshots_expected": 15,
+      "snapshots_actual": 14,
+      "snapshot_success_rate": 93.33,
+      "collector_failures": 1,
+      "pipeline_runs": 14,
+      "pipeline_success_rate": 100,
+      "avg_pipeline_ms": 55,
+      "p95_pipeline_ms": 70,
+      "db_latency_ms": 2,
+      "shadow_entries": 0,
+      "shadow_exits": 0,
+      "ai_calls": 0,
+      "ai_cost": 0
+    },
+    "/api/system/events": [
+      {
+        "id": 1,
+        "component": "MARKET_DATA",
+        "severity": "WARN",
+        "event_code": "EXACT_CONTRACT_UNAVAILABLE",
+        "safe_message": "Synthetic UI fixture: exact hedge quote unavailable; exposure remains unresolved.",
+        "snapshot_id": 1,
+        "pipeline_run_id": null,
+        "context": null,
+        "created_at": "2026-10-23T12:00:00+05:30"
+      }
+    ],
+    "/api/notifications": [],
+    "/api/commodity-acts/summary": {
+      "as_of": "2026-10-20T10:00:01+05:30",
+      "version": "COMMODITY_ACTS_PAPER_V1",
+      "mode": "PAPER",
+      "stage": "SCORE_TRANSFERABILITY",
+      "research_scope": "ACTS directional/scoring research only. Entry qualification is disabled until commodity execution geometry is validated.",
+      "broker_orders_enabled": false,
+      "spread_execution_enabled": false,
+      "pnl": null,
+      "instruments": [
+        {
+          "instrument_id": "CRUDEOILM",
+          "display_name": "CRUDEOILM",
+          "configured_enabled": false,
+          "session_configured": true,
+          "worker_state": "PROCESS_STATE_UNAVAILABLE",
+          "observation_count": 12,
+          "decision_count": 12,
+          "readiness": "ALPHA_WARMING_UP",
+          "latest": {
+            "instrument_id": "CRUDEOILM",
+            "readiness": "ALPHA_WARMING_UP",
+            "snapshot_id": 1,
+            "stage": "SCORE_TRANSFERABILITY",
+            "research_scope": "ACTS directional/scoring research only. Entry qualification is disabled until commodity execution geometry is validated.",
+            "data_provenance": {
+              "option_future_link": "SAME_MASTER_UNDERLYING_NEAREST_EXPIRIES_LINK_NOT_CONFIRMED"
+            },
+            "decision_kind": "SHADOW_DECISION",
+            "observed_at": "2026-10-20T10:00:00+05:30",
+            "decided_at": "2026-10-20T10:00:01+05:30",
+            "reference_price": 9453,
+            "future_price": 9453,
+            "reference_basis": "SELECTED_MCX_FUTURE",
+            "future_instrument_id": "CRUDEOILM19NOV26FUT",
+            "future_expiry": "2026-11-19",
+            "option_expiry": "2026-11-17",
+            "lot_size": 10,
+            "atm": 9450,
+            "session_id": "MCX_CRUDEOILM_2026-10-20",
+            "maximum_score_without_execution": 86,
+            "unavailable_components": [
+              "EXECUTION_SPREAD",
+              "EXECUTION_DEPTH",
+              "EXECUTION_CREDIT"
+            ],
+            "alpha": {
+              "validity_state": "PARTIAL",
+              "alpha_1_direction": "BULLISH",
+              "alpha_2_direction": "INSUFFICIENT_DATA"
+            },
+            "acts": {
+              "opportunity_score": 58.6,
+              "score_band": "TRADEABLE",
+              "status": "NO_SETUP",
+              "direction": "BULL",
+              "market_state": "STRONG_BULL",
+              "score_components": {
+                "momentum": 25,
+                "structure": 15,
+                "alpha": 8.6,
+                "positioning": 10,
+                "participation": 0,
+                "execution": 0
+              },
+              "blockers": [
+                "NO_EXECUTABLE_CANDIDATE"
+              ]
+            },
+            "geometry": {
+              "modal_strike_step": 50,
+              "complete_pairs": 21,
+              "contracts": 42,
+              "bid_ask_coverage": 0.5,
+              "depth_coverage": 0,
+              "oi_coverage": 1,
+              "volume_coverage": 1,
+              "depth_unit": "UNKNOWN",
+              "strikes": [
+                9400,
+                9450,
+                9500
+              ],
+              "adjacent_gaps": [
+                50,
+                50
+              ],
+              "credit_geometry_summary": [
+                {
+                  "observed_steps": "1",
+                  "comparisons": 3,
+                  "min_observed_credit": -2,
+                  "max_observed_credit": 4
+                }
+              ]
+            }
+          }
+        },
+        {
+          "instrument_id": "NATGASMINI",
+          "display_name": "NATGASMINI",
+          "configured_enabled": false,
+          "session_configured": false,
+          "worker_state": "PROCESS_STATE_UNAVAILABLE",
+          "observation_count": 0,
+          "decision_count": 0,
+          "readiness": "NOT_CAPTURED",
+          "latest": null
+        }
+      ]
+    },
+    "/api/commodity-acts/decisions": {
+      "instrument_id": "CRUDEOILM",
+      "items": [],
+      "offset": 0,
+      "limit": 50,
+      "has_more": false
+    },
+    "/api/commodity-acts/paper/summary": {
+      "broker_orders_enabled": false,
+      "instruments": [
+        {
+          "instrument_id": "CRUDEOILM",
+          "status": "DISABLED",
+          "paper_enabled": false,
+          "market_open": null,
+          "pending_entries": 0,
+          "open_positions": 0,
+          "realized_gross": 0,
+          "realized_net": null,
+          "margin_status": "MARGIN_UNVERIFIED",
+          "latest": {
+            "decision": {
+              "opportunity_score": 0,
+              "score_band": "NO_TRADE",
+              "blockers": null,
+              "score_components": null,
+              "candidate_rejections": null
+            },
+            "candidate": null,
+            "risk_blocks": null,
+            "observed_at": "invalid"
+          }
+        },
+        {
+          "instrument_id": "NATGASMINI",
+          "status": "POLICY_UNCONFIGURED",
+          "latest": null
+        }
+      ]
+    },
+    "/api/commodity-acts/paper/positions": {
+      "items": [],
+      "offset": 0,
+      "limit": 50,
+      "has_more": false
+    },
+    "/api/commodity-acts/paper/orders": {
+      "items": [],
+      "offset": 0,
+      "limit": 50,
+      "has_more": false
+    },
+    "/api/commodity-acts/paper/fills": {
+      "items": [],
+      "offset": 0,
+      "limit": 50,
+      "has_more": false
+    },
+    "/api/commodity-acts/paper/events": {
+      "items": [],
+      "offset": 0,
+      "limit": 50,
+      "has_more": false
+    }
+  }
+}
