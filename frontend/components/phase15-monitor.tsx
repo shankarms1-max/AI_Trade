@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { integer, money, number, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, SectionError } from "@/components/ui";
+import { OrbRange } from "@/components/phase15-orb-evidence";
 import type { Phase15Strategy, Phase15Trade } from "@/types";
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -40,7 +41,8 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
         <td>{number(trade.entry_credit)}</td><td>{number(trade.state === "CLOSED" ? trade.exit_debit : trade.current_debit)}</td>
         <td>{amount(trade.state === "CLOSED" ? trade.realized_gross_pnl : trade.current_unrealized_gross_pnl)}</td>
         <td>{number(trade.mfe)}</td><td>{number(trade.mae)}</td><td>{holding(trade.holding_seconds)}</td>
-        <td>{blockerLabel(trade.entry_reason)}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
+        <td>{blockerLabel(trade.entry_reason)}{trade.strategy_features && <OrbRange
+          title="Frozen entry ORB range" evidence={trade.strategy_features} frozen/>}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
         <td title={trade.exit_reason ?? undefined}>{trade.terminal_status ?? blockerLabel(trade.exit_reason)}</td>
         <td><Badge value={trade.state}/></td>
       </tr>)}</tbody>
@@ -70,6 +72,10 @@ export function Phase15Monitor() {
         <Metric label="Trades Today" value={integer(data.totals.trades_today)}/>
       </div>
       <div className="phase15-asof">As of {timeIST(data.as_of)} · Paper marks and realized gross are shown separately.</div>
+      <section aria-label="ORB Range"><h3>ORB Range</h3><div className="phase15-orb-grid">
+        {data.strategies.filter(strategy => ["ORB_15", "ORB_30", "ORB_60"].includes(strategy.strategy_id)).map(strategy =>
+          <OrbRange key={strategy.strategy_id} title={strategy.display_name} evidence={strategy.orb_range}
+            observedAt={strategy.latest_timestamp}/>)}</div></section>
       <div className="table-wrap"><table aria-label="Phase 15 strategies"><thead><tr>
         <th>Strategy</th><th>Trades Today</th><th>W / L</th><th>Rejected</th><th>Open</th><th>Unresolved</th><th>Expired Unpriced</th>
         <th>Realized Gross</th><th>Live MTM</th><th>Latest Status</th><th>Blocker</th>

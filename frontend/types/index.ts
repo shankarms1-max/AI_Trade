@@ -11,8 +11,17 @@ export interface CreditSpreadEconomics {
   ranking_components?: Record<string, number>; ranking_penalties?: Record<string, number>;
 }
 export type Status = "SUCCESS" | "PARTIAL" | "FAILED" | "SKIPPED" | "STARTED" | "PENDING";
+export interface Phase15OrbRange {
+  range_minutes: number | null; range_start: string | null; range_end: string | null;
+  opening_high: number | null; opening_low: number | null; complete: boolean | null;
+  breakout_direction: string | null; breakout_timestamp: string | null;
+  breakout_distance_bps: number | null; confirmation_seconds: number | null; reason: string | null;
+  current_future_price?: number | null; status?: string | null;
+  blocker?: string | null; decision_reason?: string | null;
+}
 export interface Phase15Trade {
   trade_id: string; state: string; direction: string | null;
+  strategy_features?: Phase15OrbRange | null;
   decision_timestamp: string | null; entry_timestamp: string | null; exit_timestamp: string | null;
   short_strike: number | null; hedge_strike: number | null; entry_credit: number | null;
   current_debit: number | null; exit_debit: number | null;
@@ -31,7 +40,7 @@ export interface Phase15Strategy {
   unrealized_gross_pnl: number | null; open_position_count: number | null;
   unresolved_exposure_count: number | null; expired_unpriced_count: number | null;
   latest_status: string | null; latest_blocker: string | null; latest_timestamp: string | null;
-  accounting_status: "GROSS_ONLY"; today_trades: Phase15Trade[];
+  accounting_status: "GROSS_ONLY"; today_trades: Phase15Trade[]; orb_range?: Phase15OrbRange | null;
 }
 export interface Phase15Summary {
   mode: "PAPER"; as_of: string; accounting_status: "GROSS_ONLY";
@@ -42,6 +51,7 @@ export interface Phase15Summary {
 }
 export interface Phase15PaperTrade extends Omit<Phase15Trade, "mirror_diagnostics" | "false_breakout"> {
   strategy_id: string; display_name: string; spread_width: number | null;
+  short_option_type?: string | null; hedge_option_type?: string | null;
   lot_size: number | null; lots: number | null; accounting_status: "GROSS_ONLY";
   policy_hash: string | null; policy_allowed_widths: number[];
   rejection_reason: string | null; unresolved_reason: string | null;

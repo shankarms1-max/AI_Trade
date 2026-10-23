@@ -13,8 +13,9 @@ from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrad
 from app.parallel_paper.config import STRATEGIES
 from app.paper import expiry
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
+from app.parallel_paper.orb_evidence import ORB_MINUTES, orb_features
 from app.scalper.models import ScalperMarketSnapshotRecord
-from app.scalper.repository import IST
+from app.scalper.repository import IST, _aware
 
 
 NAMES = {"ACTS_V2": "ACTS V2", "ORB_15": "ORB 15", "ORB_30": "ORB 30",
@@ -64,6 +65,8 @@ def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
         "best_gross_points": _number(doc.get("best_gross_points")),
         "mirror_diagnostics": doc.get("mirror_diagnostics"),
         "false_breakout": bool(doc["false_breakout_first_at"]) if "false_breakout_first_at" in doc else None,
+        "strategy_features": orb_features(getattr(row, "strategy_id", ""), doc.get("strategy_features"),
+                                          doc.get("decision_timestamp")),
     }
 
 
@@ -74,10 +77,11 @@ def _unavailable(strategy: str) -> dict:
             "unrealized_gross_pnl": None, "open_position_count": None,
             "unresolved_exposure_count": None, "expired_unpriced_count": None,
             "latest_status": None, "latest_blocker": None, "latest_timestamp": None,
-            "accounting_status": "GROSS_ONLY", "today_trades": []}
+            "accounting_status": "GROSS_ONLY", "today_trades": [], "orb_range": None}
 
 
-def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[Any], at: datetime) -> dict:
+def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[Any], at: datetime,
+             future_price: float | None = None) -> dict:
     if cursor is None or cursor.observed_at is None:
         return _unavailable(strategy)
     day = at.astimezone(IST).date()
@@ -143,6 +147,10 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     unrealized = sum(mark_values) if all(value is not None for value in mark_values) else None
     latest_blocker = (latest.get("primary_blocker") if strategy == "ACTS_V2" else
                       next(iter(latest.get("blockers") or []), None))
+    orb_range = orb_features(strategy, latest.get("features"), cursor.observed_at)
+    if orb_range is not None:
+        orb_range.update(current_future_price=future_price, status=latest.get("status"),
+                         blocker=latest_blocker, decision_reason=latest.get("entry_reason"))
     return {"strategy_id": strategy, "display_name": NAMES[strategy],
             "trades_today": len(entered),
             "wins_today": sum(value > 0 for value in realized_values) if realized is not None else None,
@@ -155,6 +163,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
             "latest_status": latest.get("status"),
             "latest_blocker": latest_blocker,
             "latest_timestamp": latest.get("timestamp") or cursor.observed_at,
+            "orb_range": orb_range,
             "accounting_status": "GROSS_ONLY",
             "today_trades": sorted(entered, key=lambda trade: (trade["entry_timestamp"], trade["trade_id"]))}
 
@@ -168,6 +177,11 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
         if session.get_bind().dialect.name == "postgresql":
             session.execute(text("SET TRANSACTION READ ONLY"))
         parallel_cursors = {row.strategy_id: row for row in session.scalars(select(ParallelPaperCursor))}
+        snapshot_ids = {cursor.snapshot_id for strategy, cursor in parallel_cursors.items()
+                        if strategy in ORB_MINUTES and cursor.snapshot_id is not None}
+        futures = {row.id: row for row in session.execute(select(
+            ScalperMarketSnapshotRecord.id, ScalperMarketSnapshotRecord.captured_at,
+            ScalperMarketSnapshotRecord.nifty_future).where(ScalperMarketSnapshotRecord.id.in_(snapshot_ids)))}
         parallel_rows = session.scalars(select(ParallelPaperTrade)).all()
         parallel_events = session.scalars(select(ParallelPaperEvent).join(
             ScalperMarketSnapshotRecord, ParallelPaperEvent.snapshot_id == ScalperMarketSnapshotRecord.id
@@ -192,7 +206,13 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
             events = acts_events if strategy == "ACTS_V2" else [
                 event for event in parallel_events if event.strategy_id == strategy]
             try:
-                strategies.append(_project(strategy, cursor, rows, events, at))
+                snapshot = futures.get(cursor.snapshot_id) if cursor and strategy in ORB_MINUTES else None
+                future_price = (float(snapshot.nifty_future) if cursor is not None and cursor.observed_at
+                                and snapshot is not None
+                                and snapshot.nifty_future is not None
+                                and _aware(snapshot.captured_at) == datetime.fromisoformat(cursor.observed_at)
+                                else None)
+                strategies.append(_project(strategy, cursor, rows, events, at, future_price))
             except (KeyError, TypeError, ValueError):
                 strategies.append(_unavailable(strategy))
 
@@ -207,12 +227,14 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
     return {"mode": "PAPER", "as_of": at.isoformat(), "accounting_status": "GROSS_ONLY",
             "totals": {"realized_gross_pnl_today": realized_total,
                        "unrealized_gross_pnl": unrealized_total,
-                       "combined_gross_pnl": (realized_total + unrealized_total
-                                              if realized_total is not None and unrealized_total is not None else None),
+                       "combined_gross_pnl": (
+                           realized_total + unrealized_total
+                           if realized_total is not None and unrealized_total is not None else None),
                        "open_positions": sum(open_counts) if all(value is not None for value in open_counts) else None,
                        "unresolved_exposures": (sum(unresolved_counts)
                                                 if all(v is not None for v in unresolved_counts) else None),
                        "expired_unpriced_count": (sum(expired_counts)
                                                   if all(v is not None for v in expired_counts) else None),
-                       "trades_today": sum(trade_counts) if all(value is not None for value in trade_counts) else None},
+                       "trades_today": (sum(trade_counts)
+                                        if all(value is not None for value in trade_counts) else None)},
             "strategies": strategies}

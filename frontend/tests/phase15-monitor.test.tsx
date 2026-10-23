@@ -40,6 +40,31 @@ beforeEach(() => vi.mocked(api.phase15Summary).mockReset());
 afterEach(cleanup);
 
 describe("Phase 15 monitor", () => {
+  it("wires the stored ORB ranges into the monitor and keeps entered ranges frozen", async () => {
+    const data = fixture();
+    for (const [index, end] of [[1, "09:30"], [2, "09:45"], [3, "10:15"]] as const) {
+      data.strategies[index].orb_range = { range_minutes: Number(ids[index].split("_")[1]),
+        range_start: "2026-10-15T09:15:00+05:30", range_end: `2026-10-15T${end}:00+05:30`,
+        opening_high: 25684.40, opening_low: 25621.15, current_future_price: 25701.80, complete: true,
+        breakout_direction: "BULL", breakout_timestamp: null, breakout_distance_bps: 6.77,
+        confirmation_seconds: 45, reason: null };
+    }
+    data.strategies[1].today_trades = [{ ...openTrade, strategy_features: {
+      ...data.strategies[1].orb_range!, opening_high: 25000, opening_low: 24900 } }];
+    vi.mocked(api.phase15Summary).mockResolvedValue(data);
+    render(<Phase15Monitor/>);
+    const ranges = await screen.findByRole("region", { name: "ORB Range" });
+    for (const name of ["ORB 15", "ORB 30", "ORB 60"]) {
+      const card = within(ranges).getByRole("article", { name });
+      expect(within(card).getByText("25,684.40")).toBeInTheDocument();
+      expect(within(card).getByText("ABOVE HIGH")).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Expand ORB 15" }));
+    const frozen = screen.getByRole("article", { name: "Frozen entry ORB range" });
+    expect(within(frozen).getByText("25,000.00")).toBeInTheDocument();
+    expect(within(frozen).queryByText("25,684.40")).not.toBeInTheDocument();
+  });
+
   it("renders six strategies, gross totals, and a negative live mark", async () => {
     vi.mocked(api.phase15Summary).mockResolvedValue(fixture());
     render(<Phase15Monitor/>);

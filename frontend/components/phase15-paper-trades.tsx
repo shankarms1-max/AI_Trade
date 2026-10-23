@@ -6,6 +6,7 @@ import { dateIST, integer, money, number, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Panel, SectionError } from "@/components/ui";
 import { blockerLabel } from "@/components/phase15-monitor";
+import { OrbRange, OptionExecution } from "@/components/phase15-orb-evidence";
 import type { Phase15PaperTrade, Phase15Quote, Phase15TradePage } from "@/types";
 
 const STRATEGIES = [
@@ -37,6 +38,8 @@ function QuoteEvidence({ title, quotes }: { title: string; quotes: Record<string
 
 function ResearchDetails({ trade }: { trade: Phase15PaperTrade }) {
   return <details className="phase15-research"><summary>Research details · {trade.trade_id}</summary>
+    {trade.strategy_features && <OrbRange title="Frozen entry ORB range" evidence={trade.strategy_features} frozen/>}
+    <OptionExecution trade={trade}/>
     <dl className="phase15-trade-fields">
       <div><dt>Decision</dt><dd>{timestamp(trade.decision_timestamp)}</dd></div>
       <div><dt>Entry</dt><dd>{timestamp(trade.entry_timestamp)}</dd></div>

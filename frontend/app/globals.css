@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+.phase15-orb-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; margin:12px 0 20px; }
+.phase15-orb-card { background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:14px; font-variant-numeric:tabular-nums; }
+.phase15-orb-card header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; }
+.phase15-orb-card h3 { margin:0; }
+.phase15-orb-card dl { margin:12px 0; }
+.phase15-orb-card dl > div { display:flex; justify-content:space-between; gap:12px; padding:6px 0; }
+.phase15-orb-card dd { margin:0; text-align:right; }
+.phase15-orb-boundary { border-top:1px solid var(--border); border-bottom:1px solid var(--border); font-weight:700; font-size:1.1em; }
+.phase15-orb-card p { overflow-wrap:anywhere; }
+.phase15-option-execution { margin:16px 0; padding:12px; border:1px solid var(--border); border-radius:8px; }
+
 :root { color-scheme: dark; --bg:#08111a; --panel:#0d1722; --panel2:#111e2a; --border:#22303d; --text:#eaf0f5; --secondary:#8fa3b5; --muted:#5f7283; --positive:#2fb67c; --negative:#e15b64; --warning:#d6a84b; --accent:#4d8fd8; }
 * { box-sizing: border-box; }
 html { background: var(--bg); }

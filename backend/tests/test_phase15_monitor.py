@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import json
 
 from fastapi.testclient import TestClient
+import pytest
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import sessionmaker
 
@@ -12,11 +13,78 @@ from app.main import app
 from app.parallel_paper.config import STRATEGIES
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
 from app.parallel_paper.monitor import summary
+from app.parallel_paper.bars import MarketPoint
+from app.parallel_paper.config import ExperimentConfig
+from app.parallel_paper.decisions import decide_orb
+from app.parallel_paper.orb_evidence import orb_features
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST
 
 
 AT = datetime(2099, 10, 1, 10, 0, tzinfo=IST)
+
+
+@pytest.mark.parametrize("minutes", [15, 30, 60])
+def test_orb_projects_exact_decision_range_and_causal_futures_snapshot(session_factory, minutes):
+    at = AT.replace(hour=11)
+    seed(session_factory, at)
+    observed = at + timedelta(seconds=15)
+    strategy = f"ORB_{minutes}"
+    start = at.replace(hour=9, minute=15)
+    frozen = {"range_minutes": minutes, "range_start": start.isoformat(),
+              "range_end": (start + timedelta(minutes=minutes)).isoformat(),
+              "opening_high": 25684.40, "opening_low": 25621.15, "complete": True, "reason": None}
+    state = {"breakout": {"direction": "BULL", "started_at": (observed - timedelta(seconds=45)).isoformat(),
+                          "last_at": (observed - timedelta(seconds=15)).isoformat()}}
+    decision = decide_orb(strategy, [MarketPoint(observed, 25701.80, "actual-future", at.date())],
+                          observed, state, ExperimentConfig(), frozen_range=frozen)
+    assert decision["status"] == "ENTER"
+    with session_factory.begin() as session:
+        session.get(ScalperMarketSnapshotRecord, 1).nifty_future = 25701.80
+        # A later capture and spot are deliberately different: neither is the decision input.
+        session.get(ScalperMarketSnapshotRecord, 2).nifty_future = 99999
+        cursor = session.get(ParallelPaperCursor, strategy)
+        cursor.snapshot_id, cursor.observed_at = 1, observed.isoformat()
+        cursor.latest_json = json.dumps(decision)
+    result = next(row for row in summary(session_factory, observed)["strategies"]
+                  if row["strategy_id"] == strategy)["orb_range"]
+    assert result["range_start"] == frozen["range_start"]
+    assert result["range_end"] == frozen["range_end"]
+    for key in ("opening_high", "opening_low", "complete", "breakout_direction", "breakout_timestamp",
+                "breakout_distance_bps", "confirmation_seconds"):
+        assert result[key] == decision["features"][key]
+    assert result["current_future_price"] == 25701.80
+    assert result["decision_reason"] == "CONFIRMED_OPENING_RANGE_BREAKOUT"
+    with session_factory() as session:
+        assert json.loads(session.get(ParallelPaperCursor, strategy).latest_json) == decision
+
+
+@pytest.mark.parametrize("case", ["missing_price", "missing_snapshot", "mismatched_timestamp"])
+def test_orb_missing_exact_snapshot_never_substitutes_spot_or_a_later_future(session_factory, case):
+    seed(session_factory)
+    with session_factory.begin() as session:
+        cursor = session.get(ParallelPaperCursor, "ORB_15")
+        cursor.snapshot_id = None if case == "missing_snapshot" else 1
+        cursor.observed_at = (AT if case == "mismatched_timestamp" else AT + timedelta(seconds=15)).isoformat()
+        cursor.latest_json = json.dumps({"status": "NO_SETUP", "features": {
+            "complete": True, "opening_high": 25684.40, "opening_low": 25621.15}})
+        if case != "missing_price":
+            session.get(ScalperMarketSnapshotRecord, 1).nifty_future = 25701.80
+    result = summary(session_factory, AT)["strategies"][1]["orb_range"]
+    assert result["current_future_price"] is None
+    assert result["opening_high"] == 25684.40
+
+
+@pytest.mark.parametrize("minutes", [15, 30, 60])
+def test_legacy_orb_window_fallback_is_clock_only_and_leaves_missing_prices_unknown(minutes):
+    features = {"complete": False, "reason": "OPENING_RANGE_NOT_COMPLETE", "secret": "DO_NOT_RETURN"}
+    result = orb_features(f"ORB_{minutes}", features, AT.isoformat())
+    start = AT.replace(hour=9, minute=15)
+    assert result["range_start"] == start.isoformat()
+    assert result["range_end"] == (start + timedelta(minutes=minutes)).isoformat()
+    assert result["opening_high"] is result["opening_low"] is None
+    assert "secret" not in result
+    assert features == {"complete": False, "reason": "OPENING_RANGE_NOT_COMPLETE", "secret": "DO_NOT_RETURN"}
 
 
 def seed(sessions, at=AT):
