@@ -34,6 +34,44 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Phase 15 positions and journal", () => {
+  it("keeps frozen futures levels separate from exact option entry fills and current mark quotes", async () => {
+    vi.mocked(api.phase15Positions).mockResolvedValue(page([trade({ strategy_id: "ORB_15", display_name: "ORB 15",
+      short_option_type: "CE", hedge_option_type: "CE", short_strike: 25700, hedge_strike: 26100,
+      strategy_features: { range_minutes: 15, range_start: "2026-10-14T09:15:00+05:30", range_end: "2026-10-14T09:30:00+05:30",
+        opening_high: 25684.40, opening_low: 25621.15, complete: true, confirmation_seconds: 45,
+        breakout_direction: "BULL", breakout_timestamp: "2026-10-14T10:00:00+05:30", breakout_distance_bps: 6.77, reason: null },
+      entry_quotes: { short: { fill_price: 100, side: "bid" }, long: { fill_price: 30, side: "ask" } },
+      latest_mark_quotes: { short: { ask: 100.20 }, long: { bid: 31 } }, entry_credit: 70, current_debit: 69.20,
+    })]));
+    render(<Phase15Positions/>);
+    const card = await screen.findByRole("article", { name: "ORB 15 position acts-stored-1" });
+    fireEvent.click(within(card).getByText(/Research details/));
+    const range = within(card).getByRole("article", { name: "Frozen entry ORB range" });
+    expect(within(range).getByText("25,684.40")).toBeInTheDocument();
+    expect(within(range).getByText("25,621.15")).toBeInTheDocument();
+    expect(within(range).queryByText(/100.20/)).not.toBeInTheDocument();
+    const options = within(card).getByRole("region", { name: "Option execution" });
+    expect(within(options).getByText("Short CE 25,700")).toBeInTheDocument();
+    expect(within(options).getByText("₹100.00")).toBeInTheDocument();
+    expect(within(options).getByText("ASK ₹100.20")).toBeInTheDocument();
+    expect(within(options).getByText("+₹0.20")).toBeInTheDocument();
+    expect(within(options).getByText("BID ₹31.00")).toBeInTheDocument();
+    expect(within(options).getByText(/Entry spread credit ₹70.00 · Current spread debit ₹69.20/)).toBeInTheDocument();
+  });
+
+  it.each([true, false])("missing or unusable current leg quotes remain N/A (mark available %s)", async markAvailable => {
+    vi.mocked(api.phase15Positions).mockResolvedValue(page([trade({ mark_available: markAvailable,
+      latest_mark_quotes: markAvailable ? {} : { short: { ask: 999 }, long: { bid: 888 } } })]));
+    render(<Phase15Positions/>);
+    const card = await screen.findByRole("article");
+    fireEvent.click(within(card).getByText(/Research details/));
+    const options = within(card).getByRole("region", { name: "Option execution" });
+    expect(within(options).getByText("ASK N/A")).toBeInTheDocument();
+    expect(within(options).getByText("BID N/A")).toBeInTheDocument();
+    expect(within(options).queryByText(/999|888/)).not.toBeInTheDocument();
+    expect(within(options).getByText("₹40.00")).toBeInTheDocument();
+  });
+
   it("shows unpriced expiry as terminal evidence without a fill time or fake zero P&L", async () => {
     vi.mocked(api.phase15Journal).mockResolvedValue(page([trade({ state: "CLOSED",
       expiry_terminalization: true, terminal_status: "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE",

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.acts_paper.models import ActsPaperEvent, ActsPaperTrade
 from app.parallel_paper.models import ParallelPaperEvent, ParallelPaperTrade
 from app.parallel_paper.monitor import NAMES, ORDER
+from app.parallel_paper.orb_evidence import orb_features
 from app.paper import expiry
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST, _aware
@@ -25,7 +26,8 @@ STATES = (*ACTIVE, "CLOSED", "ENTRY_REJECTED")
 
 
 def _number(value: Any) -> float | None:
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) and isfinite(value) else None
+    return (float(value) if isinstance(value, (int, float)) and not isinstance(value, bool)
+            and isfinite(value) else None)
 
 
 def _dict(value: Any) -> dict:
@@ -132,6 +134,9 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
         "display_name": NAMES[row.strategy_id], "state": row.state, "direction": doc.get("direction"),
         "decision_timestamp": doc.get("decision_timestamp"), "entry_timestamp": entry,
         "exit_timestamp": exit_at, "short_strike": short_strike, "hedge_strike": hedge_strike,
+        "short_option_type": short.get("option_type"), "hedge_option_type": long.get("option_type"),
+        "strategy_features": orb_features(row.strategy_id, doc.get("strategy_features"),
+                                          doc.get("decision_timestamp")),
         "spread_width": width, "lot_size": _number(doc.get("lot_size")),
         "lots": _number(doc.get("lots", policy.get("lots", execution.get("lots")))),
         "entry_credit": _number(doc.get("entry_credit")),

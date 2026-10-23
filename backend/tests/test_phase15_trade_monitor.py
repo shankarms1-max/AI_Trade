@@ -9,14 +9,14 @@ from sqlalchemy import event, select
 from app.acts_paper.models import ActsPaperEvent, ActsPaperTrade
 from app.db.session import get_session_factory
 from app.main import app
-from app.parallel_paper.models import ParallelPaperEvent, ParallelPaperTrade
-from app.parallel_paper.monitor import ORDER
+from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade
+from app.parallel_paper.monitor import ORDER, summary
 from app.parallel_paper.trade_monitor import trades
 from app.scalper.models import ScalperMarketSnapshotRecord
 from tests.test_phase15_monitor import AT, seed, trade_doc
 
 
-def add(sessions, ident, *, strategy="ACTS_V2", state="OPEN", at=AT, marked=True, width=400):
+def add(sessions, ident, *, strategy="ACTS_V2", state="OPEN", at=AT, marked=True, width=400, mark_quotes=None):
     doc = trade_doc(at, mark=75, entry=state != "PENDING_PAPER_ENTRY", exit=state == "CLOSED")
     doc.update(lot_size=50, lots=1, policy_hash="stored-policy-hash", exit_policy_version="MIRROR_EXIT_V1",
                policy={"config": {"allowed_widths": [width]}, "secret": "DO_NOT_RETURN"},
@@ -27,24 +27,83 @@ def add(sessions, ident, *, strategy="ACTS_V2", state="OPEN", at=AT, marked=True
     doc["candidate"]["spread_width"] = width
     doc["candidate"]["long_leg"]["strike"] = doc["hedge_strike"] = 24900 - width
     with sessions.begin() as session:
-        snapshot = ScalperMarketSnapshotRecord(capture_key=f"trade-{strategy}-{ident}", captured_at=at,
+        snapshot = ScalperMarketSnapshotRecord(
+            capture_key=f"trade-{strategy}-{ident}", captured_at=at,
             request_started_at=at, response_received_at=at, nifty_spot=25000, lot_size=50,
             atm_strike=25000, expiry=at.date(), source="TEST", feature_json="{}", signal_json="{}")
         session.add(snapshot)
         session.flush()
         doc["last_snapshot_id"] = snapshot.id
         model = ActsPaperTrade if strategy == "ACTS_V2" else ParallelPaperTrade
-        session.add(model(id=ident, state=state, document=json.dumps(doc), decision_snapshot_id=snapshot.id,
-                          **({} if strategy == "ACTS_V2" else {"strategy_id": strategy, "strategy_version": f"{strategy}_V1"})))
+        session.add(model(
+            id=ident, state=state, document=json.dumps(doc), decision_snapshot_id=snapshot.id,
+            **({} if strategy == "ACTS_V2" else {"strategy_id": strategy, "strategy_version": f"{strategy}_V1"})))
         session.flush()
         if marked:
             event_model = ActsPaperEvent if strategy == "ACTS_V2" else ParallelPaperEvent
-            session.add(event_model(sequence=snapshot.id, event_key=f"{ident}:mark",
+            session.add(event_model(
+                sequence=snapshot.id, event_key=f"{ident}:mark",
                 event_type="ACTS_MARK" if strategy == "ACTS_V2" else "MARK", trade_id=ident,
-                snapshot_id=snapshot.id, payload=json.dumps({"available": True}),
+                snapshot_id=snapshot.id, payload=json.dumps({"available": True, "quotes": mark_quotes or {}}),
                 previous_hash="a" * 64, event_hash="b" * 64,
                 **({} if strategy == "ACTS_V2" else {"strategy_id": strategy})))
     return doc
+
+
+@pytest.mark.parametrize("minutes", [15, 30, 60])
+def test_trade_range_is_frozen_and_option_quotes_remain_separate_read_only_evidence(session_factory, minutes):
+    seed(session_factory)
+    strategy = f"ORB_{minutes}"
+    doc = add(session_factory, "frozen", strategy=strategy, mark_quotes={
+        "short": {"quote": {"ask": 100.20}, "fill_price": 100.20, "side": "ask"},
+        "long": {"quote": {"bid": 31}, "fill_price": 31, "side": "bid"}})
+    start = AT.replace(hour=9, minute=15)
+    features = {"range_minutes": minutes, "range_start": start.isoformat(),
+                "range_end": (start + timedelta(minutes=minutes)).isoformat(), "complete": True,
+                "opening_high": 25684.40, "opening_low": 25621.15, "confirmation_seconds": 45,
+                "secret": "DO_NOT_RETURN"}
+    doc["strategy_features"] = features
+    doc["candidate"]["short_leg"]["option_type"] = "CE"
+    doc["candidate"]["long_leg"]["option_type"] = "CE"
+    doc["entry_quotes"] = {"short": {"fill_price": 100, "side": "bid"},
+                           "long": {"fill_price": 30, "side": "ask"}}
+    doc["entry_credit"], doc["current_debit"] = 70, 69.2
+    with session_factory.begin() as session:
+        session.get(ParallelPaperTrade, "frozen").document = json.dumps(doc)
+        session.get(ParallelPaperCursor, strategy).latest_json = json.dumps({"status": "NO_SETUP", "features": {
+            "opening_high": 99999, "opening_low": 88888, "complete": True}})
+    with session_factory() as session:
+        before_doc = session.get(ParallelPaperTrade, "frozen").document
+        before_events = [(row.sequence, row.payload, row.event_hash)
+                         for row in session.scalars(select(ParallelPaperEvent))]
+    writes = []
+
+    def refuse_write(*_):
+        writes.append(True)
+        raise AssertionError("read-only ORB projection attempted a write")
+
+    event.listen(session_factory.class_, "before_flush", refuse_write)
+    try:
+        result = trades(session_factory, AT, positions=True)["items"][0]
+        compact = next(row for row in summary(session_factory, AT)["strategies"]
+                       if row["strategy_id"] == strategy)["today_trades"][0]
+    finally:
+        event.remove(session_factory.class_, "before_flush", refuse_write)
+    for row in (result, compact):
+        assert row["strategy_features"]["opening_high"] == 25684.40
+        assert row["strategy_features"]["opening_low"] == 25621.15
+        assert row["strategy_features"]["range_end"] == features["range_end"]
+        assert "DO_NOT_RETURN" not in json.dumps(row["strategy_features"])
+    assert result["entry_quotes"]["short"]["fill_price"] == 100
+    assert result["latest_mark_quotes"]["short"]["ask"] == 100.20
+    assert result["latest_mark_quotes"]["long"]["bid"] == 31
+    assert result["short_option_type"] == result["hedge_option_type"] == "CE"
+    assert not writes
+    with session_factory() as session:
+        assert session.get(ParallelPaperTrade, "frozen").document == before_doc
+        after_events = [(row.sequence, row.payload, row.event_hash)
+                        for row in session.scalars(select(ParallelPaperEvent))]
+        assert after_events == before_events
 
 
 def test_positions_include_today_and_prior_day_independently_of_cursors(session_factory):
@@ -75,12 +134,14 @@ def test_all_active_states_are_visible_without_latest_strategy_cursor(session_fa
 @pytest.mark.parametrize("case", ["absent", "failed", "prior-day", "newer-observation", "future"])
 def test_unavailable_marks_never_reuse_stale_pnl(session_factory, case):
     seed(session_factory)
-    captured_at = AT - timedelta(days=1) if case == "prior-day" else AT + timedelta(seconds=15) if case == "future" else AT
+    captured_at = (AT - timedelta(days=1) if case == "prior-day"
+                   else AT + timedelta(seconds=15) if case == "future" else AT)
     doc = add(session_factory, "active", at=captured_at,
               marked=case != "absent")
     with session_factory.begin() as session:
         if case == "failed":
-            session.add(ActsPaperEvent(sequence=999, event_key="failed", event_type="ACTS_MARK",
+            session.add(ActsPaperEvent(
+                sequence=999, event_key="failed", event_type="ACTS_MARK",
                 snapshot_id=doc["last_snapshot_id"], trade_id="active", previous_hash="a" * 64,
                 event_hash="b" * 64, payload=json.dumps({"available": False, "reason": "STALE_QUOTE"})))
         if case == "newer-observation":
@@ -112,7 +173,8 @@ def test_journal_date_strategy_state_filters_and_pagination(session_factory):
     add(session_factory, "rejected", strategy="EMA_PULLBACK", state="ENTRY_REJECTED", at=AT + timedelta(minutes=2))
     assert len(trades(session_factory, AT, day=AT.date())["items"]) == 3
     assert [row["trade_id"] for row in trades(session_factory, AT, strategy="ORB_15")["items"]] == ["second"]
-    assert [row["trade_id"] for row in trades(session_factory, AT, state="CLOSED", day=AT.date())["items"]] == ["first"]
+    closed = trades(session_factory, AT, state="CLOSED", day=AT.date())["items"]
+    assert [row["trade_id"] for row in closed] == ["first"]
     assert trades(session_factory, AT, state="ENTRY_REJECTED")["items"][0]["rejection_reason"] == "STALE_QUOTE"
     page = trades(session_factory, AT, limit=2)
     rest = trades(session_factory, AT, limit=2, offset=2)
@@ -144,7 +206,8 @@ def test_evidence_is_allowlisted_and_historical_exit_reasons_unchanged(session_f
     seed(session_factory)
     doc = add(session_factory, "historical", state="CLOSED")
     doc.update(exit_reason="TIME_STOP", exit_policy_version=None, opportunity_score=58.2, score_band="TRADEABLE")
-    doc["entry_quotes"]["short"]["quote"] = {"trading_symbol": "STORED_NIFTY", "bid": 12,
+    doc["entry_quotes"]["short"]["quote"] = {
+        "trading_symbol": "STORED_NIFTY", "bid": 12,
         "ask": 13, "bid_quantity": 100, "ask_quantity": 150, "depth_unit": "UNKNOWN",
         "source_market_timestamp": AT.isoformat(), "secret": "DO_NOT_RETURN"}
     with session_factory.begin() as session:
@@ -152,7 +215,8 @@ def test_evidence_is_allowlisted_and_historical_exit_reasons_unchanged(session_f
     row = trades(session_factory, AT)["items"][0]
     assert row["exit_reason"] == "TIME_STOP" and row["exit_policy_version"] is None
     assert row["opportunity_score"] == 58.2 and row["score_band"] == "TRADEABLE"
-    assert row["entry_quotes"]["short"] == {"fill_price": 12, "side": "bid", "trading_symbol": "STORED_NIFTY",
+    assert row["entry_quotes"]["short"] == {
+        "fill_price": 12, "side": "bid", "trading_symbol": "STORED_NIFTY",
         "bid": 12, "ask": 13, "bid_quantity": 100, "ask_quantity": 150, "depth_unit": "UNKNOWN",
         "source_market_timestamp": AT.isoformat()}
     assert row["mirror_diagnostics"][0]["observed_at"] == AT.isoformat()
@@ -184,12 +248,14 @@ def test_endpoints_only_select_and_validate_filters(session_factory, engine, mon
     add(session_factory, "active")
     import app.acts_paper.service as acts_service
     import app.parallel_paper.service as parallel_service
+
     def forbidden(*_args, **_kwargs):
         raise AssertionError("read endpoint invoked an engine/write")
     monkeypatch.setattr(acts_service.ActsPaperService, "__init__", forbidden)
     monkeypatch.setattr(parallel_service.ParallelPaperService, "__init__", forbidden)
     monkeypatch.setattr("app.broker.kotak.market_data.KotakMarketDataAdapter.__init__", forbidden)
     statements = []
+
     def capture(_conn, _cursor, statement, *_):
         statements.append(statement)
         assert statement.lstrip().upper().startswith("SELECT")

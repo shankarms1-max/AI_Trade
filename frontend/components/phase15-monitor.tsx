@@ -5,6 +5,7 @@ import { integer, money, number, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, SectionError } from "@/components/ui";
 import type { Phase15Strategy, Phase15Trade } from "@/types";
+import { OrbRange } from "@/components/phase15-orb-evidence";
 import { Icon } from "@/components/icons";
 import { observationState } from "@/lib/monitoring";
 
@@ -42,7 +43,7 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
         <td>{number(trade.entry_credit)}</td><td>{number(trade.state === "CLOSED" ? trade.exit_debit : trade.current_debit)}</td>
         <td>{amount(trade.state === "CLOSED" ? trade.realized_gross_pnl : trade.current_unrealized_gross_pnl)}</td>
         <td>{number(trade.mfe)}</td><td>{number(trade.mae)}</td><td>{holding(trade.holding_seconds)}</td>
-        <td>{blockerLabel(trade.entry_reason)}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
+        <td>{blockerLabel(trade.entry_reason)}{trade.strategy_features && <OrbRange title="Frozen entry ORB range" evidence={trade.strategy_features} frozen/>}</td><td>{trade.exit_policy_version ?? "UNAVAILABLE"}</td>
         <td title={trade.exit_reason ?? undefined}>{trade.terminal_status ?? blockerLabel(trade.exit_reason)}</td>
         <td><Badge value={trade.state}/></td>
       </tr>)}</tbody>
@@ -79,6 +80,7 @@ export function Phase15Monitor({ workspace = false }: { workspace?: boolean } = 
         <Metric label="Trades Today" value={integer(data.totals.trades_today)}/>
       </div>
       <div className="phase15-asof">As of {timeIST(data.as_of)} · Paper marks and realized gross are shown separately.</div>
+      <section aria-label="ORB Range"><h3>ORB Range</h3><div className="phase15-orb-grid">{data.strategies.filter(s=>s.strategy_id.startsWith("ORB_")).map(s=><OrbRange key={s.strategy_id} title={s.display_name} evidence={s.orb_range} observedAt={s.latest_timestamp}/>)}</div></section>
       <div className="strategies-toolbar">
         {workspace && <div className="segmented-control" aria-label="Strategy selection"><button aria-pressed={selected === "ALL"} onClick={() => setSelected("ALL")}>All strategies</button>{data.strategies.map(row => <button key={row.strategy_id} aria-pressed={selected === row.strategy_id} onClick={() => setSelected(row.strategy_id)}>{DISPLAY_NAMES[row.strategy_id] ?? row.display_name}</button>)}</div>}
         <label className="search-field"><Icon name="search" size={15}/><input aria-label="Filter strategies" placeholder="Search signals or blockers…" value={query} onChange={e => setQuery(e.target.value)}/></label>
