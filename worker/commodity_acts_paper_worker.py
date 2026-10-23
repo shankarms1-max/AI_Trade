@@ -16,6 +16,7 @@ from app.commodity_acts.config import CommoditySettings, INSTRUMENTS  # noqa: E4
 from app.commodity_acts.read import summary  # noqa: E402
 from app.commodity_acts.paper_read import summary as paper_summary  # noqa: E402
 from app.commodity_acts.paper_coordinator import CommodityPaperCoordinator as CommodityResearch  # noqa: E402
+from app.commodity_acts.request_budget import RequestBudget  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.logging import configure_logging, get_logger  # noqa: E402
 from app.db.session import build_engine, build_session_factory  # noqa: E402
@@ -61,7 +62,9 @@ def main(argv=None):
         service = CommodityResearch(sessions, settings, config, spec)
         market = make_adapter(settings, strikes_each_side=config.strikes_each_side,
                               max_quote_age_seconds=config.max_quote_age_seconds, key_file=config.market_data_key_file,
-                              renewal_policy=config.trading_policy(args.instrument) if config.auto_contract_renewal else None)
+                              renewal_policy=config.trading_policy(args.instrument) if config.auto_contract_renewal else None,
+                              master_refresh_seconds=config.master_refresh_seconds,
+                              request_budget=RequestBudget(config.request_budget_file))
         assert_market_only(market)
 
         def run():

@@ -187,7 +187,8 @@ def resolve_master(response: Any, spec: InstrumentAlias, today: date, *, renewal
 
 class KotakCommodityMarketData:
     def __init__(self, client: MarketReadClient, *, strikes_each_side: int = 10,
-                 clock: Callable[[], datetime] = lambda: datetime.now(IST), max_quote_age_seconds: int = 30, renewal_policy=None):
+                 clock: Callable[[], datetime] = lambda: datetime.now(IST), max_quote_age_seconds: int = 30,
+                 renewal_policy=None, master_refresh_seconds: int = 1800, request_budget=None):
         assert_market_only(client)
         if not 5 <= strikes_each_side <= 10:
             raise CommodityDataError("COMMODITY_CAPTURE_RANGE_INVALID")
@@ -197,12 +198,17 @@ class KotakCommodityMarketData:
         self._renewal_policy = renewal_policy
         self._daily_rows: dict[tuple, Any] = {}
         self._master_verified_at: datetime | None = None
+        if not 60 <= master_refresh_seconds <= 86400:
+            raise CommodityDataError("COMMODITY_MASTER_REFRESH_INVALID")
+        self._master_refresh_seconds, self._request_budget = master_refresh_seconds, request_budget
 
-    @staticmethod
-    def _call(method: Callable, **kwargs):
+    def _call(self, method: Callable, **kwargs):
         try:
-            return method(**kwargs)
-        except Exception:
+            return self._request_budget.call(method, **kwargs) if self._request_budget is not None else method(**kwargs)
+        except Exception as exc:
+            from app.commodity_acts.request_budget import BudgetUnavailable
+            if isinstance(exc, BudgetUnavailable):
+                raise CommodityDataError(str(exc)) from None
             raise CommodityDataError("COMMODITY_MARKET_REQUEST_FAILED") from None
 
     def _quotes(self, records: list[dict]) -> dict:
@@ -233,7 +239,8 @@ class KotakCommodityMarketData:
         started = self._clock()
         key = spec.instrument_id, spec.underlying, started.date()
         if self._renewal_policy is not None:
-            if key not in self._daily_rows:
+            if (key not in self._daily_rows or self._master_verified_at is None or not
+                    0 <= (started - self._master_verified_at).total_seconds() < self._master_refresh_seconds):
                 response = self._call(self._client.search_scrip, exchange_segment=SEGMENT,
                                       symbol=spec.underlying, ignore_50multiple=True)
                 self._daily_rows = {key: response}

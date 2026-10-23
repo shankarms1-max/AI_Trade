@@ -24,6 +24,7 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
     <dl className="commodity-fields">
       <div><dt>Selected future / price</dt><dd>{latest?.future_symbol ?? "N/A"} / {number(latest?.future_price)}</dd></div>
       <div><dt>Future / option expiry</dt><dd>{latest?.future_expiry ?? "N/A"} / {latest?.option_expiry ?? "N/A"}</dd></div>
+      <div><dt>Automatic contract evidence renewal</dt><dd>{latest?.contract_renewal_status ?? "UNAVAILABLE"}</dd></div>
       <div><dt>Bid-ask / raw depth coverage</dt><dd>{percent(latest?.data_quality?.bid_ask_coverage == null ? null : latest.data_quality.bid_ask_coverage*100)} / {percent(latest?.data_quality?.depth_coverage == null ? null : latest.data_quality.depth_coverage*100)}</dd></div>
       <div><dt>Broker reference timestamp</dt><dd>{stamp(latest?.source_market_timestamp ?? undefined)}</dd></div>
       <div><dt>Observation freshness / age seconds</dt><dd>{row.observation_freshness ?? "UNAVAILABLE"} / {number(row.observation_age_seconds, 1)}</dd></div>
@@ -85,8 +86,8 @@ function Ledger({ instrument, kind, offset, onPage }: { instrument: CommodityIns
   </>;
 }
 
-export function CommodityPaper() {
-  const [instrument, setInstrument] = useState<CommodityInstrument>("CRUDEOILM");
+export function CommodityPaper({ initialInstrument = "CRUDEOILM" }: { initialInstrument?: CommodityInstrument } = {}) {
+  const [instrument, setInstrument] = useState<CommodityInstrument>(initialInstrument);
   const [kind, setKind] = useState<PaperKind>("positions");
   const [offset, setOffset] = useState(0);
   return <Panel title="COMMODITY ACTS SINGLE SHORT - PAPER ONLY - NO BROKER ORDERS"><div className="commodity-filter">

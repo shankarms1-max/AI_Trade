@@ -12,6 +12,7 @@ export interface PaperDecision {
   blockers?: string[] | null; candidate_rejections?: Record<string, number> | null; score_components?: Record<string, number> | null;
 }
 export interface PaperLatest {
+  contract_renewal_status?: string;
   future_price?: number | null; future_symbol?: string; future_expiry?: string; option_expiry?: string; source_market_timestamp?: string | null;
   data_quality?: { contracts?: number; bid_ask_coverage?: number | null; depth_coverage?: number | null; source_timestamp_coverage?: number | null } | null;
   observed_at?: string; processed_at?: string; decision?: PaperDecision | null; candidate?: PaperCandidate | null;
@@ -22,6 +23,8 @@ export interface PaperInstrumentStatus {
   observation_freshness?: string; observation_age_seconds?: number | null;
   latest?: PaperLatest | null; pending_entries?: number; open_positions?: number; pending_exits?: number; unresolved_exposure?: number;
   rejected_entries?: number; closed_trades?: number; wins?: number; losses?: number; sample_sessions?: number;
+  trades_today?: number; realized_gross_today?: number | null; realized_net_today?: number | null;
+  contract_renewal_status?: string;
   realized_gross?: number | null; realized_net?: number | null; unrealized_gross?: number | null; unrealized_net?: number | null;
   reserved_defined_risk?: number; reserved_stress_risk?: number; expiry_exit_overdue?: number; margin_status?: string;
   execution_evidence?: { depth_unit?: string; source?: string; lot_size?: number; rupees_per_point_per_lot?: number; valid_until?: string } | null;

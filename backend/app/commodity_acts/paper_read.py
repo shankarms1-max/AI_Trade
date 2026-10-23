@@ -28,6 +28,15 @@ def summary(sessions, config, at):
             cursor = cursors.get(instrument)
             rows = [(row.state, json.loads(row.document)) for row in positions if row.instrument_id == instrument]
             closed = [doc for state, doc in rows if state == "CLOSED"]
+            today = at.astimezone(IST).date()
+            def on_day(value):
+                if not value:
+                    return False
+                parsed = datetime.fromisoformat(value)
+                if parsed.tzinfo is None:
+                    raise ValueError("COMMODITY_STORED_TIMESTAMP_UNAWARE")
+                return parsed.astimezone(IST).date() == today
+            closed_today = [doc for doc in closed if on_day(doc.get("exit_timestamp"))]
             open_rows = [doc for state, doc in rows if state in ("OPEN", "PENDING_EXIT", "UNRESOLVED_EXPOSURE")]
             enabled = config.trading_enabled and config.enabled(instrument)
             max_age = config.max_quote_age_seconds
@@ -62,6 +71,9 @@ def summary(sessions, config, at):
                 "unresolved_exposure": sum(state == "UNRESOLVED_EXPOSURE" for state, _ in rows),
                 "rejected_entries": sum(state == "ENTRY_REJECTED" for state, _ in rows),
                 "closed_trades": len(closed), "wins": sum(doc["gross_realized_pnl"] > 0 for doc in closed),
+                "trades_today": sum(on_day(doc.get("entry_timestamp")) for _, doc in rows),
+                "realized_gross_today": sum(doc["gross_realized_pnl"] for doc in closed_today) if closed_today else None,
+                "realized_net_today": sum(doc["net_realized_pnl"] for doc in closed_today) if closed_today and all(doc["net_realized_pnl"] is not None for doc in closed_today) else None,
                 "losses": sum(doc["gross_realized_pnl"] < 0 for doc in closed),
                 "sample_sessions": len({doc["session_id"] for _, doc in rows if doc.get("entry_timestamp")}),
                 "realized_gross": gross, "realized_net": net,

@@ -28,13 +28,13 @@ function Evidence({ data }: { data: CommodityDecision }) {
   </details>;
 }
 
-export function CommodityOverview() {
+export function CommodityOverview({ instrument: selectedInstrument }: { instrument?: CommodityInstrument } = {}) {
   const loader = useCallback(() => api.commodityActsSummary(), []);
   const { data, error } = usePolling(loader, 20000);
   if (error) return <SectionError>COMMODITY RESEARCH UNAVAILABLE</SectionError>;
   if (!data) return <Empty>LOADING COMMODITY RESEARCH</Empty>;
   return <><p className="muted">As of {stamp(data.as_of)} · Broker process state is not inferred from captured activity.</p>
-    <div className="commodity-grid">{data.instruments.map(instrument => {
+    <div className="commodity-grid">{data.instruments.filter(row => !selectedInstrument || row.instrument_id === selectedInstrument).map(instrument => {
       const latest = instrument.latest;
       return <Panel key={instrument.instrument_id} title={instrument.display_name} className="commodity-card">
         <Badge value={instrument.readiness}/><p>Worker configuration: {instrument.configured_enabled ? "ENABLED" : "DISABLED"} · Process state unavailable</p>
@@ -43,8 +43,8 @@ export function CommodityOverview() {
         <dl className="commodity-fields">
           <div><dt>New paper entry structure</dt><dd>SINGLE SHORT (PAPER POLICY REQUIRED)</dd></div>
           <div><dt>Depth quantity units</dt><dd>{latest?.geometry.depth_unit ?? "UNKNOWN"} {latest?.geometry.depth_unit === "UNITS" ? "(underlying units)" : "(unconfirmed)"}</dd></div>
-          <div><dt>Option-to-future linkage</dt><dd>UNCONFIRMED: {latest?.data_provenance?.option_future_link ?? "No validated linkage"}</dd></div>
-          <div><dt>Normalized tick-size semantics</dt><dd>UNCONFIRMED</dd></div>
+          <div><dt>Option-to-future linkage</dt><dd>{latest?.data_provenance?.option_future_link === "KOTAK_PASSETCODE_EXACT_FUTURE_TOKEN" ? "VERIFIED: master pAssetCode matches the selected future token" : `UNCONFIRMED: ${latest?.data_provenance?.option_future_link ?? "No validated linkage"}`}</dd></div>
+          <div><dt>Normalized tick-size semantics</dt><dd>{latest?.data_provenance?.tick_size === "MASTER_PRECISION_VERIFIED" ? "VERIFIED: master tick / precision" : "UNCONFIRMED"}</dd></div>
           <div><dt>Future reference price</dt><dd>{number(latest?.future_price)}</dd></div>
           <div><dt>Reference basis</dt><dd>{latest?.reference_basis ?? "UNAVAILABLE"}</dd></div>
           <div><dt>Future contract / expiry</dt><dd>{latest?.future_instrument_id ?? "N/A"} / {latest?.future_expiry ?? "N/A"}</dd></div>
