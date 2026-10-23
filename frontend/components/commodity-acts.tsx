@@ -1,4 +1,5 @@
 "use client";
+import { ResponsiveTable } from "@/components/responsive-table";
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { dateIST, integer, number, percent, timeIST } from "@/lib/format";
@@ -22,9 +23,9 @@ function Evidence({ data }: { data: CommodityDecision }) {
     <p>Median / max bid-ask spread: {percent(data.geometry.median_bid_ask_spread_pct)} / {percent(data.geometry.max_bid_ask_spread_pct)}</p>
     <p>OI / volume coverage: {coverage(data.geometry.oi_coverage)} / {coverage(data.geometry.volume_coverage)} · Depth unit: {data.geometry.depth_unit ?? "UNKNOWN"}</p>
     <p>Observed credit comparisons are quote differences, not approved spreads or fills.</p>
-    {data.geometry.credit_geometry_summary?.length ? <div className="table-wrap"><table aria-label="Observed credit geometry"><thead><tr><th>Observed steps</th><th>Comparisons</th><th>Min credit</th><th>Max credit</th></tr></thead><tbody>
+    {data.geometry.credit_geometry_summary?.length ? <div className="table-wrap"><ResponsiveTable aria-label="Observed credit geometry"><thead><tr><th>Observed steps</th><th>Comparisons</th><th>Min credit</th><th>Max credit</th></tr></thead><tbody>
       {data.geometry.credit_geometry_summary.map(row => <tr key={row.observed_steps}><td>{row.observed_steps}</td><td>{integer(row.comparisons)}</td><td>{number(row.min_observed_credit)}</td><td>{number(row.max_observed_credit)}</td></tr>)}
-    </tbody></table></div> : <p>N/A</p>}
+    </tbody></ResponsiveTable></div> : <p>N/A</p>}
   </details>;
 }
 
@@ -74,13 +75,13 @@ function DecisionPage({ instrument, offset, onPage }: { instrument: CommodityIns
   const { data, error } = usePolling(loader, 20000);
   if (error) return <SectionError>COMMODITY DECISION JOURNAL UNAVAILABLE</SectionError>;
   if (!data) return <Empty>LOADING DECISION JOURNAL</Empty>;
-  return <>{data.items.length ? <div className="table-wrap"><table aria-label="Commodity shadow decision journal"><thead><tr>
+  return <>{data.items.length ? <div className="table-wrap"><ResponsiveTable aria-label="Commodity shadow decision journal"><thead><tr>
     <th>Observation (IST)</th><th>Instrument</th><th>Readiness</th><th>Market state</th><th>Score / band</th><th>Direction</th><th>Shadow decision</th><th>Blockers / evidence</th>
   </tr></thead><tbody>{data.items.map(row => <tr key={`${row.instrument_id}:${row.snapshot_id}`}>
     <td>{stamp(row.observed_at)}</td><td>{row.instrument_id}</td><td>{row.readiness}</td><td>{row.acts.market_state ?? "N/A"}</td>
     <td>{number(row.acts.opportunity_score)} / 100 · {row.acts.score_band ?? "N/A"}</td><td>{row.acts.direction ?? "N/A"}</td>
     <td>{row.decision_kind ?? "SHADOW_DECISION"} · {row.acts.status ?? "N/A"}</td><td>{row.acts.blockers?.join(" · ") || "N/A"}<Evidence data={row}/></td>
-  </tr>)}</tbody></table></div> : <Empty>NO CAPTURED COMMODITY DECISIONS</Empty>}
+  </tr>)}</tbody></ResponsiveTable></div> : <Empty>NO CAPTURED COMMODITY DECISIONS</Empty>}
     <div className="commodity-pagination"><button disabled={!offset} onClick={() => onPage(Math.max(0, offset - data.limit))}>Previous</button>
       <span>{data.items.length} records · newest first · research only</span><button disabled={!data.has_more || offset + data.limit > 100000} onClick={() => onPage(offset + data.limit)}>Next</button></div>
   </>;

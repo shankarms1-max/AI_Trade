@@ -1,12 +1,12 @@
 "use client";
-import { Fragment, useCallback, useState } from "react";
+import { ResponsiveTable } from "@/components/responsive-table";
+import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { integer, money, number, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, SectionError } from "@/components/ui";
-import type { Phase15Strategy, Phase15Trade } from "@/types";
+import type { Phase15Strategy, Phase15Trade, Phase15Summary } from "@/types";
 import { OrbRange } from "@/components/phase15-orb-evidence";
-import { Icon } from "@/components/icons";
 import { observationState } from "@/lib/monitoring";
 
 const DISPLAY_NAMES: Record<string, string> = {
@@ -35,7 +35,7 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
     <div className="phase15-rejections">Entry rejections today: {integer(strategy.entry_rejections_today)}
       {strategy.latest_rejection_reason && <> · Latest: {blockerLabel(strategy.latest_rejection_reason)}</>}
     </div>
-    {strategy.today_trades.length ? <div className="table-wrap"><table aria-label={`${strategy.display_name} today trades`}>
+    {strategy.today_trades.length ? <div className="table-wrap"><ResponsiveTable aria-label={`${strategy.display_name} today trades`}>
       <thead><tr><th>Time</th><th>Direction</th><th>Spread</th><th>Entry Credit</th><th>Exit / Current Debit</th><th>Gross P&amp;L / MTM</th><th>MFE</th><th>MAE</th><th>Holding</th><th>Entry Reason</th><th>Exit Policy</th><th>Exit Reason</th><th>State</th></tr></thead>
       <tbody>{strategy.today_trades.map((trade: Phase15Trade) => <tr key={trade.trade_id}>
         <td>{timeIST(trade.entry_timestamp ?? trade.decision_timestamp)}</td><td>{trade.direction ?? "N/A"}</td>
@@ -47,72 +47,44 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
         <td title={trade.exit_reason ?? undefined}>{trade.terminal_status ?? blockerLabel(trade.exit_reason)}</td>
         <td><Badge value={trade.state}/></td>
       </tr>)}</tbody>
-    </table></div> : <Empty>NO ENTERED TRADES TODAY</Empty>}
+    </ResponsiveTable></div> : <Empty>NO ENTERED TRADES TODAY</Empty>}
   </div>;
 }
 
-export function Phase15Monitor({ workspace = false }: { workspace?: boolean } = {}) {
-  const loader = useCallback(() => api.phase15Summary(), []);
-  const { data, error, loading } = usePolling(loader, 20000);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [selected, setSelected] = useState("ALL");
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState("source");
-  const visible = (data?.strategies ?? []).filter(row => (selected === "ALL" || row.strategy_id === selected) &&
-    `${row.display_name} ${row.latest_status ?? ""} ${row.latest_blocker ?? ""}`.toLowerCase().includes(query.toLowerCase()));
-  if (sort === "name") visible.sort((a,b) => a.display_name.localeCompare(b.display_name));
-  if (sort === "gross") visible.sort((a,b) => a.realized_gross_pnl_today == null ? b.realized_gross_pnl_today == null ? 0 : 1 : b.realized_gross_pnl_today == null ? -1 : b.realized_gross_pnl_today-a.realized_gross_pnl_today);
+function StrategyFacts({strategy}:{strategy:Phase15Strategy}) {
+  const f=strategy.decision_features;
+  if(strategy.strategy_id.startsWith("ORB_"))return <div className="strategy-facts"><span>High <b>{number(strategy.orb_range?.opening_high)}</b></span><span>Low <b>{number(strategy.orb_range?.opening_low)}</b></span><span>Future <b>{number(strategy.orb_range?.current_future_price)}</b></span></div>;
+  if(strategy.strategy_id==="ACTS_V2")return <div className="strategy-facts"><span>Score <b>{number(f?.opportunity_score,1)}</b></span><span>Band <b>{f?.score_band?.replaceAll("_"," ")??"N/A"}</b></span><span>Alpha <b>{f?.alpha_state??"N/A"}</b></span></div>;
+  if(strategy.strategy_id==="EMA_PULLBACK")return <div className="strategy-facts"><span>EMA fast <b>{number(f?.ema_fast)}</b></span><span>EMA slow <b>{number(f?.ema_slow)}</b></span><span>Resumption <b>{number(f?.resumption_strength_bps)} bps</b></span></div>;
+  return <div className="strategy-facts"><span>Trend <b>{f?.supertrend_direction??"N/A"}</b></span><span>RSI <b>{number(f?.rsi,1)}</b></span><span>Volume ratio <b>{number(f?.volume_ratio)}</b></span></div>;
+}
+
+export function Phase15Monitor({ workspace=false,compact=false,pending=false,summary }: { workspace?:boolean;compact?:boolean;pending?:boolean;summary?:Phase15Summary|null }={}) {
+  const loader=useCallback(()=>api.phase15Summary(),[]);
+  const response=usePolling(loader,20000,summary===undefined);
+  const data=summary===undefined?response.data:summary;
+  const error=!pending&&(summary===undefined?(response.error||(!response.loading&&!response.data)):summary===null);
+  const [expanded,setExpanded]=useState<string|null>(null);
+  const [selected,setSelected]=useState("ALL");
+  const [query,setQuery]=useState("");
+  const [orb,setOrb]=useState("ORB_15");
+  const visible=(data?.strategies??[]).filter(s=>(selected==="ALL"||selected===s.strategy_id)&&`${s.display_name} ${s.latest_status} ${s.latest_blocker}`.toLowerCase().includes(query.toLowerCase()));
+  const range=data?.strategies.find(s=>s.strategy_id===orb);
   return <section className="phase15-monitor" aria-label="Phase 15 paper strategy monitor">
-    <div className="phase15-head"><div><span>PHASE 15 · PAPER STRATEGY MONITOR</span>
-      <strong>Six strategy paper monitor</strong>
-      <small>Net transaction-cost accounting is not configured.</small></div>
-      <div className="phase15-badges">{error || (!loading && !data) ? <Badge value="UNAVAILABLE"/> : data ? <><Badge value="PAPER"/><Badge value="GROSS_ONLY"/></> : null}</div>
-    </div>
-    {error || (!loading && !data) ? <SectionError>PHASE 15 MONITOR UNAVAILABLE</SectionError> : !data ?
-      <Empty>LOADING PHASE 15 MONITOR</Empty> : <>
-      <div className="phase15-metrics">
-        <Metric label="Realized Gross Today" value={amount(data.totals.realized_gross_pnl_today)}/>
-        <Metric label="Live Unrealized Gross" value={amount(data.totals.unrealized_gross_pnl)}/>
-        <Metric label="Combined Gross" value={amount(data.totals.combined_gross_pnl)}/>
-        <Metric label="Open Positions" value={integer(data.totals.open_positions)}/>
-        <Metric label="Unresolved Exposures" value={integer(data.totals.unresolved_exposures)}/>
-        <Metric label="Expired Unpriced" value={integer(data.totals.expired_unpriced_count)}/>
-        <Metric label="Trades Today" value={integer(data.totals.trades_today)}/>
-      </div>
-      <div className="phase15-asof">As of {timeIST(data.as_of)} · Paper marks and realized gross are shown separately.</div>
-      <section aria-label="ORB Range"><h3>ORB Range</h3><div className="phase15-orb-grid">{data.strategies.filter(s=>s.strategy_id.startsWith("ORB_")).map(s=><OrbRange key={s.strategy_id} title={s.display_name} evidence={s.orb_range} observedAt={s.latest_timestamp}/>)}</div></section>
-      <div className="strategies-toolbar">
-        {workspace && <div className="segmented-control" aria-label="Strategy selection"><button aria-pressed={selected === "ALL"} onClick={() => setSelected("ALL")}>All strategies</button>{data.strategies.map(row => <button key={row.strategy_id} aria-pressed={selected === row.strategy_id} onClick={() => setSelected(row.strategy_id)}>{DISPLAY_NAMES[row.strategy_id] ?? row.display_name}</button>)}</div>}
-        <label className="search-field"><Icon name="search" size={15}/><input aria-label="Filter strategies" placeholder="Search signals or blockers…" value={query} onChange={e => setQuery(e.target.value)}/></label>
-        <select aria-label="Sort strategies" value={sort} onChange={e => setSort(e.target.value)}><option value="source">Source order</option><option value="name">Strategy name</option><option value="gross">Realized gross ↓</option></select>
-      </div>
-      {workspace && <div className="strategy-card-grid">{visible.map(strategy => <article className="strategy-tile" id={`strategy-${strategy.strategy_id}`} key={strategy.strategy_id}>
-        <header><h3>{DISPLAY_NAMES[strategy.strategy_id] ?? strategy.display_name}</h3><Badge value={strategy.latest_status ?? "UNAVAILABLE"}/></header>
-        <div className="strategy-values"><span>Realized gross<strong>{amount(strategy.realized_gross_pnl_today)}</strong></span><span>Open positions<strong>{integer(strategy.open_position_count)}</strong></span></div>
-        <p className="signal-line">{blockerLabel(strategy.latest_blocker)}</p><p><Badge value={observationState(strategy.latest_timestamp)}/> · {timeIST(strategy.latest_timestamp)}</p>
-        <button className="button-secondary" style={{ marginTop: 12 }} aria-label={`Inspect ${strategy.display_name}`} onClick={() => setExpanded(expanded === strategy.strategy_id ? null : strategy.strategy_id)}>Trade evidence<Icon name="arrow" size={13}/></button>
-      </article>)}</div>}
-      <div className="table-wrap"><table aria-label="Phase 15 strategies"><thead><tr>
-        <th>Strategy</th><th>Trades Today</th><th>W / L</th><th>Rejected</th><th>Open</th><th>Unresolved</th><th>Expired Unpriced</th>
-        <th>Realized Gross</th><th>Live MTM</th><th>Latest Status</th><th>Blocker</th>
-      </tr></thead><tbody>{visible.map(strategy => <Fragment key={strategy.strategy_id}>
-        <tr>
-          <td><button className="phase15-expand" aria-expanded={expanded === strategy.strategy_id}
-            aria-label={`${expanded === strategy.strategy_id ? "Collapse" : "Expand"} ${DISPLAY_NAMES[strategy.strategy_id] ?? strategy.display_name}`}
-            onClick={() => setExpanded(expanded === strategy.strategy_id ? null : strategy.strategy_id)}>
-            <span aria-hidden="true">{expanded === strategy.strategy_id ? "▾" : "▸"}</span>
-            {DISPLAY_NAMES[strategy.strategy_id] ?? strategy.display_name}</button></td>
-          <td>{integer(strategy.trades_today)}</td>
-          <td>{integer(strategy.wins_today)} / {integer(strategy.losses_today)}</td>
-          <td>{integer(strategy.entry_rejections_today)}</td><td>{integer(strategy.open_position_count)}</td>
-          <td>{integer(strategy.unresolved_exposure_count)}</td><td>{integer(strategy.expired_unpriced_count)}</td>
-          <td>{amount(strategy.realized_gross_pnl_today)}</td><td>{amount(strategy.unrealized_gross_pnl)}</td>
-          <td>{strategy.latest_status ? <Badge value={strategy.latest_status}/> : "N/A"}</td>
-          <td title={strategy.latest_blocker ?? undefined}>{blockerLabel(strategy.latest_blocker)}</td>
-        </tr>
-        {expanded === strategy.strategy_id && <tr>
-          <td colSpan={11}><TradeDetails strategy={strategy}/></td></tr>}
-      </Fragment>)}</tbody></table></div>
+    <header className="section-title"><h2>Strategy status</h2><span>Six NIFTY strategies · <Badge value={pending?"PENDING":data&&!error?"GROSS_ONLY":"UNAVAILABLE"}/></span></header>
+    {error?<SectionError>PHASE 15 MONITOR UNAVAILABLE</SectionError>:!data?<div className="strategy-skeleton" aria-busy="true">Loading strategy evidence…</div>:<>
+      {!compact&&<div className="phase15-metrics"><Metric label="Realized Gross Today" value={amount(data.totals.realized_gross_pnl_today)}/><Metric label="Live Unrealized Gross" value={amount(data.totals.unrealized_gross_pnl)}/><Metric label="Open Positions" value={integer(data.totals.open_positions)}/><Metric label="Unresolved" value={integer(data.totals.unresolved_exposures)}/></div>}
+      {workspace&&<details className="strategy-filters"><summary>Filter strategies</summary><div className="filter-controls"><label>Strategy<select aria-label="Strategy selection" value={selected} onChange={e=>setSelected(e.target.value)}><option value="ALL">All strategies</option>{data.strategies.map(s=><option key={s.strategy_id} value={s.strategy_id}>{s.display_name}</option>)}</select></label><label>Search<input aria-label="Filter strategies" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Signal or blocker"/></label></div></details>}
+      <div className="strategy-list" aria-label="NIFTY strategy states">{visible.map(strategy=><article id={`strategy-${strategy.strategy_id}`} className="strategy-row" key={strategy.strategy_id} aria-label={`${strategy.display_name} strategy`}>
+        <header><button className="strategy-title" aria-expanded={expanded===strategy.strategy_id} aria-label={`${expanded===strategy.strategy_id?"Collapse":"Expand"} ${strategy.display_name}`} onClick={()=>setExpanded(expanded===strategy.strategy_id?null:strategy.strategy_id)}>{DISPLAY_NAMES[strategy.strategy_id]??strategy.display_name}<span aria-hidden="true">{expanded===strategy.strategy_id?"−":"+"}</span></button><Badge value={strategy.latest_status??"UNAVAILABLE"}/></header>
+        <div className="strategy-state"><strong>{strategy.direction??"Direction N/A"}</strong><span>{integer(strategy.open_position_count)} open · {integer(strategy.trades_today)} trades</span>{strategy.open_position_count!==0&&<span>Gross {money(strategy.unrealized_gross_pnl)}</span>}</div>
+        {strategy.realized_gross_pnl_today!=null&&strategy.realized_gross_pnl_today!==0&&<span className="strategy-age">Realized {money(strategy.realized_gross_pnl_today)}</span>}<StrategyFacts strategy={strategy}/>
+        <p className="strategy-reason">{blockerLabel(strategy.latest_blocker)}</p>
+        <small className="strategy-age">{observationState(strategy.latest_timestamp).replaceAll("_"," ")} · {timeIST(strategy.latest_timestamp)}</small>
+        {expanded===strategy.strategy_id&&<div className="strategy-expanded"><TradeDetails strategy={strategy}/>{strategy.orb_range&&<OrbRange title={`${strategy.display_name} underlying signal`} evidence={strategy.orb_range} observedAt={strategy.latest_timestamp}/>}</div>}
+      </article>)}</div>
+      {!visible.length&&<Empty>No strategies match this filter</Empty>}
+      {workspace&&<section className="orb-workspace" aria-label="ORB Range"><header className="section-title"><h2>Opening range · NIFTY futures</h2></header><div className="orb-tabs" role="tablist" aria-label="Opening range selection">{data.strategies.filter(s=>s.strategy_id.startsWith("ORB_")).map(s=><button role="tab" id={`tab-${s.strategy_id}`} aria-selected={orb===s.strategy_id} aria-controls={`range-${s.strategy_id}`} key={s.strategy_id} onClick={()=>setOrb(s.strategy_id)}>{s.display_name}<small>{s.latest_status?.replaceAll("_"," ")??"N/A"}</small></button>)}</div><div role="tabpanel" id={`range-${orb}`} aria-labelledby={`tab-${orb}`}><OrbRange title={range?.display_name??orb} evidence={range?.orb_range} observedAt={range?.latest_timestamp}/></div></section>}
     </>}
   </section>;
 }

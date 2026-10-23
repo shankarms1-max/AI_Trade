@@ -149,6 +149,11 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
         "best_gross_points": _number(doc.get("best_gross_points")), "holding_seconds": holding,
         "entry_reason": doc.get("entry_reason"), "exit_reason": doc.get("exit_reason"),
         "exit_policy_version": doc.get("exit_policy_version"), "policy_hash": doc.get("policy_hash"),
+        "management": {
+            "requested_exit_reason": _fields(doc.get("mirror_exit_request"), ("reason",)).get("reason"),
+            "forced_exit_time_ist": _fields(policy.get("exit_policy"), ("forced_exit_time_ist",)).get(
+                "forced_exit_time_ist"),
+        },
         "policy_allowed_widths": [value for value in execution.get("allowed_widths", [])
                                   if _number(value) is not None],
         "rejection_reason": doc.get("rejection_reason"),

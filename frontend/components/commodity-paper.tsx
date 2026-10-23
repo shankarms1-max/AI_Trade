@@ -1,4 +1,5 @@
 "use client";
+import { ResponsiveTable } from "@/components/responsive-table";
 import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { usePolling } from "@/hooks/use-polling";
@@ -84,8 +85,8 @@ function Ledger({ instrument, kind, offset, onPage }: { instrument: CommodityIns
   if (!data) return <Empty>LOADING PAPER LEDGER</Empty>;
   const rows = data.items ?? [];
   return <>{data.status === "MIGRATION_REQUIRED" ? <Empty>PAPER MIGRATION REQUIRED</Empty> : rows.length ?
-    <div className="table-wrap"><table aria-label="Commodity paper lifecycle ledger"><thead><tr><th>Observation / ID</th><th>State / event</th><th>Exact short contract / historical legs</th><th>Entry / exit time</th><th>SELL premium / BUY premium</th><th>Gross / net P&amp;L</th><th>Reason / evidence</th></tr></thead>
-      <tbody>{rows.map((row, index) => <RecordRow key={row.id ?? row.sequence ?? index} row={row} index={index}/>)}</tbody></table></div> : <Empty>NO PAPER RECORDS</Empty>}
+    <div className="table-wrap"><ResponsiveTable aria-label="Commodity paper lifecycle ledger"><thead><tr><th>Observation / ID</th><th>State / event</th><th>Exact short contract / historical legs</th><th>Entry / exit time</th><th>SELL premium / BUY premium</th><th>Gross / net P&amp;L</th><th>Reason / evidence</th></tr></thead>
+      <tbody>{rows.map((row, index) => <RecordRow key={row.id ?? row.sequence ?? index} row={row} index={index}/>)}</tbody></ResponsiveTable></div> : <Empty>NO PAPER RECORDS</Empty>}
     <div className="commodity-pagination"><button disabled={offset === 0} onClick={() => onPage(Math.max(0, offset-50))}>Previous paper page</button>
       <span>{rows.length} {kind} records</span><button disabled={!data.has_more || offset >= 100000} onClick={() => onPage(offset+50)}>Next paper page</button></div>
   </>;

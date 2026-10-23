@@ -1,4 +1,5 @@
 "use client";
+import { ResponsiveTable } from "@/components/responsive-table";
 import { useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/icons";
 import { Empty } from "@/components/ui";
@@ -21,7 +22,7 @@ export function DataTable<T>({ label, rows, columns, rowKey, searchText, empty =
     });
     return items;
   }, [rows, columns, searchText, query, sort]);
-  return <><div className="table-toolbar"><label className="search-field"><Icon name="search" size={15}/><input aria-label={`Search ${label}`} placeholder="Filter records…" value={query} onChange={e => setQuery(e.target.value)}/></label><span>{filtered.length} loaded records{note ? ` · ${note}` : ""}</span></div>
-    {filtered.length ? <div className="table-wrap"><table aria-label={label}><thead><tr>{columns.map(col => <th key={col.key} aria-sort={sort?.key === col.key ? sort.ascending ? "ascending" : "descending" : "none"}><button onClick={() => setSort({ key: col.key, ascending: sort?.key !== col.key || !sort.ascending })}>{col.label}<span aria-hidden="true">{sort?.key === col.key ? sort.ascending ? "↑" : "↓" : "↕"}</span></button></th>)}</tr></thead><tbody>{filtered.map(row => <tr key={rowKey(row)}>{columns.map(col => <td key={col.key}>{col.render(row)}</td>)}</tr>)}</tbody></table></div> : <Empty>{query ? "No records match this filter" : empty}</Empty>}
+  return <><div className="table-toolbar"><label className="search-field"><Icon name="search" size={15}/><input aria-label={`Search ${label}`} placeholder="Filter records…" value={query} onChange={e => setQuery(e.target.value)}/></label><label className="mobile-table-sort">Sort<select aria-label={`Sort ${label}`} value={sort?.key??""} onChange={e=>setSort(e.target.value?{key:e.target.value,ascending:true}:null)}><option value="">Source order</option>{columns.map(c=><option key={c.key} value={c.key}>{c.label}</option>)}</select></label><span>{filtered.length} loaded records{note ? ` · ${note}` : ""}</span></div>
+    {filtered.length ? <div className="table-wrap"><ResponsiveTable aria-label={label}><thead><tr>{columns.map(col => <th key={col.key} aria-sort={sort?.key === col.key ? sort.ascending ? "ascending" : "descending" : "none"}><button onClick={() => setSort({ key: col.key, ascending: sort?.key !== col.key || !sort.ascending })}>{col.label}<span aria-hidden="true">{sort?.key === col.key ? sort.ascending ? "↑" : "↓" : "↕"}</span></button></th>)}</tr></thead><tbody>{filtered.map(row => <tr key={rowKey(row)}>{columns.map(col => <td key={col.key}>{col.render(row)}</td>)}</tr>)}</tbody></ResponsiveTable></div> : <Empty>{query ? "No records match this filter" : empty}</Empty>}
   </>;
 }

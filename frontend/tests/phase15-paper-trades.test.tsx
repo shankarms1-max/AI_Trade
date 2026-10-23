@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Phase15Journal, Phase15Positions } from "@/components/phase15-paper-trades";
-import Phase15Page from "@/app/phase15/page";
+import { Phase15Journal, Phase15Positions, PositionCard } from "@/components/phase15-paper-trades";
 import { api } from "@/lib/api";
 import type { Phase15PaperTrade, Phase15TradePage } from "@/types";
 
@@ -34,6 +33,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Phase 15 positions and journal", () => {
+  it("labels older captured evidence as historical rather than streaming current marks",()=>{render(<PositionCard trade={trade({latest_mark_timestamp:"2000-01-01T10:00:00Z"})}/>);expect(screen.getByText("Last marked debit")).toBeInTheDocument();expect(screen.getByText("Last gross mark")).toBeInTheDocument();expect(screen.getByText(/STALE · Captured exact mark/)).toBeInTheDocument();});
+
   it("keeps frozen futures levels separate from exact option entry fills and current mark quotes", async () => {
     vi.mocked(api.phase15Positions).mockResolvedValue(page([trade({ strategy_id: "ORB_15", display_name: "ORB 15",
       short_option_type: "CE", hedge_option_type: "CE", short_strike: 25700, hedge_strike: 26100,
@@ -88,22 +89,17 @@ describe("Phase 15 positions and journal", () => {
     expect(within(table).getByText("Expiry terminalized (not a fill)")).toBeInTheDocument();
   });
 
-  it("keeps overview, positions and journal independently visible", async () => {
-    render(<Phase15Page/>);
-    expect(screen.getByRole("heading", { name: "OVERVIEW" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "OPEN POSITIONS" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "TRADE JOURNAL" })).toBeInTheDocument();
-    expect(await screen.findByText("NO OPEN PAPER POSITIONS")).toBeInTheDocument();
-    expect(await screen.findByText("NO PAPER TRADES MATCH THESE FILTERS")).toBeInTheDocument();
-    expect(screen.getByText("PHASE 15 MONITOR UNAVAILABLE")).toBeInTheDocument();
+  it("keeps monitoring and journal on dedicated independently readable routes", async()=>{
+    render(<><Phase15Positions/><Phase15Journal/></>);
+    expect(await screen.findByText("NO OPEN PAPER POSITIONS")).toBeInTheDocument();expect(await screen.findByText("NO PAPER TRADES MATCH THESE FILTERS")).toBeInTheDocument();
   });
 
   it("shows a prior-day open position immediately, with exact stored width and research evidence", async () => {
     vi.mocked(api.phase15Positions).mockResolvedValue(page([trade()]));
     render(<Phase15Positions/>);
     const card = await screen.findByRole("article", { name: "ACTS V2 position acts-stored-1" });
-    expect(within(card).getByText("Width 400 pts")).toBeInTheDocument();
-    expect(within(card).getByText("Short 24,900 / Hedge 24,500")).toBeInTheDocument();
+    expect(within(card).getByText("24,900")).toBeInTheDocument();
+    expect(within(card).getByText("24,500")).toBeInTheDocument();
     expect(within(card).getByText("₹200.00")).toBeInTheDocument();
     expect(within(card).getAllByText("MIRROR_EXIT_V1").length).toBeGreaterThan(0);
     fireEvent.click(within(card).getByText(/Research details/));
@@ -122,7 +118,7 @@ describe("Phase 15 positions and journal", () => {
     render(<Phase15Positions/>);
     const card = await screen.findByRole("article");
     expect(within(card).getAllByText(/MARK UNAVAILABLE/).length).toBeGreaterThan(0);
-    const label = within(card).getByText("Unrealized gross MTM");
+    const label = within(card).getByText("Gross mark");
     expect(label.parentElement).toHaveTextContent("N/A");
     expect(within(card).queryByText("₹200.00")).not.toBeInTheDocument();
   });
@@ -171,16 +167,16 @@ describe("Phase 15 positions and journal", () => {
     render(<Phase15Journal/>);
     await waitFor(() => expect(api.phase15Journal).toHaveBeenCalled());
     fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "ORB_15" } });
-    expect(await screen.findByText("selected")).toBeInTheDocument();
+    expect(await screen.findByText(/Research details · selected/)).toBeInTheDocument();
     resolveOld(page([trade({ trade_id: "stale-response" })]));
-    await waitFor(() => expect(screen.queryByText("stale-response")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/stale-response/)).not.toBeInTheDocument());
   });
 
   it("keeps the journal usable when positions are unavailable", async () => {
     vi.mocked(api.phase15Positions).mockRejectedValue(new Error("unavailable"));
     vi.mocked(api.phase15Journal).mockResolvedValue(page([trade({ trade_id: "journal-only" })]));
     render(<><Phase15Positions/><Phase15Journal/></>);
-    expect(await screen.findByText("OPEN PAPER POSITIONS UNAVAILABLE")).toBeInTheDocument();
-    expect(await screen.findByText("journal-only")).toBeInTheDocument();
+    expect(await screen.findByText(/OPEN PAPER POSITIONS UNAVAILABLE/)).toBeInTheDocument();
+    expect(await screen.findByText(/Research details · journal-only/)).toBeInTheDocument();
   });
 });

@@ -348,3 +348,24 @@ def test_unpriced_expiry_is_separate_from_open_unresolved_and_priced_totals(sess
     assert orb30["wins_today"] == orb30["losses_today"] == orb30["realized_gross_pnl_today"] == 0
     assert orb30["today_trades"][0]["realized_gross_pnl"] is None
     assert orb30["today_trades"][0]["terminal_status"] == "CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE"
+
+
+def test_latest_strategy_diagnostics_are_stored_scalars_not_recalculated(session_factory):
+    seed(session_factory)
+    with session_factory.begin() as session:
+        session.get(ActsPaperCursor, 1).latest_json = json.dumps({
+            "strategy_version": "ACTS_V2", "status": "WATCH", "direction": "BEAR",
+            "opportunity_score": 58.6, "score_band": "TRADEABLE", "alpha_state": "BEAR"})
+        session.get(ParallelPaperCursor, "EMA_PULLBACK").latest_json = json.dumps({
+            "status": "WATCH", "direction": "BEAR", "features": {
+                "ema_fast": 25701, "ema_slow": 25750, "pullback_anchor": 25710,
+                "resumption_strength_bps": -6, "secret": "DO_NOT_EXPOSE"}})
+        session.get(ParallelPaperCursor, "SUPERTREND_RSI_VOLUME").latest_json = json.dumps({
+            "status": "NO_SETUP", "direction": "BEAR", "features": {
+                "rsi": 34, "volume_ratio": None, "supertrend_direction": "BEAR"}})
+    rows = {row["strategy_id"]: row for row in summary(session_factory, AT)["strategies"]}
+    assert rows["ACTS_V2"]["decision_features"]["opportunity_score"] == 58.6
+    assert rows["EMA_PULLBACK"]["decision_features"]["ema_fast"] == 25701
+    assert rows["EMA_PULLBACK"]["direction"] == "BEAR"
+    assert rows["SUPERTREND_RSI_VOLUME"]["decision_features"]["volume_ratio"] is None
+    assert "DO_NOT_EXPOSE" not in json.dumps(rows)

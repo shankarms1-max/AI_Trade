@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
 export function Panel({ title, action, children, className = "" }: { title: string; action?: ReactNode; children: ReactNode; className?: string }) { return <section className={`panel ${className}`}><header className="panel-head"><h2 className="panel-title">{title}</h2>{action}</header><div className="panel-body">{children}</div></section>; }
 export function statusTone(value: string): string {
+  if (/^(ENTRY_REJECTED|BLOCKED)$/.test(value)) return "warn";
+  if (/^(WATCH|ENTER|PENDING_PAPER_ENTRY)$/.test(value)) return "accent";
   if (/^(HEALTHY|FRESH|AVAILABLE|READY|APPROVED|SUCCESS|FILLED|ENABLED|RUNNING|CONFIRMED|VALID|ACTIVE_PAPER_RESEARCH)$/.test(value)) return "good";
   if (/ERROR|FAILED|UNHEALTHY|REJECTED|KILL_SWITCH|UNRESOLVED/.test(value)) return "bad";
   if (/STALE|WARMING|PENDING|DEGRADED|UNPRICED|BLOCKED|CUTOFF/.test(value)) return "warn";

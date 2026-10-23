@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import datetime, time, timedelta
 import json
+from math import isfinite
 from typing import Any
 
 from sqlalchemy import select, text
@@ -31,6 +32,25 @@ def _on_day(value: str | None, day) -> bool:
 
 def _number(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _decision_features(latest: dict) -> dict:
+    """Allowlisted persisted diagnostics; no strategy evaluation or inferred states."""
+    raw_features = latest.get("features")
+    features: dict = raw_features if isinstance(raw_features, dict) else {}
+    names = ("ema_fast", "ema_slow", "pullback_anchor", "pullback_depth_bps",
+             "resumption_strength_bps", "supertrend", "supertrend_direction", "rsi",
+             "volume_ratio", "volume_source", "bar_end")
+
+    def scalar(value: Any) -> Any:
+        if value is None or isinstance(value, (str, bool)):
+            return value
+        return value if isinstance(value, (int, float)) and isfinite(value) else None
+
+    result = {key: scalar(features.get(key)) for key in names}
+    for key in ("opportunity_score", "score_band", "market_state", "alpha_state"):
+        result[key] = scalar(latest.get(key))
+    return result
 
 
 def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
@@ -161,6 +181,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
             "open_position_count": sum(trade["state"] == "OPEN" for trade in active),
             "unresolved_exposure_count": unresolved_count, "expired_unpriced_count": expired_count,
             "latest_status": latest.get("status"),
+            "direction": latest.get("direction"), "decision_features": _decision_features(latest),
             "latest_blocker": latest_blocker,
             "latest_timestamp": latest.get("timestamp") or cursor.observed_at,
             "orb_range": orb_range,

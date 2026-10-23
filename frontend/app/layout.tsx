@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./design-system.css";
+import "./monitoring.css";
 import { Navigation } from "@/components/navigation";
 
 export const metadata: Metadata = {
