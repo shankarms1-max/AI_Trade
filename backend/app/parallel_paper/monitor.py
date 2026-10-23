@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from collections import defaultdict
 from datetime import datetime, time, timedelta
 import json
 from math import isfinite
 from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import JSON, Text, and_, case, cast, column, func, literal_column, or_, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
@@ -189,6 +190,83 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
             "today_trades": sorted(entered, key=lambda trade: (trade["entry_timestamp"], trade["trade_id"]))}
 
 
+def _event_payload(session: Session, payload: Any, acts: bool) -> Any:
+    """Transfer only fields consumed by _project, not persisted bar/trade histories."""
+    if session.get_bind().dialect.name != "postgresql":
+        return payload
+    document = cast(payload, JSON)
+    keys = ("strategy_version", "reason", "available") if acts else ("decision", "reason", "available")
+    record = func.json_to_record(document).table_valued(
+        *(column(key, JSON) for key in keys)).render_derived(with_types=True)
+    small = select(cast(func.row_to_json(record.table_valued()), Text)).select_from(record).scalar_subquery()
+    valid = payload.op("IS JSON", is_comparison=True)(literal_column("OBJECT"))
+    # JSON fields (not text coercions) preserve false versus 0 and missing/null.
+    # Invalid selected evidence still reaches the original failure handler.
+    return case((valid, small), else_=payload)
+
+
+def _summary_events(session: Session, model: Any, rows: Sequence[Any], start: datetime,
+                    end: datetime) -> Sequence[Any]:
+    """Fetch only evidence that can contribute to the read projection.
+
+    The append-only engine writes canonical JSON. A rejection string must
+    appear literally or use a JSON backslash escape (including escaped keys).
+    This is a sound prefilter, NOT a parser: _project still interprets the JSON.
+    Do not deserialize unrelated observation/state histories for a dashboard.
+    """
+    acts = model is ActsPaperEvent
+    mark = "ACTS_MARK" if acts else "MARK"
+    rejection = "ACTS_ENTRY_REJECTED" if acts else "ENTRY_REJECTED"
+    today = and_(ScalperMarketSnapshotRecord.captured_at >= start,
+                 ScalperMarketSnapshotRecord.captured_at < end)
+    open_ids = [row.id for row in rows if row.state == "OPEN"]
+    wanted = or_(model.event_type == rejection,
+                 and_(model.event_type == mark, model.trade_id.in_(open_ids)))
+    if not acts:
+        position = func.strpos if session.get_bind().dialect.name == "postgresql" else func.instr
+        # CASE keeps PostgreSQL from inspecting historical TOAST bodies before
+        # the day join. Any escape requires the real JSON parser, not text matching.
+        could_reject = case((today, or_(
+            position(model.payload, "ENTRY_REJECTED") > 0, position(model.payload, "\\") > 0)), else_=False)
+        wanted = or_(wanted, and_(model.event_type == "OBSERVATION", could_reject))
+    if acts:
+        if session.get_bind().dialect.name == "postgresql":
+            valid = model.payload.op("IS JSON", is_comparison=True)(literal_column("OBJECT"))
+            version_field = cast(model.payload, JSON)["strategy_version"].as_string()
+        else:
+            valid = case((func.json_valid(model.payload), func.json_type(model.payload) == "object"),
+                         else_=False)
+            version_field = func.json_extract(model.payload, "$.strategy_version")
+        version = case((valid, version_field))
+        # Filter versions BEFORE ranking: a later V1 mark must not hide a V2 mark.
+        # Malformed selected evidence still reaches per-strategy failure handling.
+        wanted = and_(wanted, or_(~valid, version == "ACTS_V2"))
+    columns = [model.sequence, model.event_type, model.trade_id, model.payload]
+    partitions = [model.event_type, model.trade_id]
+    if acts:
+        columns.append(valid.label("valid_payload"))
+    else:
+        columns.append(model.strategy_id)
+        partitions.append(model.strategy_id)
+    columns.append(func.row_number().over(
+        partition_by=partitions,
+        order_by=case((model.event_type == mark, -model.sequence), else_=model.sequence)).label("event_rank"))
+    candidates = select(*columns).join(
+        ScalperMarketSnapshotRecord, model.snapshot_id == ScalperMarketSnapshotRecord.id
+    ).where(today, wanted)
+    ranked = candidates.subquery()
+    fields = [ranked.c.sequence, ranked.c.event_type, ranked.c.trade_id,
+              _event_payload(session, ranked.c.payload, acts).label("payload")]
+    keep = or_(ranked.c.event_type == "OBSERVATION", ranked.c.trade_id.is_(None), ranked.c.event_rank == 1)
+    ordering = [ranked.c.sequence]
+    if acts:
+        keep = or_(keep, ~ranked.c.valid_payload)
+    else:
+        fields.append(ranked.c.strategy_id)
+        ordering.insert(0, ranked.c.strategy_id)
+    return session.execute(select(*fields).where(keep).order_by(*ordering)).all()
+
+
 def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
     """Read ORM projections and immutable events, without running a paper engine."""
     at = at.astimezone(IST)
@@ -197,35 +275,36 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
     with sessions() as session:
         if session.get_bind().dialect.name == "postgresql":
             session.execute(text("SET TRANSACTION READ ONLY"))
-        parallel_cursors = {row.strategy_id: row for row in session.scalars(select(ParallelPaperCursor))}
+        parallel_cursors = {row.strategy_id: row for row in session.execute(select(
+            ParallelPaperCursor.strategy_id, ParallelPaperCursor.snapshot_id,
+            ParallelPaperCursor.observed_at, ParallelPaperCursor.latest_json))}
         snapshot_ids = {cursor.snapshot_id for strategy, cursor in parallel_cursors.items()
                         if strategy in ORB_MINUTES and cursor.snapshot_id is not None}
         futures = {row.id: row for row in session.execute(select(
             ScalperMarketSnapshotRecord.id, ScalperMarketSnapshotRecord.captured_at,
             ScalperMarketSnapshotRecord.nifty_future).where(ScalperMarketSnapshotRecord.id.in_(snapshot_ids)))}
-        parallel_rows = session.scalars(select(ParallelPaperTrade)).all()
-        parallel_events = session.scalars(select(ParallelPaperEvent).join(
-            ScalperMarketSnapshotRecord, ParallelPaperEvent.snapshot_id == ScalperMarketSnapshotRecord.id
-        ).where(ScalperMarketSnapshotRecord.captured_at >= start,
-                ScalperMarketSnapshotRecord.captured_at < end,
-                ParallelPaperEvent.event_type.in_(("OBSERVATION", "ENTRY_REJECTED", "MARK"))).order_by(
-                    ParallelPaperEvent.strategy_id, ParallelPaperEvent.sequence)).all()
-        acts_cursor = session.get(ActsPaperCursor, 1)
-        acts_rows = session.scalars(select(ActsPaperTrade)).all()
-        acts_events = session.scalars(select(ActsPaperEvent).join(
-            ScalperMarketSnapshotRecord, ActsPaperEvent.snapshot_id == ScalperMarketSnapshotRecord.id
-        ).where(ScalperMarketSnapshotRecord.captured_at >= start,
-                ScalperMarketSnapshotRecord.captured_at < end,
-                ActsPaperEvent.event_type.in_(("ACTS_ENTRY_REJECTED", "ACTS_MARK"))).order_by(
-                    ActsPaperEvent.sequence)).all()
+        # Preserve lifetime unpriced-expiry counts and trades closed today after
+        # an earlier entry. The small trade projection must not be day-truncated.
+        parallel_rows = session.execute(select(ParallelPaperTrade.id, ParallelPaperTrade.strategy_id,
+                                               ParallelPaperTrade.state, ParallelPaperTrade.document)).all()
+        parallel_events = _summary_events(session, ParallelPaperEvent, parallel_rows, start, end)
+        acts_cursor = session.execute(select(ActsPaperCursor.snapshot_id, ActsPaperCursor.observed_at,
+                                             ActsPaperCursor.latest_json).where(ActsPaperCursor.id == 1)).first()
+        acts_rows = session.execute(select(ActsPaperTrade.id, ActsPaperTrade.state, ActsPaperTrade.document)).all()
+        acts_events = _summary_events(session, ActsPaperEvent, acts_rows, start, end)
+
+        rows_by_strategy: dict[str, list[Any]] = defaultdict(list)
+        events_by_strategy: dict[str, list[Any]] = defaultdict(list)
+        for row in parallel_rows:
+            rows_by_strategy[row.strategy_id].append(row)
+        for event in parallel_events:
+            events_by_strategy[event.strategy_id].append(event)
 
         strategies = []
         for strategy in ORDER:
             cursor = acts_cursor if strategy == "ACTS_V2" else parallel_cursors.get(strategy)
-            rows = acts_rows if strategy == "ACTS_V2" else [
-                row for row in parallel_rows if row.strategy_id == strategy]
-            events = acts_events if strategy == "ACTS_V2" else [
-                event for event in parallel_events if event.strategy_id == strategy]
+            rows = acts_rows if strategy == "ACTS_V2" else rows_by_strategy[strategy]
+            events = acts_events if strategy == "ACTS_V2" else events_by_strategy[strategy]
             try:
                 snapshot = futures.get(cursor.snapshot_id) if cursor and strategy in ORB_MINUTES else None
                 future_price = (float(snapshot.nifty_future) if cursor is not None and cursor.observed_at
