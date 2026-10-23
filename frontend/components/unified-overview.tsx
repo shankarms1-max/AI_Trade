@@ -3,9 +3,11 @@ import Link from "next/link";
 import { useCallback } from "react";
 import { api } from "@/lib/api";
 import { completeSum, observationState } from "@/lib/monitoring";
-import { integer, money, timeIST } from "@/lib/format";
+import { dateIST, integer, money, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
-import { Badge, Metric, Panel } from "@/components/ui";
+import { Badge, Metric, PageHeading, Panel } from "@/components/ui";
+import { Icon } from "@/components/icons";
+import { PortfolioEvidence } from "@/components/portfolio-evidence";
 
 export function UnifiedOverview() {
   const loader = useCallback(async () => {
@@ -17,47 +19,44 @@ export function UnifiedOverview() {
   const { data, error } = usePolling(loader, 15000);
   const nifty = data?.nifty;
   const commodities = data?.commodity?.instruments;
-  // Missing a server, instrument, metric or current mark never becomes zero.
   const completeCommodity = commodities?.length === 2 && ["CRUDEOILM", "NATGASMINI"].every(id => commodities.some(r => r.instrument_id === id)) ? commodities : null;
   const total = (n: number | null | undefined, field: "open_positions" | "trades_today" | "realized_gross_today" | "unrealized_gross") =>
-    completeCommodity && nifty ? completeSum([n, ...completeCommodity.map(row => row[field])]) : null;
-  return <Panel title="AI TRADE · UNIFIED PAPER OVERVIEW" className="unified-overview">
-    <p className="muted">Independent NIFTY and Commodity databases · Read-only monitoring · No broker order controls</p>
+    completeCommodity && nifty ? completeSum([n, ...completeCommodity.map(row => field === "unrealized_gross" && row.open_positions !== 0 && row.observation_freshness !== "FRESH" ? null : row[field])]) : null;
+  return <>
+    <PageHeading eyebrow="Unified intelligence · NSE + MCX" title="Trading overview" description="A clearer view of your strategies, positions and paper performance." action={<><span className="button-secondary"><Icon name="clock" size={14}/>{data?.health?.current_time_ist ? dateIST(data.health.current_time_ist) : "Asia / Kolkata"}</span><Link className="button-primary" href="/nifty">Explore strategies<Icon name="arrow" size={14}/></Link></>}/>
     {error && <p role="alert">MONITORING UNAVAILABLE</p>}
-    <div className="phase15-metrics">
-      <Metric label="Open paper positions" value={integer(total(nifty?.totals.open_positions, "open_positions"))}/>
-      <Metric label="Today's simulated entries" value={integer(total(nifty?.totals.trades_today, "trades_today"))}/>
-      <Metric label="Today's realized gross" value={money(total(nifty?.totals.realized_gross_pnl_today, "realized_gross_today"))}/>
-      <Metric label="Fresh unrealized gross" value={money(total(nifty?.totals.unrealized_gross_pnl, "unrealized_gross"))}/>
-      <Metric label="Combined net / capital efficiency" value="UNAVAILABLE" detail="No inferred costs or broker margin"/>
+    <div className="command-kpis">
+      <Metric label="Today's realized gross" value={money(total(nifty?.totals.realized_gross_pnl_today, "realized_gross_today"))} detail="Combined NIFTY + Commodity · INR"/>
+      <Metric label="Unrealized gross" value={money(total(nifty?.totals.unrealized_gross_pnl, "unrealized_gross"))} detail="Fresh, observed marks only"/>
+      <Metric label="Open paper positions" value={integer(total(nifty?.totals.open_positions, "open_positions"))} detail="Across both independent servers"/>
+      <Metric label="Today's simulated entries" value={integer(total(nifty?.totals.trades_today, "trades_today"))} detail="Paper fills · not broker orders"/>
     </div>
-    <div className="unified-sources">
-      <section aria-label="NIFTY monitoring status"><h3><Link href="/nifty">NIFTY</Link></h3>
-        <Badge value={nifty ? "AVAILABLE" : "UNAVAILABLE"}/>
-        <p>API / database: {data?.health?.status ?? "UNAVAILABLE"}. Broker/data status: {data?.health?.components?.market_data ?? "UNAVAILABLE"}.</p>
-        <p>Worker process state: UNAVAILABLE. Never inferred from historical trades or decisions.</p>
-        <p>Paper strategies: {integer(nifty?.strategies?.length)} · Open: {integer(nifty?.totals.open_positions)} · Entries today: {integer(nifty?.totals.trades_today)}</p>
-        <p>Realized gross today: {money(nifty?.totals.realized_gross_pnl_today)} · Unrealized gross: {money(nifty?.totals.unrealized_gross_pnl)}</p>
-        <ul>{nifty?.strategies?.map(row => <li key={row.strategy_id}>{row.display_name}: {row.latest_status ?? "UNAVAILABLE"} ·
-          {observationState(row.latest_timestamp)} · {row.latest_blocker ?? "No blocker reported"}</li>)}</ul>
-      </section>
-      <section aria-label="Commodity monitoring status"><h3><Link href="/commodity-acts">COMMODITY</Link></h3>
-        <Badge value={commodities ? "AVAILABLE" : "UNAVAILABLE"}/>
-        <p>Worker activation, process liveness, quote freshness and entry eligibility are distinct.</p>
-        {["CRUDEOILM", "NATGASMINI"].map(instrument => {
-          const row = commodities?.find(item => item.instrument_id === instrument);
-          return <div key={instrument} className="unified-instrument"><h4><Link href={`/commodity-acts/${instrument}`}>{instrument}</Link></h4>
-            <p>Paper activation: {row?.paper_enabled == null ? "UNAVAILABLE" : row.paper_enabled ? "ENABLED" : "DISABLED"} · Process: {row?.worker_state ?? "UNAVAILABLE"}</p>
-            <p>Observation: {row?.observation_freshness ?? "UNAVAILABLE"} · Session: {row?.market_open == null ? "UNAVAILABLE" : row.market_open ? "OPEN" : "CLOSED"}</p>
-            <p>Open: {integer(row?.open_positions)} · Entries today: {integer(row?.trades_today)} · Realized gross today: {money(row?.realized_gross_today)}</p>
-            <p>Future / option expiry: {row?.latest?.future_expiry ?? "UNAVAILABLE"} / {row?.latest?.option_expiry ?? "UNAVAILABLE"}</p>
-            <p>Latest decision: {row?.latest?.decision?.status ?? "UNAVAILABLE"} · Score: {row?.latest?.decision?.opportunity_score ?? "UNAVAILABLE"}</p>
-            <p>Alerts: {[...(row?.latest?.risk_blocks ?? []), ...(row?.latest?.decision?.blockers ?? [])].join(", ") || "No alerts available"}</p>
-            <p>Observation time: {row?.latest?.observed_at ? timeIST(row.latest.observed_at) : "UNAVAILABLE"} IST · Unresolved exposure: {integer(row?.unresolved_exposure)}</p>
-          </div>;
-        })}
-      </section>
+    <p className="command-banner"><Icon name="shield" size={15}/><span>Independent databases. Read-only monitoring. Combined net P&amp;L and capital efficiency remain unavailable without verified costs and margin.</span></p>
+    <div className="section-title"><div><h2>Markets at a glance</h2><p>Performance, signal state and evidence freshness</p></div><Link href="/system">System health<Icon name="arrow" size={13}/></Link></div>
+    <div className="source-grid">
+      <article className="source-card" aria-label="NIFTY monitoring status"><header><span className="instrument-icon"><Icon name="chart"/></span><div><h3><Link href="/nifty">NIFTY</Link></h3><small>NSE · Six paper strategies</small></div><Link href="/nifty" aria-label="Open NIFTY workspace"><Icon name="arrow" size={16}/></Link></header>
+        <div className="source-status"><Badge value={nifty ? "AVAILABLE" : "UNAVAILABLE"}/><Badge value={nifty?.mode ?? "UNAVAILABLE"}/></div>
+        <div className="source-stats"><div><small>Realized gross today</small><strong>{money(nifty?.totals.realized_gross_pnl_today)}</strong></div><div><small>Open positions</small><strong>{integer(nifty?.totals.open_positions)}</strong></div></div>
+        <div className="source-detail"><p>Paper strategies: {integer(nifty?.strategies?.length)} · Open: {integer(nifty?.totals.open_positions)} · Entries today: {integer(nifty?.totals.trades_today)}</p><span>Broker/data status: {data?.health?.components?.market_data ?? "UNAVAILABLE"}</span><span>Worker process state: UNAVAILABLE. Never inferred from activity.</span></div>
+        <Link href="/nifty" className="source-link">ACTS, ORB, EMA & Supertrend<Icon name="arrow" size={13}/></Link>
+      </article>
+      {(["CRUDEOILM", "NATGASMINI"] as const).map(instrument => {
+        const row = commodities?.find(item => item.instrument_id === instrument);
+        return <article className="source-card" key={instrument} aria-label={`${instrument} monitoring status`}><header><span className={`instrument-icon ${instrument === "CRUDEOILM" ? "crude" : "gas"}`}><Icon name={instrument === "CRUDEOILM" ? "flame" : "gas"}/></span><div><h3><Link href={`/commodity-acts/${instrument}`}>{instrument}</Link></h3><small>MCX · ACTS V2 single short</small></div><Link href={`/commodity-acts/${instrument}`} aria-label={`Open ${instrument} workspace`}><Icon name="arrow" size={16}/></Link></header>
+          <div className="source-status"><Badge value={row?.observation_freshness ?? "UNAVAILABLE"}/><Badge value={row?.market_open == null ? "SESSION_UNAVAILABLE" : row.market_open ? "MARKET_OPEN" : "MARKET_CLOSED"}/></div>
+          <div className="source-stats"><div><small>Realized gross today</small><strong>{money(row?.realized_gross_today)}</strong></div><div><small>Open positions</small><strong>{integer(row?.open_positions)}</strong></div></div>
+          <div className="source-detail"><span>Paper activation: {row?.paper_enabled == null ? "UNAVAILABLE" : row.paper_enabled ? "ENABLED" : "DISABLED"} · Process: {row?.worker_state ?? "UNAVAILABLE"}</span><span>Future / option expiry: {row?.latest?.future_expiry ?? "UNAVAILABLE"} / {row?.latest?.option_expiry ?? "UNAVAILABLE"}</span><span>Observation: {row?.latest?.observed_at ? timeIST(row.latest.observed_at) : "UNAVAILABLE"} · Unresolved: {integer(row?.unresolved_exposure)}</span></div>
+          <Link href={`/commodity-acts/${instrument}`} className="source-link">View signal & execution evidence<Icon name="arrow" size={13}/></Link>
+        </article>;
+      })}
     </div>
+    <PortfolioEvidence nifty={nifty} commodities={commodities}/>
+    <Panel title="STRATEGY & DATA HEALTH"><div className="overview-health-grid">
+      <div className="health-tile"><span>NIFTY API / database</span><Badge value={data?.health?.components?.database ?? "UNAVAILABLE"}/><p>Actual API component status</p></div>
+      <div className="health-tile"><span>NIFTY market session</span><Badge value={data?.health?.market_session_state ?? "UNAVAILABLE"}/><p>Market-closed is not a data failure</p></div>
+      {(["CRUDEOILM", "NATGASMINI"] as const).map(id => { const r = commodities?.find(row => row.instrument_id === id); return <div key={id} className="health-tile"><span>{id} observations</span><Badge value={r?.observation_freshness ?? "UNAVAILABLE"}/><p>{r?.latest?.observed_at ? `${dateIST(r.latest.observed_at)} · ${timeIST(r.latest.observed_at)}` : "No observed timestamp"}</p></div>; })}
+    </div></Panel>
     <p className="execution-note">Partial or missing records leave combined metrics unavailable. Paper P&amp;L is descriptive research, not evidence of profitability. Stale marks are never substituted with LTP.</p>
-  </Panel>;
+    <span className="sr-only">NIFTY signal freshness: {(nifty?.strategies ?? []).map(row => `${row.display_name}: ${observationState(row.latest_timestamp)}`).join("; ")}</span>
+  </>;
 }

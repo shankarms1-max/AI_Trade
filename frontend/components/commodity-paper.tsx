@@ -3,7 +3,8 @@ import { useCallback, useState } from "react";
 import { api } from "@/lib/api";
 import { usePolling } from "@/hooks/use-polling";
 import { dateIST, integer, money, number, percent, timeIST } from "@/lib/format";
-import { Badge, Empty, Panel, SectionError } from "@/components/ui";
+import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import type { CommodityInstrument } from "@/types/commodity-acts";
 import type { PaperKind, PaperRecord } from "@/types/commodity-paper";
 
@@ -18,9 +19,12 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
   if (!row) return <Empty>PAPER STATE UNAVAILABLE</Empty>;
   const latest = row.latest;
   const margin = latest?.candidate?.construction_evidence?.margin;
-  return <><Badge value={row.status ?? "UNAVAILABLE"}/>
+  return <><div className="instrument-hero"><div className="instrument-identity"><p className="eyebrow"><Icon name={instrument === "CRUDEOILM" ? "flame" : "gas"} size={15}/>{instrument} · Selected MCX future</p><h2>{latest?.future_symbol ?? "Contract unavailable"}</h2><div className="instrument-price">{number(latest?.future_price)}</div><p>Observed future reference · not a live executable option price</p><div className="source-status" style={{ marginTop: 16 }}><Badge value={row.status ?? "UNAVAILABLE"}/><Badge value={row.observation_freshness ?? "UNAVAILABLE"}/><Badge value={row.market_open == null ? "SESSION_UNAVAILABLE" : row.market_open ? "MARKET_OPEN" : "MARKET_CLOSED"}/></div></div>
+      <div className="evidence-summary"><div className="evidence-row"><span>ACTS V2 signal</span><strong>{latest?.decision?.direction ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Opportunity score</span><strong>{number(latest?.decision?.opportunity_score, 1)} / 100</strong></div>{typeof latest?.decision?.opportunity_score === "number" && Number.isFinite(latest.decision.opportunity_score) ? <div className="risk-track"><span style={{ width: `${Math.max(0, Math.min(100, latest.decision.opportunity_score))}%` }}/></div> : <p className="metric-detail">Score unavailable</p>}<div className="evidence-row"><span>Option expiry</span><strong>{latest?.option_expiry ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Execution evidence</span><Badge value={row.execution_evidence?.source ?? "UNVERIFIED"}/></div><div className="evidence-row"><span>Reserved stress risk</span><strong>{money(row.reserved_stress_risk)}</strong></div><p className="metric-detail" style={{ margin: 0 }}>Stress reservation is not guaranteed maximum loss. Budget utilization is unavailable unless the API exposes the approved limit.</p></div></div>
+    <div className="compact-metrics"><Metric label="Realized gross today" value={money(row.realized_gross_today)} detail="Stored paper exits · INR"/><Metric label="Unrealized gross" value={money(row.unrealized_gross)} detail="No inferred marks"/><Metric label="Open positions" value={integer(row.open_positions)} detail={`Pending entries: ${integer(row.pending_entries)}`}/><Metric label="Completed trades" value={integer(row.closed_trades)} detail={`Rejected entries: ${integer(row.rejected_entries)}`}/></div>
     <p>Paper entry activation: {row.paper_enabled == null ? "UNAVAILABLE" : row.paper_enabled ? "ENABLED" : "DISABLED"}. Existing exposure still requires running capture workers for recovery/exit management.</p>
     <p>Market session: {row.market_open == null ? "UNAVAILABLE" : row.market_open ? "OPEN" : "CLOSED"}. Worker process state: UNAVAILABLE (not inferred from activity).</p>
+    <details className="instrument-evidence-disclosure"><summary>Contract, execution, risk & accounting evidence</summary>
     <dl className="commodity-fields">
       <div><dt>Selected future / price</dt><dd>{latest?.future_symbol ?? "N/A"} / {number(latest?.future_price)}</dd></div>
       <div><dt>Future / option expiry</dt><dd>{latest?.future_expiry ?? "N/A"} / {latest?.option_expiry ?? "N/A"}</dd></div>
@@ -54,6 +58,7 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
     <p>Entry blockers: {(latest?.decision?.blockers ?? []).join(", ") || "N/A"}</p>
     <p>Candidate rejection counts: {Object.entries(latest?.decision?.candidate_rejections ?? {}).map(([key, count]) => `${key}: ${count}`).join(", ") || "N/A"}</p>
     <p>ACTS components: {Object.entries(latest?.decision?.score_components ?? {}).map(([key, value]) => `${key}: ${number(value)}`).join(", ") || "N/A"}</p>
+    </details>
     <p className="execution-note">SINGLE-LEG NAKED OPTION SELLING — PAPER ONLY. Loss is not bounded by a hedge; stops and stress scenarios are not guaranteed maximum losses. Entry sells at a later observed BID; marks and exits buy at subsequent observed ASK. Quotes must be fresh and depth sufficient; LTP is never a fill. Broker margin estimates are not actual blocked capital; unknown margin is not zero capital usage. Net is unavailable without a complete, dated cost model. Paper results are descriptive research, not a profitability claim.</p>
   </>;
 }
@@ -63,7 +68,7 @@ function RecordRow({ row, index }: { row: PaperRecord; index: number }) {
   const signal = row.latest?.decision;
   const blocked = [...(row.latest?.risk_blocks ?? []), ...(signal?.blockers ?? [])].join(", ");
   return <tr><td>{stamp(row.observed_at ?? row.decision_timestamp)}<small>{row.id?.slice(0, 12) ?? row.sequence ?? index}</small></td>
-    <td>{row.state ?? row.event_type ?? row.kind ?? "N/A"}{signal && <small>{signal.status ?? "N/A"} / {signal.direction ?? "N/A"} / {number(signal.opportunity_score)}</small>}</td>
+    <td><Badge value={row.state ?? row.event_type ?? row.kind ?? "UNAVAILABLE"}/>{signal && <small>{signal.status ?? "N/A"} / {signal.direction ?? "N/A"} / {number(signal.opportunity_score)}</small>}</td>
     <td>{candidate?.short_leg?.trading_symbol ?? "N/A"}{candidate?.long_leg ? ` / ${candidate.long_leg.trading_symbol ?? "N/A"} (historical spread)` : candidate?.short_leg ? ` / ${candidate.strategy_type ?? "SINGLE SHORT"}` : ""}<small>{row.action ?? row.execution?.action ?? ""} / units {integer(row.contract_quantity ?? candidate?.contract_quantity)}</small></td>
     <td>{stamp(row.entry_timestamp)} / {stamp(row.exit_timestamp)}</td>
     <td>{number(row.entry_credit ?? (row.kind === "ENTRY" ? row.execution?.value : null))} / {number(row.exit_debit ?? (row.kind === "EXIT" ? row.execution?.value : null))}</td>

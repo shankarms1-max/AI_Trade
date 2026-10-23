@@ -39,6 +39,7 @@ describe("dashboard",()=>{
     expect(screen.getAllByText("22,421.95").length).toBeGreaterThan(0);
     if(field!=="components") expect(screen.getByText("24.0")).toBeInTheDocument();
     if(field!=="reasons") expect(screen.getByText("MOMENTUM BULL")).toBeInTheDocument();
+    if(field==="features") expect(screen.getByText(/Books: N\/A/)).toBeInTheDocument();
   });
   it("uses authoritative forward-paper mode and counts without legacy inference",async()=>{
     const data=fixture();data.execution_mode="PAPER";data.forward_paper={pending:2,open:0,closed:3,unresolved:1,rejected:4,profitability_claim:false};

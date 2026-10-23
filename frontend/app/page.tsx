@@ -7,6 +7,6 @@ export default function Page() {
   return <>
     <SectionBoundary label="Unified overview"><UnifiedOverview/></SectionBoundary>
     <SectionBoundary label="Phase 15 monitor"><Phase15Monitor/></SectionBoundary>
-    <SectionBoundary label="Research dashboard"><Dashboard/></SectionBoundary>
+    <SectionBoundary label="Research dashboard"><details className="research-disclosure"><summary>Explore detailed NIFTY research · Alpha, market structure & historical analytics</summary><Dashboard/></details></SectionBoundary>
   </>;
 }

@@ -40,6 +40,19 @@ beforeEach(() => vi.mocked(api.phase15Summary).mockReset());
 afterEach(cleanup);
 
 describe("Phase 15 monitor", () => {
+  it("filters workspace strategies without changing strategy evidence", async () => {
+    const data = fixture();
+    vi.mocked(api.phase15Summary).mockResolvedValue(data);
+    render(<Phase15Monitor workspace/>);
+    const table = await screen.findByRole("table", { name: "Phase 15 strategies" });
+    fireEvent.click(screen.getByRole("button", { name: "ORB 30" }));
+    expect(within(table).getByRole("button", { name: "Expand ORB 30" })).toBeInTheDocument();
+    expect(within(table).queryByRole("button", { name: "Expand ACTS V2" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "All strategies" }));
+    expect(within(table).getByRole("button", { name: "Expand ACTS V2" })).toBeInTheDocument();
+    expect(data.strategies).toHaveLength(6);
+    expect(data.totals.combined_gross_pnl).toBe(62.5);
+  });
   it("renders six strategies, gross totals, and a negative live mark", async () => {
     vi.mocked(api.phase15Summary).mockResolvedValue(fixture());
     render(<Phase15Monitor/>);

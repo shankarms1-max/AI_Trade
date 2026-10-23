@@ -24,7 +24,10 @@ export const api = {
   phase15Positions: (offset = 0) => request<Phase15TradePage>(`/api/phase15/positions?limit=100&offset=${offset}`),
   phase15Journal: (filters: Phase15JournalFilters = {}) => {
     const params = new URLSearchParams();
-    for (const [key, value] of Object.entries({ limit: 100, ...filters })) {
+    // The deployed API accepts ISO dates; UI labels "today"/"all" are not dates.
+    const date = filters.date === "all" ? undefined : filters.date === "today" ?
+      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()) : filters.date;
+    for (const [key, value] of Object.entries({ limit: 100, ...filters, date })) {
       if (value != null && value !== "") params.set(key, String(value));
     }
     return request<Phase15TradePage>(`/api/phase15/journal?${params}`);

@@ -38,6 +38,8 @@ export function CommodityOverview({ instrument: selectedInstrument }: { instrume
       const latest = instrument.latest;
       return <Panel key={instrument.instrument_id} title={instrument.display_name} className="commodity-card">
         <Badge value={instrument.readiness}/><p>Worker configuration: {instrument.configured_enabled ? "ENABLED" : "DISABLED"} · Process state unavailable</p>
+        <div className="overview-health-grid"><div className="health-tile"><span>Alpha state</span><Badge value={latest?.alpha.validity_state ?? "UNAVAILABLE"}/><p>{latest?.alpha.status ?? "No Alpha status reported"}</p></div><div className="health-tile"><span>Research classification</span><Badge value={latest?.acts.score_band ?? "UNAVAILABLE"}/><p>Score {number(latest?.acts.opportunity_score, 1)} / 100 · V1 context only</p></div></div>
+        {latest?.acts.score_components && <div className="score-breakdown">{Object.entries(latest.acts.score_components).map(([label, value]) => <div key={label} className="score-component"><span>{label.replaceAll("_", " ")}</span><strong>{number(value, 1)}</strong></div>)}</div>}
         {!instrument.session_configured && <p className="warning">VERIFIED MCX SESSION SETTINGS REQUIRED</p>}
         <p>These cards show V1 scoring/research evidence only. Use the single-short paper panel for authoritative entry and lifecycle state. New commodity spread entries are disabled.</p>
         <dl className="commodity-fields">

@@ -5,6 +5,8 @@ import { integer, money, number, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Metric, SectionError } from "@/components/ui";
 import type { Phase15Strategy, Phase15Trade } from "@/types";
+import { Icon } from "@/components/icons";
+import { observationState } from "@/lib/monitoring";
 
 const DISPLAY_NAMES: Record<string, string> = {
   ACTS_V2: "ACTS V2", ORB_15: "ORB 15", ORB_30: "ORB 30", ORB_60: "ORB 60",
@@ -48,10 +50,17 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
   </div>;
 }
 
-export function Phase15Monitor() {
+export function Phase15Monitor({ workspace = false }: { workspace?: boolean } = {}) {
   const loader = useCallback(() => api.phase15Summary(), []);
   const { data, error, loading } = usePolling(loader, 20000);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [selected, setSelected] = useState("ALL");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("source");
+  const visible = (data?.strategies ?? []).filter(row => (selected === "ALL" || row.strategy_id === selected) &&
+    `${row.display_name} ${row.latest_status ?? ""} ${row.latest_blocker ?? ""}`.toLowerCase().includes(query.toLowerCase()));
+  if (sort === "name") visible.sort((a,b) => a.display_name.localeCompare(b.display_name));
+  if (sort === "gross") visible.sort((a,b) => a.realized_gross_pnl_today == null ? b.realized_gross_pnl_today == null ? 0 : 1 : b.realized_gross_pnl_today == null ? -1 : b.realized_gross_pnl_today-a.realized_gross_pnl_today);
   return <section className="phase15-monitor" aria-label="Phase 15 paper strategy monitor">
     <div className="phase15-head"><div><span>PHASE 15 · PAPER STRATEGY MONITOR</span>
       <strong>Six strategy paper monitor</strong>
@@ -70,10 +79,21 @@ export function Phase15Monitor() {
         <Metric label="Trades Today" value={integer(data.totals.trades_today)}/>
       </div>
       <div className="phase15-asof">As of {timeIST(data.as_of)} · Paper marks and realized gross are shown separately.</div>
+      <div className="strategies-toolbar">
+        {workspace && <div className="segmented-control" aria-label="Strategy selection"><button aria-pressed={selected === "ALL"} onClick={() => setSelected("ALL")}>All strategies</button>{data.strategies.map(row => <button key={row.strategy_id} aria-pressed={selected === row.strategy_id} onClick={() => setSelected(row.strategy_id)}>{DISPLAY_NAMES[row.strategy_id] ?? row.display_name}</button>)}</div>}
+        <label className="search-field"><Icon name="search" size={15}/><input aria-label="Filter strategies" placeholder="Search signals or blockers…" value={query} onChange={e => setQuery(e.target.value)}/></label>
+        <select aria-label="Sort strategies" value={sort} onChange={e => setSort(e.target.value)}><option value="source">Source order</option><option value="name">Strategy name</option><option value="gross">Realized gross ↓</option></select>
+      </div>
+      {workspace && <div className="strategy-card-grid">{visible.map(strategy => <article className="strategy-tile" id={`strategy-${strategy.strategy_id}`} key={strategy.strategy_id}>
+        <header><h3>{DISPLAY_NAMES[strategy.strategy_id] ?? strategy.display_name}</h3><Badge value={strategy.latest_status ?? "UNAVAILABLE"}/></header>
+        <div className="strategy-values"><span>Realized gross<strong>{amount(strategy.realized_gross_pnl_today)}</strong></span><span>Open positions<strong>{integer(strategy.open_position_count)}</strong></span></div>
+        <p className="signal-line">{blockerLabel(strategy.latest_blocker)}</p><p><Badge value={observationState(strategy.latest_timestamp)}/> · {timeIST(strategy.latest_timestamp)}</p>
+        <button className="button-secondary" style={{ marginTop: 12 }} aria-label={`Inspect ${strategy.display_name}`} onClick={() => setExpanded(expanded === strategy.strategy_id ? null : strategy.strategy_id)}>Trade evidence<Icon name="arrow" size={13}/></button>
+      </article>)}</div>}
       <div className="table-wrap"><table aria-label="Phase 15 strategies"><thead><tr>
         <th>Strategy</th><th>Trades Today</th><th>W / L</th><th>Rejected</th><th>Open</th><th>Unresolved</th><th>Expired Unpriced</th>
         <th>Realized Gross</th><th>Live MTM</th><th>Latest Status</th><th>Blocker</th>
-      </tr></thead><tbody>{data.strategies.map(strategy => <Fragment key={strategy.strategy_id}>
+      </tr></thead><tbody>{visible.map(strategy => <Fragment key={strategy.strategy_id}>
         <tr>
           <td><button className="phase15-expand" aria-expanded={expanded === strategy.strategy_id}
             aria-label={`${expanded === strategy.strategy_id ? "Collapse" : "Expand"} ${DISPLAY_NAMES[strategy.strategy_id] ?? strategy.display_name}`}
