@@ -92,6 +92,8 @@ def summary(sessions, config, at):
                 for doc in open_rows
             )
             latest = (json.loads(cursor.latest_json) or None) if cursor else None
+            if config.auto_contract_renewal:
+                evidence = latest.get("contract_evidence") if latest else None
             observed_at = (
                 datetime.fromisoformat(latest["observed_at"]) if latest and latest.get("observed_at") else None
             )
@@ -145,6 +147,7 @@ def summary(sessions, config, at):
                     "session_configured": market_open is not None,
                     "policy_configured": configured,
                     "execution_evidence": evidence,
+                    "contract_renewal_status": latest.get("contract_renewal_status") if latest else None,
                     "latest": latest,
                     "observation_freshness": freshness,
                     "observation_age_seconds": age,

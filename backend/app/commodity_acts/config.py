@@ -93,6 +93,10 @@ class CommoditySettings(BaseSettings):
     max_quote_age_seconds: int = Field(default=30, ge=1, le=600)
     minimum_option_pairs: int = Field(default=3, ge=1, le=21)
     history_limit: int = Field(default=5000, ge=100, le=10000)
+    market_data_key_file: str | None = None
+    auto_contract_renewal: bool = False
+    master_refresh_seconds: int = Field(default=1800, ge=60, le=86400)
+    request_budget_file: str = "/app/cache/commodity-market-budget.json"
     trading_enabled: bool = False
     paper_policies_json: str = "{}"
     single_short_entry_policies_json: str = "{}"

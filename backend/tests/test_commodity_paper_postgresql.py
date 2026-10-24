@@ -66,6 +66,11 @@ from tests.test_commodity_paper_naked import (
     test_stale_future_does_not_become_verified_stress_input as test_pg_single_stress_requires_fresh_reference,
 )
 
+from tests.test_commodity_runtime_integration import (
+    test_legacy_closed_documents_and_journals_read_and_restart_without_requalification as test_pg_pre_eb6_documents,
+    test_renewed_policy_and_native_floors_both_control_subsequent_fill as test_pg_renewal_native_floors,
+)
+
 PAPER_TABLES = {
     "commodity_paper_cursors",
     "commodity_paper_controls",
@@ -352,6 +357,7 @@ def test_pg_foreign_keys_reject_cross_instrument_ownership(case, kind):
 
 # Re-export test fixtures and helpers for the shared PostgreSQL validation suite.
 __all__ = [
+    "test_pg_pre_eb6_documents", "test_pg_renewal_native_floors",
     "datetime",
     "timedelta",
     "os",

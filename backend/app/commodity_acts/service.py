@@ -70,26 +70,9 @@ class CommodityResearch:
         verify_journal(sessions, spec.instrument_id)
 
     def _history(self, current):
-        with self.sessions() as session:
-            rows = session.scalars(
-                select(CommodityMarketSnapshotRecord)
-                .where(
-                    CommodityMarketSnapshotRecord.instrument_id == self.spec.instrument_id,
-                    CommodityMarketSnapshotRecord.captured_at < current.timestamp_ist,
-                )
-                .order_by(CommodityMarketSnapshotRecord.captured_at.desc())
-                .limit(self.config.history_limit)
-            ).all()
-            history = [CommoditySnapshot.model_validate_json(row.snapshot_json) for row in reversed(rows)]
-        return [
-            row
-            for row in history
-            if row.instrument_id == current.instrument_id
-            and row.snapshot_persisted_at is not None
-            and row.snapshot_persisted_at <= current.timestamp_ist
-            and (row.future_token, row.future_instrument_id, row.future_expiry, row.expiry)
-            == (current.future_token, current.future_instrument_id, current.future_expiry, current.expiry)
-        ]
+        from app.commodity_acts.history import load_history
+
+        return load_history(self, current)
 
     def _alpha(self, snapshot_id, current, history, state):
         previous = state.get("alpha")

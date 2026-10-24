@@ -46,7 +46,8 @@ class CommodityPaperEngine:
         self.research, self.sessions, self.config = research, research.sessions, research.config
         self.spec, self.instrument, self.clock = research.spec, research.spec.instrument_id, research.clock
         self.scorer = research.acts_config
-        self.policy = self.config.trading_policy(self.instrument)
+        self.base_policy = self.config.trading_policy(self.instrument)
+        self.policy = self.base_policy
         self.entry_policy = self.config.entry_policy(self.instrument)
         if margin_reader is not None:
             assert_market_only(margin_reader)
@@ -681,6 +682,16 @@ class CommodityPaperEngine:
             research_doc = json.loads(research.document)
             alpha = AlphaFeatureSnapshot.model_validate(research_doc["alpha"])
         known = self.clock()
+        renewal_failure = None
+        if self.config.auto_contract_renewal:
+            from app.commodity_acts.contracts import renew, RenewalError
+
+            try:
+                self.policy = renew(self.base_policy, current, self.spec, known)
+            except RenewalError as exc:
+                # New entries fail closed; existing positions use frozen policy.
+                self.policy, renewal_failure = self.base_policy, str(exc)
+
         if current.timestamp_ist > known:
             raise ValueError("COMMODITY_PAPER_FUTURE_OBSERVATION")
         ctx = build_context(
@@ -741,7 +752,7 @@ class CommodityPaperEngine:
                 if self.enabled and self.policy is not None and direction is not None
                 else (None, {})
             )
-            blockers = []
+            blockers = [renewal_failure] if renewal_failure else []
             if not self.enabled:
                 blockers.append("PAPER_ACTIVATION_DISABLED")
             if self.policy is None:
@@ -872,6 +883,11 @@ class CommodityPaperEngine:
                     ),
                 }
             )
+            if self.config.auto_contract_renewal:
+                latest.update(
+                    contract_evidence=self.policy.evidence.model_dump(mode="json") if not renewal_failure else None,
+                    contract_renewal_status=renewal_failure or "VERIFIED",
+                )
             latest.update(
                 future_price=current.future_price,
                 future_symbol=current.future_instrument_id,

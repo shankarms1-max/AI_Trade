@@ -1,4 +1,5 @@
 """Guard the NIFTY release boundary without running workers or opening a database."""
+import ast
 from pathlib import Path
 
 from alembic.config import Config
@@ -19,7 +20,15 @@ def test_commodity_is_integrated_without_deployment_assets_or_session_workers():
     assert all((ROOT / name).exists() for name in excluded[:-1])
     assert not (ROOT / excluded[-1]).exists()
     assert (ROOT / "worker/commodity_acts_paper_worker.py").exists()
-    assert not list((ROOT / "worker").glob("commodity_session_*"))
+    # The integrated image includes only the two read-only Commodity monitors.
+    monitors = list((ROOT / "worker").glob("commodity_session_*.py"))
+    assert {path.name for path in monitors} == {"commodity_session_verify.py", "commodity_session_monitor.py"}
+    for path in monitors:
+        tree = ast.parse(path.read_text())
+        assert not any(isinstance(node, ast.ImportFrom) and (node.module or "").startswith("app.")
+                       for node in ast.walk(tree))
+        assert not any(isinstance(node, ast.Import) and any(alias.name.startswith("app.") for alias in node.names)
+                       for node in ast.walk(tree))
 
 
 def test_commodity_extends_nifty_with_one_additive_head():
