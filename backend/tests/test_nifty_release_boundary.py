@@ -9,31 +9,35 @@ from app.main import app
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_no_commodity_backend_models_workers_or_deployment_assets():
+def test_commodity_is_integrated_without_deployment_assets_or_session_workers():
     excluded = (
         "backend/app/commodity_acts", "backend/app/api/commodity_acts.py",
         "alembic/versions/0020_commodity_acts_research.py",
         "alembic/versions/0021_commodity_paper_trades.py",
         "scripts/deploy_commodity_automation.py",
     )
-    assert not [name for name in excluded if (ROOT / name).exists()]
-    assert not list((ROOT / "worker").glob("commodity_acts_*"))
+    assert all((ROOT / name).exists() for name in excluded[:-1])
+    assert not (ROOT / excluded[-1]).exists()
+    assert (ROOT / "worker/commodity_acts_paper_worker.py").exists()
     assert not list((ROOT / "worker").glob("commodity_session_*"))
 
 
-def test_nifty_migration_head_has_no_commodity_revisions():
+def test_commodity_extends_nifty_with_one_additive_head():
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0019_parallel_paper"]
-    assert not any("commodity" in revision.path.lower() for revision in scripts.walk_revisions())
+    assert scripts.get_heads() == ["0021_commodity_paper_trades"]
+    assert scripts.get_revision("0020_commodity_acts_research").down_revision == "0019_parallel_paper"
+    assert scripts.get_revision("0021_commodity_paper_trades").down_revision == "0020_commodity_acts_research"
 
 
-def test_nifty_runtime_has_no_commodity_api_or_tables():
+def test_both_readonly_api_families_and_isolated_commodity_tables_are_registered():
     from app.db.base import Base
 
     paths = set(app.openapi()["paths"])
     assert "/api/phase15/summary" in paths
     assert "/api/phase15/positions" in paths
-    assert not any("commodity" in path.lower() for path in paths)
-    assert not any("commodity" in name.lower() for name in Base.metadata.tables)
+    assert "/api/commodity-acts/summary" in paths
+    assert "/api/commodity-acts/paper/summary" in paths
+    assert "commodity_paper_fills" in Base.metadata.tables
+    assert "commodity_market_snapshots" in Base.metadata.tables

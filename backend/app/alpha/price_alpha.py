@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from math import isfinite, log
+from typing import Any, cast
 
 from app.alpha.clock import session_id
 from app.data.models import MarketSnapshot
@@ -21,11 +22,17 @@ class HorizonReturn:
 
 
 def reference_price(snapshot: MarketSnapshot, source: str) -> float | None:
+    # Generic research observations explicitly carry their instrument identity
+    # and future/reference prices. They are never written to NIFTY models/tables.
+    if hasattr(snapshot, "instrument_id") and hasattr(snapshot, "future_price"):
+        return cast(Any, snapshot).reference_price if source == "SPOT" else snapshot.future_price
     return snapshot.nifty_spot if source == "SPOT" else snapshot.nifty_future
 
 
 def reference_identity(snapshot: MarketSnapshot, source: str) -> tuple[str | None, object | None]:
     if source == "SPOT":
+        if hasattr(snapshot, "instrument_id"):
+            return None, None  # A commodity future must never masquerade as cash spot.
         return "NSE_NIFTY_50_SPOT", None
     return snapshot.future_instrument_id, snapshot.future_expiry
 
@@ -63,8 +70,9 @@ def horizon_log_return(current: MarketSnapshot, history: list[MarketSnapshot], s
     source_time = current.source_market_timestamp
     age = ((current.timestamp_ist - source_time).total_seconds()
            if source_time is not None else None)
-    base = dict(reference_instrument_id=identity, reference_expiry=expiry,
-                reference_source_timestamp=source_time, reference_age_seconds=age)
+    base: dict[str, Any] = dict(
+        reference_instrument_id=identity, reference_expiry=expiry,
+        reference_source_timestamp=source_time, reference_age_seconds=age)
     now_price = reference_price(current, source)
     if identity is None or (source == "FUTURE" and expiry is None):
         return HorizonReturn(None, reason="REFERENCE_IDENTITY_UNAVAILABLE", **base)
@@ -90,7 +98,7 @@ def horizon_log_return(current: MarketSnapshot, history: list[MarketSnapshot], s
         return HorizonReturn(None, reason="HORIZON_UNAVAILABLE", **base)
     prior = min(candidates, key=lambda row: row[:2])[2]
     elapsed = int((current.timestamp_ist - prior.timestamp_ist).total_seconds())
-    return HorizonReturn(log(now_price / reference_price(prior, source)), elapsed,
+    return HorizonReturn(log(now_price / cast(float, reference_price(prior, source))), elapsed,
                          elapsed - target_seconds, **base)
 
 

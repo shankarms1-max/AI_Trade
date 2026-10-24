@@ -225,7 +225,10 @@ class AlphaFeatureSnapshotRecord(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("market_snapshot_id", "alpha_version", "calculation_mode", name="uq_alpha_snapshot_version_mode"),
+        UniqueConstraint(
+            "market_snapshot_id", "alpha_version", "calculation_mode",
+            name="uq_alpha_snapshot_version_mode"
+        ),
         CheckConstraint("price_source IN ('SPOT','FUTURE')", name="ck_alpha_price_source"),
         CheckConstraint(
             "evidence_quality IN ('HIGH','MEDIUM','LOW','INSUFFICIENT')",
@@ -660,4 +663,12 @@ from app.scalper.models import (  # noqa: F401, E402
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade  # noqa: F401, E402
 from app.parallel_paper.models import (  # noqa: F401, E402
     ParallelPaperCursor, ParallelPaperEvent, ParallelPaperTrade,
+)
+from app.commodity_acts.models import (  # noqa: F401, E402
+    CommodityMarketSnapshotRecord, CommodityOptionQuoteRecord, CommodityActsCursor,
+    CommodityActsEvent, CommodityActsDecision,
+)
+from app.commodity_acts.paper_models import (  # noqa: F401, E402
+    CommodityPaperControl, CommodityPaperCursor, CommodityPaperEvent, CommodityPaperFill,
+    CommodityPaperOrder, CommodityPaperPosition,
 )

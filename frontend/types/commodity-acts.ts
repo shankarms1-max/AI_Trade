@@ -22,7 +22,7 @@ export interface CommoditySummary {
   stage: "SCORE_TRANSFERABILITY"; research_scope: string;
   as_of: string; version: string; mode: "PAPER"; broker_orders_enabled: false; spread_execution_enabled: false; pnl: null;
   instruments: Array<{ instrument_id: CommodityInstrument; display_name: string; configured_enabled: boolean;
-    session_configured: boolean; worker_state: string; observation_count: number; decision_count: number;
+    session_configured: boolean; capture_state?: string; worker_state: string; observation_count: number; decision_count: number;
     readiness: string; latest: CommodityDecision | null }>;
 }
 export interface CommodityDecisionPage { instrument_id: CommodityInstrument; limit: number; offset: number; has_more: boolean; items: CommodityDecision[] }

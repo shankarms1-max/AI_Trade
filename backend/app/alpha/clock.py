@@ -3,10 +3,38 @@
 from datetime import date, datetime, time
 from enum import Enum
 from zoneinfo import ZoneInfo
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 
 IST = ZoneInfo("Asia/Kolkata")
 OPEN = time(9, 15)
 CLOSE = time(15, 30)
+
+
+@dataclass(frozen=True)
+class SessionClock:
+    """Explicit opt-in clock; the default NSE clock/IDs remain unchanged."""
+    identity: str = "NSE"
+    opening: time = OPEN
+    closing: time = CLOSE
+
+    def __post_init__(self):
+        if not self.identity or not self.opening < self.closing:
+            raise ValueError("INVALID_RESEARCH_SESSION_CLOCK")
+
+
+_clock: ContextVar[SessionClock] = ContextVar("alpha_session_clock", default=SessionClock())
+
+
+@contextmanager
+def using_session(clock: SessionClock):
+    """Task/thread-local scope, restored even on failure; never a process global."""
+    token = _clock.set(clock)
+    try:
+        yield
+    finally:
+        _clock.reset(token)
 
 
 class LookbackClockMode(str, Enum):
@@ -20,7 +48,7 @@ def session_date(timestamp: datetime) -> date:
 
 
 def session_id(timestamp: datetime) -> str:
-    return f"NSE_{session_date(timestamp).isoformat()}"
+    return f"{_clock.get().identity}_{session_date(timestamp).isoformat()}"
 
 
 def trading_minutes_between(start: datetime, end: datetime, observed_dates: set[date],
@@ -31,8 +59,8 @@ def trading_minutes_between(start: datetime, end: datetime, observed_dates: set[
     for day in sorted(observed_dates):
         if day.weekday() >= 5 or day in holidays:
             continue
-        opening = datetime.combine(day, OPEN, IST)
-        closing = datetime.combine(day, CLOSE, IST)
+        opening = datetime.combine(day, _clock.get().opening, IST)
+        closing = datetime.combine(day, _clock.get().closing, IST)
         left, right = max(start, opening), min(end, closing)
         if right > left:
             total += (right - left).total_seconds() / 60

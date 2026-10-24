@@ -98,4 +98,27 @@ describe("commodity paper evidence only", () => {
     expect(within(table).getByText("GLOBAL_DEFINED_RISK_LIMIT")).toBeInTheDocument();
     expect(within(table).queryByText("FILLED")).not.toBeInTheDocument();
   });
+  it("shows healthy disabled/configuration states instead of a transport failure", async () => {
+    const data = summary();
+    Object.assign(data.instruments![0], { latest: null, readiness: "PAPER_DISABLED", session_configured: false,
+      configuration_blockers: ["SESSION_UNCONFIGURED", "POLICY_UNCONFIGURED", "GLOBAL_RISK_UNCONFIGURED"],
+      realized_gross_today: null, realized_net_today: null, trades_today: 0 });
+    vi.mocked(api.commodityPaperSummary).mockResolvedValue(data);
+    vi.mocked(api.commodityPaperPage).mockResolvedValue({ items: [] });
+    render(<CommodityPaper/>);
+    expect(await screen.findByText("PAPER DISABLED")).toBeInTheDocument();
+    expect(screen.getByText("NO OBSERVATIONS YET")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("POLICY UNCONFIGURED");
+    expect(screen.queryByText("COMMODITY PAPER STATUS UNAVAILABLE")).not.toBeInTheDocument();
+    expect(screen.queryByText("COMMODITY PAPER LEDGER UNAVAILABLE")).not.toBeInTheDocument();
+    expect(screen.getByText("No captured contract")).toBeInTheDocument();
+  });
+  it("shows the backend's outside-session readiness without changing paper activation", async () => {
+    const data = summary();
+    Object.assign(data.instruments![0], { paper_enabled: true, readiness: "OUTSIDE_SESSION", market_open: false });
+    vi.mocked(api.commodityPaperSummary).mockResolvedValue(data);
+    render(<CommodityPaper/>);
+    expect(await screen.findByText("OUTSIDE SESSION")).toBeInTheDocument();
+    expect(screen.getByText(/Paper entry activation: ENABLED/)).toBeInTheDocument();
+  });
 });

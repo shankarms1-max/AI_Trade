@@ -1,0 +1,13 @@
+{
+  "provenance": "Allowlisted quote fields observed 2026-10-20; not a verified open-session/executable book. No broker credentials.",
+  "CRUDEOILM": [
+    {"exchange":"mcx_fo","exchange_token":"573423","display_symbol":"CRUDEOILM19NOV26FUT","ltp":"9453","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"43774","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}},
+    {"exchange":"mcx_fo","exchange_token":"583275","display_symbol":"CRUDEOILM17NOV269450CE","ltp":"528.2","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"1841","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}},
+    {"exchange":"mcx_fo","exchange_token":"583425","display_symbol":"CRUDEOILM17NOV269450PE","ltp":"521.4","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"1881","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}}
+  ],
+  "NATGASMINI": [
+    {"exchange":"mcx_fo","exchange_token":"570751","display_symbol":"NATGASMINI27OCT26FUT","ltp":"291.9","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"64980","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}},
+    {"exchange":"mcx_fo","exchange_token":"581133","display_symbol":"NATGASMINI23OCT26290CE","ltp":"8.5","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"10773","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}},
+    {"exchange":"mcx_fo","exchange_token":"581134","display_symbol":"NATGASMINI23OCT26290PE","ltp":"6.65","lstup_time":"Mon Jan 01 1900 05:21:10 GMT+0521 (India Standard Time)","open_int":"10287","last_volume":"0","depth":{"buy":[{"price":"0","quantity":"0"}],"sell":[{"price":"0","quantity":"0"}]}}
+  ]
+}

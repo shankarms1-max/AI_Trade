@@ -19,7 +19,7 @@ export interface PaperLatest {
   risk_blocks?: string[] | null;
 }
 export interface PaperInstrumentStatus {
-  instrument_id: CommodityInstrument; paper_enabled?: boolean; status?: string; market_open?: boolean | null; worker_state?: string;
+  instrument_id: CommodityInstrument; readiness?: string; configuration_blockers?: string[]; session_configured?: boolean; policy_configured?: boolean; paper_enabled?: boolean; status?: string; market_open?: boolean | null; worker_state?: string;
   observation_freshness?: string; observation_age_seconds?: number | null;
   latest?: PaperLatest | null; pending_entries?: number; open_positions?: number; pending_exits?: number; unresolved_exposure?: number;
   rejected_entries?: number; closed_trades?: number; wins?: number; losses?: number; sample_sessions?: number;

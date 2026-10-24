@@ -120,4 +120,12 @@ describe("isolated commodity ACTS research", () => {
     expect(await screen.findByText("COMMODITY RESEARCH UNAVAILABLE")).toBeInTheDocument();
     expect(await screen.findByRole("table", { name: "Commodity shadow decision journal" })).toBeInTheDocument();
   });
+  it("distinguishes a disabled research capture from an API failure", async () => {
+    const data = summary();
+    for (const row of data.instruments) Object.assign(row, { capture_state: "RESEARCH_DISABLED", latest: null });
+    vi.mocked(api.commodityActsSummary).mockResolvedValue(data);
+    render(<CommodityOverview/>);
+    expect((await screen.findAllByText("RESEARCH DISABLED")).length).toBe(2);
+    expect(screen.queryByText("COMMODITY RESEARCH UNAVAILABLE")).not.toBeInTheDocument();
+  });
 });
