@@ -158,7 +158,9 @@ def test_real_actsv2_score_next_observation_atomic_fill_and_restart(case, instru
     signal = step(case, 0, instrument=instrument)
     state, doc = positions(case, instrument)[0]
     assert state == "PENDING_PAPER_ENTRY" and doc["decision"]["status"] == "ENTER"
-    assert doc["decision"]["opportunity_score"] == pytest.approx(sum(doc["decision"]["score_components"].values()))
+    assert doc["decision"]["directional_score"] == pytest.approx(
+        100 * sum(doc["decision"]["directional_components"].values()) / doc["decision"]["raw_context_max"], abs=0.0001
+    )
     assert doc["candidate"]["strategy_type"] in ("SHORT_PUT", "SHORT_CALL")
     assert "spread_width" not in doc["candidate"] and "long_leg" not in doc["candidate"]
     assert doc["candidate"]["short_leg"]["option_type"] == ("PE" if direction > 0 else "CE")

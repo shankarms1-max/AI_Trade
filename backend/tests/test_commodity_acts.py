@@ -300,9 +300,9 @@ def test_same_bucket_two_instruments_no_nifty_writes_and_hash_restart(research_c
             doc = json.loads(row.document)
             assert doc["alpha"]["session_id"] == f"MCX_{row.instrument_id}_2099-10-01"
             assert doc["geometry"]["depth_unit"] == "UNITS" and doc["pnl"] is None
-            assert doc["acts"]["score_components"]["execution"] == 0
+            assert "execution" not in doc["acts"]["directional_components"]
             assert doc["maximum_score_without_execution"] == 86
-            assert doc["score_basis"] == "ORIGINAL_100_POINT_WEIGHTS_NO_RESCALING"
+            assert doc["score_basis"] == "CONTEXT_ONLY_NORMALIZED_BY_AVAILABLE_WEIGHT"
             assert doc["readiness"] == "ALPHA_WARMING_UP"
 
 

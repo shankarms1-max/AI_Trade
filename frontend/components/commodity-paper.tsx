@@ -7,7 +7,7 @@ import { dateIST, integer, money, number, percent, timeIST } from "@/lib/format"
 import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import type { CommodityInstrument } from "@/types/commodity-acts";
-import type { PaperKind, PaperRecord } from "@/types/commodity-paper";
+import type { PaperDecision, PaperKind, PaperRecord } from "@/types/commodity-paper";
 
 const stamp = (at?: string) => at && Number.isFinite(Date.parse(at)) ? `${dateIST(at)} ${timeIST(at)}` : "N/A";
 
@@ -20,8 +20,11 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
   if (!row) return <Empty>PAPER STATE UNAVAILABLE</Empty>;
   const latest = row.latest;
   const margin = latest?.candidate?.construction_evidence?.margin;
+  const signal = latest?.decision;
+  const directionalScore = signal?.directional_score;
+
   return <><div className="instrument-hero"><div className="instrument-identity"><p className="eyebrow"><Icon name={instrument === "CRUDEOILM" ? "flame" : "gas"} size={15}/>{instrument} · Selected MCX future</p><h2>{latest?.future_symbol ?? "No captured contract"}</h2><div className="instrument-price">{number(latest?.future_price)}</div><p>Observed future reference · not a live executable option price</p><div className="source-status" style={{ marginTop: 16 }}><Badge value={row.readiness ?? row.status ?? "UNAVAILABLE"}/>{latest && <Badge value={row.observation_freshness ?? "UNAVAILABLE"}/>}<Badge value={row.market_open == null ? row.session_configured === false ? "SESSION_UNCONFIGURED" : "SESSION_UNAVAILABLE" : row.market_open ? "MARKET_OPEN" : "MARKET_CLOSED"}/></div></div>
-      <div className="evidence-summary"><div className="evidence-row"><span>ACTS V2 signal</span><strong>{latest?.decision?.direction ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Opportunity score</span><strong>{number(latest?.decision?.opportunity_score, 1)} / 100</strong></div>{typeof latest?.decision?.opportunity_score === "number" && Number.isFinite(latest.decision.opportunity_score) ? <div className="risk-track"><span style={{ width: `${Math.max(0, Math.min(100, latest.decision.opportunity_score))}%` }}/></div> : <p className="metric-detail">Score unavailable</p>}<div className="evidence-row"><span>Option expiry</span><strong>{latest?.option_expiry ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Execution evidence</span><Badge value={row.execution_evidence?.source ?? "UNVERIFIED"}/></div><div className="evidence-row"><span>Reserved stress risk</span><strong>{money(row.reserved_stress_risk)}</strong></div><p className="metric-detail" style={{ margin: 0 }}>Stress reservation is not guaranteed maximum loss. Budget utilization is unavailable unless the API exposes the approved limit.</p></div></div>
+      <div className="evidence-summary"><div className="evidence-row"><span>Directional state</span><strong>{signal?.direction ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Directional context score</span><strong>{number(directionalScore, 1)} / {number(signal?.directional_score_max, 0)}</strong></div>{typeof directionalScore === "number" && Number.isFinite(directionalScore) ? <div className="risk-track"><span style={{ width: `${Math.max(0, Math.min(100, directionalScore))}%` }}/></div> : <p className="metric-detail">Directional score unavailable</p>}<div className="evidence-row"><span>Commodity entry qualification</span><Badge value={signal?.entry_qualification?.status ?? "UNAVAILABLE"}/></div><div className="evidence-row"><span>Option expiry</span><strong>{latest?.option_expiry ?? "Unavailable"}</strong></div><div className="evidence-row"><span>Execution evidence</span><Badge value={row.execution_evidence?.source ?? "UNVERIFIED"}/></div><div className="evidence-row"><span>Reserved stress risk</span><strong>{money(row.reserved_stress_risk)}</strong></div><p className="metric-detail" style={{ margin: 0 }}>Stress reservation is not guaranteed maximum loss. Budget utilization is unavailable unless the API exposes the approved limit.</p></div></div>
     <div className="compact-metrics"><Metric label="Realized gross today" value={money(row.realized_gross_today)} detail="Stored paper exits · INR"/><Metric label="Unrealized gross" value={money(row.unrealized_gross)} detail="No inferred marks"/><Metric label="Open positions" value={integer(row.open_positions)} detail={`Pending entries: ${integer(row.pending_entries)}`}/><Metric label="Completed trades" value={integer(row.closed_trades)} detail={`Rejected entries: ${integer(row.rejected_entries)}`}/></div>
     {row.configuration_blockers?.length ? <p className="warning" role="status">Configuration: {row.configuration_blockers.map(value => value.replaceAll("_", " ")).join(" · ")}</p> : null}
     {!latest && <Empty>NO OBSERVATIONS YET</Empty>}
@@ -36,7 +39,8 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
       <div><dt>Broker reference timestamp</dt><dd>{stamp(latest?.source_market_timestamp ?? undefined)}</dd></div>
       <div><dt>Observation freshness / age seconds</dt><dd>{row.observation_freshness ?? "UNAVAILABLE"} / {number(row.observation_age_seconds, 1)}</dd></div>
       <div><dt>ACTS direction / market state</dt><dd>{latest?.decision?.direction ?? "N/A"} / {latest?.decision?.market_state ?? "N/A"}</dd></div>
-      <div><dt>ACTS V2 score / band (single-option execution inputs)</dt><dd>{number(latest?.decision?.opportunity_score)} / 100 - {latest?.decision?.score_band ?? "N/A"}</dd></div>
+      <div><dt>Directional context band</dt><dd>{signal?.score_band ?? "N/A"}</dd></div>
+      {signal?.opportunity_score != null && <div><dt>Historical compatibility score (legacy)</dt><dd>{number(signal.opportunity_score)} / 100</dd></div>}
       <div><dt>Pending entries / open positions</dt><dd>{integer(row.pending_entries)} / {integer(row.open_positions)}</dd></div>
       <div><dt>Pending exits / unresolved exposure</dt><dd>{integer(row.pending_exits)} / {integer(row.unresolved_exposure)}</dd></div>
       <div><dt>Rejected entries / completed trades</dt><dd>{integer(row.rejected_entries)} / {integer(row.closed_trades)}</dd></div>
@@ -60,24 +64,47 @@ function PaperStatus({ instrument }: { instrument: CommodityInstrument }) {
     <p>Risk blocks: {(latest?.risk_blocks ?? []).join(", ") || "N/A"}</p>
     <p>Entry blockers: {(latest?.decision?.blockers ?? []).join(", ") || "N/A"}</p>
     <p>Candidate rejection counts: {Object.entries(latest?.decision?.candidate_rejections ?? {}).map(([key, count]) => `${key}: ${count}`).join(", ") || "N/A"}</p>
-    <p>ACTS components: {Object.entries(latest?.decision?.score_components ?? {}).map(([key, value]) => `${key}: ${number(value)}`).join(", ") || "N/A"}</p>
+    <Qualification signal={signal}/>
+    <p>Directional context components (raw points): {Object.entries(signal?.directional_components ?? {}).map(([key, value]) => `${key}: ${number(value)}`).join(", ") || "N/A"}</p>
     </details>
     <p className="execution-note">SINGLE-LEG NAKED OPTION SELLING — PAPER ONLY. Loss is not bounded by a hedge; stops and stress scenarios are not guaranteed maximum losses. Entry sells at a later observed BID; marks and exits buy at subsequent observed ASK. Quotes must be fresh and depth sufficient; LTP is never a fill. Broker margin estimates are not actual blocked capital; unknown margin is not zero capital usage. Net is unavailable without a complete, dated cost model. Paper results are descriptive research, not a profitability claim.</p>
   </>;
 }
 
+function Qualification({ signal }: { signal?: PaperDecision | null }) {
+  const qualification = signal?.entry_qualification;
+  const evidence = qualification?.evidence;
+  return <div aria-label="Commodity native qualification">
+    <p>ACTS direction and execution qualification are separate. Context is normalized using only the original directional weights; no option execution points contribute.</p>
+    <p>Qualification: {qualification?.version ?? "N/A"} · {qualification?.status ?? "UNAVAILABLE"}</p>
+    <p>Selected candidate: {evidence?.option_token ?? "N/A"} · {evidence?.option_type ?? "N/A"} {number(evidence?.strike)}</p>
+    <dl className="commodity-fields">
+      <div><dt>OTM distance / observed steps</dt><dd>{number(evidence?.otm_distance_points)} / {number(evidence?.observed_strike_step && evidence.otm_distance_points != null ? evidence.otm_distance_points / evidence.observed_strike_step : null)}</dd></div>
+      <div><dt>Observed BID / ASK</dt><dd>{number(evidence?.bid)} / {number(evidence?.ask)}</dd></div>
+      <div><dt>BID / ASK depth (units)</dt><dd>{integer(evidence?.bid_quantity_units)} / {integer(evidence?.ask_quantity_units)}</dd></div>
+      <div><dt>OI / volume</dt><dd>{integer(evidence?.open_interest)} / {integer(evidence?.volume)}</dd></div>
+      <div><dt>Source quote age seconds / DTE</dt><dd>{number(evidence?.source_age_seconds, 1)} / {integer(evidence?.dte_calendar_days)}</dd></div>
+      <div><dt>Bid-ask spread</dt><dd>{percent(evidence?.bid_ask_spread_pct)}</dd></div>
+      <div><dt>Premium / stress-loss estimate (not credit-to-width)</dt><dd>{number(evidence?.premium_to_stress_loss_estimate)}</dd></div>
+      {Object.entries(qualification?.checks ?? {}).map(([key, check]) => <div key={key}><dt>{key.replaceAll("_", " ")}</dt><dd>{number(check.value)} · {check.status} · minimum {number(check.minimum)}</dd></div>)}
+    </dl>
+    <p>Qualification rejections: {qualification?.reasons?.join(" · ") || "N/A"}</p>
+    {signal?.candidate_evaluations?.length ? <details><summary>Candidate selection and rejections</summary>{signal.candidate_evaluations.map((item, index) => <p key={`${item.option_token}:${index}`}>{item.option_token} · {number(item.strike)} · {item.status} · {item.reason ?? "N/A"}</p>)}</details> : null}
+  </div>;
+}
+
 function RecordRow({ row, index }: { row: PaperRecord; index: number }) {
   const candidate = row.candidate ?? row.latest?.candidate;
-  const signal = row.latest?.decision;
+  const signal = row.decision ?? row.latest?.decision;
   const blocked = [...(row.latest?.risk_blocks ?? []), ...(signal?.blockers ?? [])].join(", ");
   return <tr><td>{stamp(row.observed_at ?? row.decision_timestamp)}<small>{row.id?.slice(0, 12) ?? row.sequence ?? index}</small></td>
-    <td><Badge value={row.state ?? row.event_type ?? row.kind ?? "UNAVAILABLE"}/>{signal && <small>{signal.status ?? "N/A"} / {signal.direction ?? "N/A"} / {number(signal.opportunity_score)}</small>}</td>
+    <td><Badge value={row.state ?? row.event_type ?? row.kind ?? "UNAVAILABLE"}/>{signal && <small>{signal.status ?? "N/A"} / {signal.direction ?? "N/A"} / {number(signal.directional_score ?? signal.opportunity_score)}{signal.directional_score != null ? " context" : " legacy"}</small>}</td>
     <td>{candidate?.short_leg?.trading_symbol ?? "N/A"}{candidate?.long_leg ? ` / ${candidate.long_leg.trading_symbol ?? "N/A"} (historical spread)` : candidate?.short_leg ? ` / ${candidate.strategy_type ?? "SINGLE SHORT"}` : ""}<small>{row.action ?? row.execution?.action ?? ""} / units {integer(row.contract_quantity ?? candidate?.contract_quantity)}</small></td>
     <td>{stamp(row.entry_timestamp)} / {stamp(row.exit_timestamp)}</td>
     <td>{number(row.entry_credit ?? (row.kind === "ENTRY" ? row.execution?.value : null))} / {number(row.exit_debit ?? (row.kind === "EXIT" ? row.execution?.value : null))}</td>
     <td>{money(row.gross_realized_pnl ?? row.unrealized_gross)} / {money(row.net_realized_pnl ?? row.unrealized_net)}</td>
     <td>{row.exit_reason ?? row.rejection_reason ?? row.unresolved_reason ?? row.last_attempt?.reason ?? row.reason ?? (blocked || "N/A")}
-      <small>{row.margin_status ?? ""} {row.policy?.cost_source ?? ""}</small></td></tr>;
+      <small>{row.margin_status ?? ""} {row.policy?.cost_source ?? ""}</small>{signal?.entry_qualification && <details><summary>Frozen entry qualification</summary><Qualification signal={signal}/></details>}</td></tr>;
 }
 
 function Ledger({ instrument, kind, offset, onPage }: { instrument: CommodityInstrument; kind: PaperKind; offset: number; onPage: (value: number) => void }) {

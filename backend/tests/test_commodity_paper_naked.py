@@ -63,7 +63,7 @@ def test_rank_balances_quality_and_distance_not_maximum_premium():
     )
     assert chosen and chosen.short_leg.instrument_token != expensive.instrument_token
     assert chosen.candidate_id == reversed_choice.candidate_id
-    assert chosen.ranking_components["short_quality"] > 0 and chosen.loss_is_bounded is False
+    assert chosen.ranking_components["spread_pct"] >= 0 and chosen.loss_is_bounded is False
     assert chosen.maximum_loss is None and "spread_width" not in chosen.model_dump()
 
 

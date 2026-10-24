@@ -1,6 +1,15 @@
 import type { CommodityInstrument } from "./commodity-acts";
 export type PaperKind = "positions" | "orders" | "fills" | "events";
+export interface EntryQualification {
+  version?: string; status?: string; reasons?: string[];
+  checks?: Record<string, { value?: number | null; minimum?: number | null; status: string }>;
+  evidence?: { option_token?: string; option_type?: string; strike?: number; otm_distance_points?: number;
+    observed_strike_step?: number | null; bid?: number; ask?: number; bid_quantity_units?: number; ask_quantity_units?: number;
+    source_age_seconds?: number; premium_points?: number; stress_limit_rupees?: number; premium_to_stress_loss_estimate?: number | null;
+    open_interest?: number | null; volume?: number | null; dte_calendar_days?: number; bid_ask_spread_pct?: number };
+}
 export interface PaperCandidate {
+  qualification?: EntryQualification;
   strategy_type?: "SHORT_PUT" | "SHORT_CALL" | "BULL_PUT_SPREAD" | "BEAR_CALL_SPREAD";
   contract_quantity?: number; stress_loss_estimate?: number; risk_reservation?: number; maximum_loss?: null; loss_is_bounded?: false;
   short_leg?: { trading_symbol?: string; strike?: number }; long_leg?: { trading_symbol?: string; strike?: number };
@@ -8,6 +17,11 @@ export interface PaperCandidate {
   construction_evidence?: { margin?: { status?: string; required_margin?: number | null; premium_to_verified_margin_estimate?: number | null; standalone_margin?: number | null; spread_margin?: number | null; margin_saved_pct?: number | null; credit_to_blocked_margin?: number | null; credit_to_verified_margin_estimate?: number | null } };
 }
 export interface PaperDecision {
+  directional_score?: number; directional_score_max?: number; directional_status?: string;
+  raw_context_points?: number; raw_context_max?: number; directional_components?: Record<string, number>;
+  entry_qualification?: EntryQualification;
+  candidate_evaluations?: Array<{ option_token: string; strike: number; status: string; reason?: string }>;
+
   status?: string; direction?: string | null; market_state?: string; opportunity_score?: number; score_band?: string;
   blockers?: string[] | null; candidate_rejections?: Record<string, number> | null; score_components?: Record<string, number> | null;
 }
@@ -31,6 +45,7 @@ export interface PaperInstrumentStatus {
 }
 export interface PaperSummary { version?: string; as_of?: string; broker_orders_enabled: false; instruments?: PaperInstrumentStatus[] | null }
 export interface PaperRecord {
+  decision?: PaperDecision;
   id?: string; state?: string; kind?: string; sequence?: number; event_type?: string; reason?: string | null;
   observed_at?: string; processed_at?: string; decision_timestamp?: string; entry_timestamp?: string; exit_timestamp?: string;
   candidate?: PaperCandidate | null; direction?: string; entry_credit?: number | null; exit_debit?: number | null;

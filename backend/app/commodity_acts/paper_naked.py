@@ -1,13 +1,12 @@
 """Commodity-only single-short construction. Stress scenarios are NOT loss bounds.
 
-The ACTS compatibility view scores the two observed sides of ONE contract, not
-a fictitious hedge. Directional/Alpha scoring, weights and bands remain original.
+Direction is separate from native single-option entry qualification. No spread
+geometry or hedge-quality compatibility inputs are created.
 """
 
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 from math import isfinite
-from types import SimpleNamespace
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -17,7 +16,8 @@ from app.commodity_acts.paper_execution import book, exact, candidates as spread
 from app.commodity_acts.paper_policy import ContractEvidence, MarginEvidence, PaperPolicy, margin_for
 from app.research.manifest import digest
 from app.scalper.models import ScalperLeg
-from app.strategy.construction import short_leg_quality, ordinal_score
+from app.strategy.construction import ordinal_score
+from app.commodity_acts import entry
 
 VERSION = "COMMODITY_ACTS_NAKED_PAPER_V1"
 LOTS = {"CRUDEOILM": 10, "NATGASMINI": 250}
@@ -101,6 +101,7 @@ class NakedCandidate(BaseModel):
     ranking_score: float = 0
     ranking_components: dict = Field(default_factory=dict)
     quote_evidence: dict
+    qualification: dict
     construction_method: Literal["OBSERVED_MCX_OTM_SINGLE_SHORT"] = "OBSERVED_MCX_OTM_SINGLE_SHORT"
     construction_evidence: dict
 
@@ -154,6 +155,19 @@ def execute(snapshot, candidate, policy, known_at, *, entry, after=None):
         _, failure = book(quote, snapshot, policy, known_at, entry=True, side="ask", after=after)
         if failure:
             return None, failure
+    if entry and candidate.get("qualification"):
+        # Recheck configured native floors against the subsequent observed book.
+        from app.commodity_acts.entry import EntryPolicy, native_evidence
+
+        thresholds = EntryPolicy.model_validate(candidate["qualification"]["policy"])
+        strikes = sorted({q.strike for q in snapshot.options})
+        step = min((b - a for a, b in zip(strikes, strikes[1:])), default=None)
+        scenario = stress(snapshot, quote, quote.bid, policy)
+        if scenario is None:
+            return None, "STRESS_ESTIMATE_INVALID"
+        qualification = native_evidence(snapshot, quote, policy, known_at, scenario, step, thresholds)
+        if qualification["reasons"]:
+            return None, qualification["reasons"][0]
     return {
         "value": result["price"],
         "short": result,
@@ -163,7 +177,7 @@ def execute(snapshot, candidate, policy, known_at, *, entry, after=None):
     }, None
 
 
-def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=False):
+def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=False, entry_policy=None):
     if not isinstance(policy, NakedPaperPolicy):
         return spread_candidates(snapshot, direction, ctx, policy, known_at)
     if direction not in ("BULL", "BEAR"):
@@ -173,10 +187,22 @@ def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=Fa
         return None, {failure: 1}
     if max(snapshot.timestamp_ist, known_at) + timedelta(seconds=policy.entry_ttl_seconds) >= policy.expiry_cutoff():
         return None, {"PRE_EXPIRY_ENTRY_CUTOFF": 1}
-    rejected, choices = {}, []
+    entry_policy = entry_policy or entry.EntryPolicy()
+
+    class Rejections(dict):
+        def __init__(self):
+            super().__init__()
+            self.evaluations = []
+
+    rejected, choices = Rejections(), []
+    strikes = sorted({q.strike for q in snapshot.options})
+    step = min((b - a for a, b in zip(strikes, strikes[1:])), default=None)
 
     def reject(reason):
         rejected[reason] = rejected.get(reason, 0) + 1
+        rejected.evaluations.append(
+            {"option_token": quote.instrument_token, "strike": quote.strike, "status": "REJECTED", "reason": reason}
+        )
 
     side = "PE" if direction == "BULL" else "CE"
     for quote in snapshot.options:
@@ -211,6 +237,14 @@ def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=Fa
         ):
             reject("MARGIN_UNVERIFIED_OR_LIMIT_EXCEEDED")
             continue
+        qualification = entry.native_evidence(snapshot, quote, policy, known_at, scenario, step, entry_policy)
+        if qualification["reasons"]:
+            for reason in qualification["reasons"]:
+                reject(reason)
+            continue
+        qualification.update(
+            status="ELIGIBLE", book_validation=bid["validation"], session_gate="ENFORCED_BY_PAPER_ENGINE"
+        )
         leg = ScalperLeg(
             expiry=quote.expiry,
             strike=quote.strike,
@@ -222,7 +256,7 @@ def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=Fa
         choices.append(
             NakedCandidate(
                 candidate_id=digest(
-                    {"version": VERSION, "instrument": snapshot.instrument_id, "short": quote.identity}
+                    {"version": entry.VERSION, "instrument": snapshot.instrument_id, "short": quote.identity}
                 ),
                 strategy_type="SHORT_PUT" if side == "PE" else "SHORT_CALL",
                 direction=direction,
@@ -233,6 +267,7 @@ def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=Fa
                 stress_loss_estimate=scenario["stress_loss_estimate"],
                 risk_reservation=max(scenario["stress_loss_estimate"], policy.max_loss_per_trade),
                 quote_evidence={"short": bid},
+                qualification=qualification,
                 construction_evidence={
                     "stress": scenario,
                     "margin": {
@@ -242,77 +277,46 @@ def candidates(snapshot, direction, ctx, policy, known_at, *, deferred_margin=Fa
                             quote.bid * quote.lot_size / margin["required_margin"] if margin else None
                         ),
                     },
-                    "score_mapping": (
-                        "ORIGINAL_ACTS_TWO_SIDED_QUALITY_OF_SINGLE_CONTRACT_" "PREMIUM_TO_STRESS_CLOSE_RATIO"
-                    ),
                 },
             )
         )
     if not choices:
         return None, rejected
-    strikes = sorted({q.strike for q in snapshot.options})
-    step = min((b - a for a, b in zip(strikes, strikes[1:])), default=None)
-    if step is None:
-        return None, {"STRIKE_GEOMETRY_UNAVAILABLE": 1}
-    wall = ctx.get("options", {}).get("walls", {}).get("put_support" if direction == "BULL" else "call_resistance")
-    position = ctx.get("structure", {}).get("range_position")
-    for row in choices:
-        q = row.quote_evidence["short"]
-        structure = (
-            (wall["strike"] - row.short_leg.strike if direction == "BULL" else row.short_leg.strike - wall["strike"])
-            / step
-            if wall
-            else None
-        )
-        quality = short_leg_quality(
-            price=row.executable_credit,
-            premium_reference=max(c.executable_credit for c in choices),
-            distance=row.short_distance_points,
-            distance_scale=step,
-            oi=q["quote"]["open_interest"],
-            min_oi=0,
-            volume=q["quote"]["volume"],
-            min_volume=0,
-            spread_pct=q["validation"]["spread_pct"],
-            max_spread_pct=policy.max_entry_spread_pct,
-            structure=structure,
-            directional_fit=position if direction == "BULL" or position is None else 1 - position,
-        )
-        row.construction_evidence.update(quality)
-        row.ranking_components = {
-            "short_quality": quality["short_quality_score"],
-            "stress_loss_estimate": row.stress_loss_estimate,
-        }
+    # Deterministic native ordering: observed book tightness, stress exposure,
+    # then OTM distance and premium. No blended spread score or liquidity floor.
     choices.sort(
-        key=lambda row: (-row.ranking_components["short_quality"], row.stress_loss_estimate, row.candidate_id)
+        key=lambda row: (
+            row.quote_evidence["short"]["validation"]["spread_pct"],
+            row.stress_loss_estimate,
+            -row.short_distance_points,
+            -row.executable_credit,
+            row.candidate_id,
+        )
     )
     for index, row in enumerate(choices):
         row.ranking_score = ordinal_score(index, len(choices))
+        row.ranking_components = {
+            "spread_pct": row.quote_evidence["short"]["validation"]["spread_pct"],
+            "stress_loss_estimate": row.stress_loss_estimate,
+            "otm_distance_points": row.short_distance_points,
+        }
+        row.construction_evidence["ranking"] = "SPREAD_ASC_STRESS_ASC_DISTANCE_DESC_PREMIUM_DESC_ID_ASC"
+        rejected.evaluations.append(
+            {
+                "option_token": row.short_leg.instrument_token,
+                "strike": row.short_leg.strike,
+                "status": "SELECTED" if index == 0 else "ELIGIBLE_NOT_SELECTED",
+                "qualification": row.qualification,
+                "ranking": row.ranking_components,
+            }
+        )
     return choices[0], rejected
 
 
 def decide(ctx, watch, candidate, rejected, blockers, scorer):
-    if not isinstance(candidate, NakedCandidate):
+    if candidate is not None and not isinstance(candidate, NakedCandidate):
         return acts_v2.decide(ctx, watch, candidate, rejected, blockers, scorer)
-    bid = candidate.quote_evidence["short"]
-    quote = bid["quote"]
-    # The legacy scorer averages two spread percentages and examines SELL/BUY
-    # depth. Supply this one contract's observed bid/ask quality in both roles.
-    # No hedge, width or defined-risk field is persisted or presented as real.
-    bid_view = {**bid, "bid_quantity": quote["bid_quantity"]}
-    ask_view = {**bid, "ask_quantity": quote["ask_quantity"]}
-    ratio = candidate.executable_credit / candidate.construction_evidence["stress"]["stress_close_premium_estimate"]
-    view = SimpleNamespace(quote_evidence={"short": bid_view, "long": ask_view}, credit_to_width=ratio)
-    result = acts_v2.decide(ctx, watch, view, rejected, blockers, scorer)
-    result["score_evidence"]["single_option_execution"] = {
-        "bid": quote["bid"],
-        "ask": quote["ask"],
-        "bid_quantity_units": quote["bid_quantity"],
-        "ask_quantity_units": quote["ask_quantity"],
-        "premium_to_stress_close_ratio": ratio,
-        "not_a_spread_credit_width_ratio": True,
-    }
-    return result
+    return entry.decide(ctx, watch, candidate, rejected, blockers, scorer)
 
 
 def reservation(document):

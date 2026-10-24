@@ -95,11 +95,11 @@ def test_disabled_entries_still_manage_frozen_open_position(case):
 @pytest.mark.parametrize(
     "setting,reason",
     [
-        ("max_loss_per_trade", "NO_EXECUTABLE_CANDIDATE"),
+        ("max_loss_per_trade", "NO_EXECUTABLE_SINGLE_SHORT"),
         ("daily_loss_limit", "INSTRUMENT_DAILY_LOSS_RESERVATION_LIMIT"),
         ("global_max_stress_risk", "GLOBAL_STRESS_RISK_LIMIT"),
         ("global_daily_loss_limit", "GLOBAL_DAILY_LOSS_RESERVATION_LIMIT"),
-        ("max_broker_margin", "NO_EXECUTABLE_CANDIDATE"),
+        ("max_broker_margin", "NO_EXECUTABLE_SINGLE_SHORT"),
         ("kill_switch", "KILL_SWITCH"),
     ],
 )

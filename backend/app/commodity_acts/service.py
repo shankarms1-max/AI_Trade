@@ -16,6 +16,7 @@ from app.commodity_acts.config import RESEARCH_SCOPE, STAGE, VERSION, CommodityS
 from app.commodity_acts.context import build_context
 from app.commodity_acts.domain import CommoditySnapshot
 from app.commodity_acts.geometry import geometry
+from app.commodity_acts.entry import direction, directional_parameters
 from app.commodity_acts.models import (
     CommodityActsDecision,
     CommodityActsEvent,
@@ -53,6 +54,7 @@ class CommodityResearch:
                 "stage": STAGE,
                 "instrument": spec,
                 "acts": self.acts_config.payload(),
+                "directional_context": directional_parameters(self.acts_config),
                 "alpha": asdict(self.alpha_config),
                 "execution": "DISABLED_GEOMETRY_NOT_VALIDATED",
                 "strategy_clock": "MARKET_OBSERVATION_TIME",
@@ -61,6 +63,10 @@ class CommodityResearch:
             }
         )
         self.policy_hash = digest(self.policy)
+        # Exact known predecessor only: unchanged Alpha/capture data can continue.
+        # Historical documents/events/hashes are never rewritten.
+        predecessor = {key: value for key, value in self.policy.items() if key != "directional_context"}
+        self.previous_policy_hash = digest({**predecessor, "stage": "SCORE_TRANSFERABILITY"})
         verify_journal(sessions, spec.instrument_id)
 
     def _history(self, current):
@@ -133,7 +139,7 @@ class CommodityResearch:
             if cursor.observed_at and current.timestamp_ist <= datetime.fromisoformat(cursor.observed_at):
                 raise ValueError("COMMODITY_OUT_OF_ORDER_OBSERVATION")
             state = json.loads(cursor.state_json)
-            if state.get("policy_hash") not in (None, self.policy_hash):
+            if state.get("policy_hash") not in (None, self.policy_hash, self.previous_policy_hash):
                 raise ValueError("COMMODITY_RESEARCH_POLICY_CHANGED")
             identity = json_value(
                 {
@@ -161,14 +167,7 @@ class CommodityResearch:
                 )
             }
             evidence = geometry(current, self.config.max_quote_age_seconds)
-            decision = acts_v2.decide(
-                ctx,
-                state.setdefault("watch", {}),
-                None,
-                {"COMMODITY_EXECUTION_POLICY_NOT_VALIDATED": 1},
-                [],
-                self.acts_config,
-            )
+            decision = direction(ctx, state.setdefault("watch", {}), self.acts_config)
             unavailable = ["EXECUTION_SPREAD", "EXECUTION_DEPTH", "EXECUTION_CREDIT", "CASH_SPOT", "COMMODITY_VIX"]
             if ctx["acts"]["alpha"]["status"] != "AVAILABLE":
                 unavailable.extend(["ALPHA_1", "ALPHA_2"])
@@ -227,7 +226,10 @@ class CommodityResearch:
                     "alpha": alpha,
                     "acts": decision,
                     "unavailable_components": unavailable,
-                    "score_basis": "ORIGINAL_100_POINT_WEIGHTS_NO_RESCALING",
+                    "score_basis": "CONTEXT_ONLY_NORMALIZED_BY_AVAILABLE_WEIGHT",
+                    "previous_policy_hash": (
+                        state.get("policy_hash") if state.get("policy_hash") != self.policy_hash else None
+                    ),
                     "execution_points_available": False,
                     "maximum_score_without_execution": 100
                     - sum(

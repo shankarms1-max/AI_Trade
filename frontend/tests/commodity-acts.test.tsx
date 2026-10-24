@@ -46,12 +46,12 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("isolated commodity ACTS research", () => {
-  it("labels score transferability and keeps research readiness distinct from execution validation", async () => {
+  it("keeps directional context distinct from native execution qualification", async () => {
     const ready = summary(); ready.instruments[0].readiness = "READY_FOR_ACTS_RESEARCH";
     vi.mocked(api.commodityActsSummary).mockResolvedValue(ready);
     render(<CommodityPage/>);
-    expect(screen.getByText(/Stage: SCORE_TRANSFERABILITY. ACTS directional\/scoring research only/)).toBeInTheDocument();
-    expect(screen.getByText(/This V1 score-only panel does not activate single-short paper entries/)).toBeInTheDocument();
+    expect(screen.getByText(/Stage: DIRECTIONAL_CONTEXT_RESEARCH. ACTS direction is separate/)).toBeInTheDocument();
+    expect(screen.getByText(/The context panel never places an entry/)).toBeInTheDocument();
     expect(await screen.findByText("READY FOR ACTS RESEARCH")).toBeInTheDocument();
     expect(screen.getAllByText(/These cards show V1 scoring\/research evidence only/)).toHaveLength(2);
     expect(screen.getAllByText("SINGLE SHORT (PAPER POLICY REQUIRED)")).toHaveLength(2);

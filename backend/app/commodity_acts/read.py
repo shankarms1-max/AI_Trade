@@ -30,6 +30,7 @@ def view(document: dict) -> dict:
         "lot_size",
         "atm",
         "policy_hash",
+        "previous_policy_hash",
         "unavailable_components",
         "score_basis",
         "maximum_score_without_execution",
@@ -39,8 +40,8 @@ def view(document: dict) -> dict:
     )
     result = {key: document[key] for key in keys if key in document}
     result.update(
-        stage=STAGE,
-        research_scope=RESEARCH_SCOPE,
+        stage=document.get("stage", STAGE),
+        research_scope=document.get("research_scope", RESEARCH_SCOPE),
         mode="PAPER",
         broker_orders_enabled=False,
         spread_execution_enabled=False,
@@ -87,6 +88,12 @@ def view(document: dict) -> dict:
             "status",
             "market_state",
             "direction",
+            "directional_score",
+            "directional_score_max",
+            "raw_context_points",
+            "raw_context_max",
+            "directional_components",
+            "directional_parameters",
             "opportunity_score",
             "score_band",
             "score_components",

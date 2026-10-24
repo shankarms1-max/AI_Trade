@@ -7,6 +7,7 @@ import json
 from sqlalchemy import select, update
 
 from app.acts_paper import acts_v2
+from app.commodity_acts.entry import EntryPolicy
 from app.commodity_acts.context import build_context
 from app.commodity_acts.broker import assert_market_only
 from app.commodity_acts.domain import CommoditySnapshot
@@ -46,6 +47,7 @@ class CommodityPaperEngine:
         self.spec, self.instrument, self.clock = research.spec, research.spec.instrument_id, research.clock
         self.scorer = research.acts_config
         self.policy = self.config.trading_policy(self.instrument)
+        self.entry_policy = self.config.entry_policy(self.instrument)
         if margin_reader is not None:
             assert_market_only(margin_reader)
         self.margin_reader = margin_reader
@@ -567,7 +569,15 @@ class CommodityPaperEngine:
                 # a risk-reducing BUY. This only evaluates an opposite signal;
                 # any actual subsequent SELL must pass normal entry gates again.
                 opposite, rejects = (
-                    candidates(current, direction, ctx, policy, known, deferred_margin=naked)
+                    candidates(
+                        current,
+                        direction,
+                        ctx,
+                        policy,
+                        known,
+                        deferred_margin=naked,
+                        entry_policy=EntryPolicy.model_validate(doc.get("entry_policy", {})),
+                    )
                     if direction is not None and direction != doc["direction"]
                     else (None, {})
                 )
@@ -719,7 +729,15 @@ class CommodityPaperEngine:
             watch = state.setdefault("watch", {})
             _, direction, _ = acts_v2.market_state(ctx, watch, self.scorer)
             candidate, rejected = (
-                candidates(current, direction, ctx, self.policy, known, deferred_margin=self.margin_reader is not None)
+                candidates(
+                    current,
+                    direction,
+                    ctx,
+                    self.policy,
+                    known,
+                    deferred_margin=self.margin_reader is not None,
+                    entry_policy=self.entry_policy,
+                )
                 if self.enabled and self.policy is not None and direction is not None
                 else (None, {})
             )
@@ -803,6 +821,8 @@ class CommodityPaperEngine:
                         "policy": self.policy,
                         "policy_hash": digest(self.policy),
                         "acts_policy": self.scorer.payload(),
+                        "entry_policy": self.entry_policy,
+                        "entry_policy_hash": decision["entry_policy_hash"],
                         "future_token": current.future_token,
                         "global_policy": global_policy,
                         "forced_exit_time": self.spec.market_session.forced_exit,
@@ -827,7 +847,7 @@ class CommodityPaperEngine:
                 row.observed_at = current.timestamp_ist.isoformat()
                 session.add(row)
                 session.flush()
-                order = self._order(session, row, doc, "ENTRY", current, sid, known, "ACTS_V2_ENTER")
+                order = self._order(session, row, doc, "ENTRY", current, sid, known, "COMMODITY_SINGLE_SHORT_ENTRY_V1")
                 doc["entry_order_id"] = order.id
                 self._save(row, doc)
                 self._emit(

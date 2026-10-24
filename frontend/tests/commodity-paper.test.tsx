@@ -94,7 +94,7 @@ describe("commodity paper evidence only", () => {
       latest: { risk_blocks: ["GLOBAL_DEFINED_RISK_LIMIT"], decision: { status: "BLOCKED", direction: "BULL", opportunity_score: 70 } } }] });
     render(<CommodityPaper/>);
     const table = await screen.findByRole("table", { name: "Commodity paper lifecycle ledger" });
-    expect(within(table).getByText("BLOCKED / BULL / 70.00")).toBeInTheDocument();
+    expect(within(table).getByText("BLOCKED / BULL / 70.00 legacy")).toBeInTheDocument();
     expect(within(table).getByText("GLOBAL_DEFINED_RISK_LIMIT")).toBeInTheDocument();
     expect(within(table).queryByText("FILLED")).not.toBeInTheDocument();
   });
@@ -121,4 +121,37 @@ describe("commodity paper evidence only", () => {
     expect(await screen.findByText("OUTSIDE SESSION")).toBeInTheDocument();
     expect(screen.getByText(/Paper entry activation: ENABLED/)).toBeInTheDocument();
   });
+  it("separates context direction from genuine native execution qualification", async () => {
+    const data = summary();
+    data.instruments![0].latest = { decision: { direction: "BEAR", market_state: "STRONG_BEAR",
+      directional_score: 66.2, directional_score_max: 100, directional_components: { momentum: 28, alpha: 8 },
+      entry_qualification: { version: "COMMODITY_SINGLE_SHORT_ENTRY_V1", status: "ELIGIBLE",
+        evidence: { option_token: "TEST_CE", option_type: "CE", strike: 6000, bid: 80, ask: 81,
+          otm_distance_points: 50, observed_strike_step: 25, bid_quantity_units: 10, ask_quantity_units: 20,
+          open_interest: 900, volume: 400, premium_to_stress_loss_estimate: 0.8 },
+        checks: { volume: { value: 400, minimum: null, status: "DIAGNOSTIC_ONLY" } } },
+      candidate_evaluations: [{ option_token: "TEST_CE", strike: 6000, status: "SELECTED" },
+        { option_token: "STALE_CE", strike: 6025, status: "REJECTED", reason: "STALE_OR_NONCAUSAL_QUOTE" }] } };
+    vi.mocked(api.commodityPaperSummary).mockResolvedValue(data);
+    render(<CommodityPaper/>);
+    expect(await screen.findByText("Directional state")).toBeInTheDocument();
+    expect(screen.getByText("Commodity entry qualification")).toBeInTheDocument();
+    expect(screen.getByText(/TEST_CE · CE 6,000.00/)).toBeInTheDocument();
+    expect(screen.getByText(/STALE_CE · 6,025.00 · REJECTED · STALE_OR_NONCAUSAL_QUOTE/)).toBeInTheDocument();
+    expect(screen.getByText(/400.00 · DIAGNOSTIC_ONLY · minimum N\/A/)).toBeInTheDocument();
+    expect(screen.queryByText(/ACTS V2 score/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Opportunity score")).not.toBeInTheDocument();
+  });
+  it("renders frozen trade qualification separately from the latest decision", async () => {
+    vi.mocked(api.commodityPaperPage).mockResolvedValue({ items: [{ state: "OPEN", decision: {
+      direction: "BULL", directional_score: 61, entry_qualification: { version: "COMMODITY_SINGLE_SHORT_ENTRY_V1",
+        status: "ELIGIBLE", evidence: { option_token: "FROZEN_PE", option_type: "PE", strike: 4900, bid: 90, ask: 91 } } } }] });
+    render(<CommodityPaper/>);
+    const table = await screen.findByRole("table", { name: "Commodity paper lifecycle ledger" });
+    expect(within(table).getByText("Frozen entry qualification")).toBeInTheDocument();
+    expect(within(table).getByText(/FROZEN_PE · PE 4,900.00/)).toBeInTheDocument();
+    expect(within(table).getByText("90.00 / 91.00")).toBeInTheDocument();
+    expect(within(table).getAllByText("N/A / N/A").length).toBeGreaterThan(0);
+  });
+
 });

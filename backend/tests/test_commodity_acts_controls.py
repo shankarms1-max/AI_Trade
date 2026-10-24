@@ -156,7 +156,13 @@ def test_directional_commodity_score_is_original_unscaled_and_execution_blocked(
     ctx = build_context(current, history, research.spec, clock.at, research.config.max_quote_age_seconds)
     ctx["acts"] = {"alpha": doc["acts"]["alpha"]}
     expected = acts_v2.decide(ctx, {}, None, {"COMMODITY_EXECUTION_POLICY_NOT_VALIDATED": 1}, [], research.acts_config)
-    assert doc["acts"] == expected
+    actual = doc["acts"]
+    assert actual["direction"] == expected["direction"] and actual["market_state"] == expected["market_state"]
+    assert actual["raw_context_points"] == expected["opportunity_score"]
+    assert actual["directional_components"] == {
+        k: v for k, v in expected["score_components"].items() if k != "execution"
+    }
+    assert actual["directional_score"] == pytest.approx(100 * expected["opportunity_score"] / 86, abs=0.0001)
     assert expected["direction"] == "BULL" and expected["opportunity_score"] > 0
     assert expected["score_components"]["execution"] == 0
     assert expected["opportunity_score"] == pytest.approx(sum(expected["score_components"].values()))

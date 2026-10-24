@@ -11,10 +11,10 @@ from app.alpha.clock import IST, SessionClock
 InstrumentId = Literal["CRUDEOILM", "NATGASMINI"]
 INSTRUMENTS = ("CRUDEOILM", "NATGASMINI")
 VERSION = "COMMODITY_ACTS_PAPER_V1"
-STAGE = "SCORE_TRANSFERABILITY"
+STAGE = "DIRECTIONAL_CONTEXT_RESEARCH"
 RESEARCH_SCOPE = (
-    "ACTS directional/scoring research only. Entry qualification is disabled "
-    "until commodity execution geometry is validated."
+    "ACTS directional context only. Single-short execution is independently "
+    "qualified by COMMODITY_SINGLE_SHORT_ENTRY_V1 in the paper engine."
 )
 
 
@@ -95,6 +95,7 @@ class CommoditySettings(BaseSettings):
     history_limit: int = Field(default=5000, ge=100, le=10000)
     trading_enabled: bool = False
     paper_policies_json: str = "{}"
+    single_short_entry_policies_json: str = "{}"
     global_max_positions: int = Field(default=2, ge=1, le=2)
     global_max_defined_risk: float | None = Field(default=None, gt=0)
     global_max_stress_risk: float | None = Field(default=None, gt=0)
@@ -108,6 +109,15 @@ class CommoditySettings(BaseSettings):
         if not isinstance(raw, dict) or set(raw) - set(INSTRUMENTS):
             raise ValueError("COMMODITY_PAPER_POLICY_MAP_REQUIRED")
         return load_policy(raw[instrument]) if instrument in raw else None
+
+    def entry_policy(self, instrument):
+        import json
+        from app.commodity_acts.entry import EntryPolicy
+
+        raw = json.loads(self.single_short_entry_policies_json)
+        if not isinstance(raw, dict) or set(raw) - set(INSTRUMENTS):
+            raise ValueError("COMMODITY_ENTRY_POLICY_MAP_REQUIRED")
+        return EntryPolicy.model_validate(raw.get(instrument, {}))
 
     def enabled(self, instrument: InstrumentId) -> bool:
         return self.paper_enabled and getattr(self, f"{instrument.lower()}_enabled")

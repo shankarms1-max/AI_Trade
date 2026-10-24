@@ -107,10 +107,12 @@ def test_watch_lifetime_uses_observations_not_restart_clock(
             assert doc["acts"]["alpha"]["status"] != "AVAILABLE"
         assert doc["stage"] == STAGE and doc["research_scope"] == RESEARCH_SCOPE
         assert doc["acts"]["status"] != "ENTER"
-        assert "NO_EXECUTABLE_CANDIDATE" in doc["acts"]["blockers"]
-        assert doc["acts"]["score_components"]["execution"] == 0
+        assert "NO_EXECUTABLE_CANDIDATE" not in doc["acts"]["blockers"]
+        assert "execution" not in doc["acts"]["directional_components"]
         assert doc["maximum_score_without_execution"] == 86
-        assert doc["acts"]["opportunity_score"] == pytest.approx(sum(doc["acts"]["score_components"].values()))
+        assert doc["acts"]["directional_score"] == pytest.approx(
+            100 * sum(doc["acts"]["directional_components"].values()) / doc["acts"]["raw_context_max"], abs=0.0001
+        )
         assert doc["broker_orders_enabled"] is doc["spread_execution_enabled"] is False and doc["pnl"] is None
     verify_journal(sessions, instrument)
     # A further restart verifies immutable event/capture/decision projections.

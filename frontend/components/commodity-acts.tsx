@@ -11,11 +11,11 @@ const stamp = (value?: string) => value ? `${dateIST(value)} · ${timeIST(value)
 const coverage = (value?: number) => value == null ? "N/A" : percent(value * 100);
 
 function Evidence({ data }: { data: CommodityDecision }) {
-  const components = data.acts.score_components ?? {};
+  const components = data.acts.directional_components ?? data.acts.score_components ?? {};
   return <details className="commodity-evidence"><summary>Score and market geometry evidence</summary>
     <p>Stage: {data.stage ?? "UNAVAILABLE"}. Research score classification only, not a trade signal or paper entry.</p>
     <p>ACTS event time: {stamp(data.acts.timestamp)}. Observed at: {stamp(data.observed_at)}. Processed at: {stamp(data.decided_at)}.</p>
-    <p>Original 100-point weights · no rescaling · execution unavailable (maximum score without execution: {integer(data.maximum_score_without_execution)}).</p>
+    {data.acts.directional_score != null ? <p>Directional context only · original context factors normalized by their total weight. Raw points {number(data.acts.raw_context_points)} / {number(data.acts.raw_context_max)}. Execution is qualified separately.</p> : <p>Original 100-point weights · no rescaling · execution unavailable (maximum score without execution: {integer(data.maximum_score_without_execution)}).</p>}
     <dl className="commodity-fields">{Object.entries(components).map(([name, value]) => <div key={name}><dt>{name.replaceAll("_", " ")}</dt><dd>{number(value)}</dd></div>)}</dl>
     <p>Unavailable: {data.unavailable_components?.join(", ") || "N/A"}</p>
     <p>Observed strikes: {data.geometry.strikes?.map(value => number(value)).join(" · ") || "N/A"}</p>
@@ -39,8 +39,8 @@ export function CommodityOverview({ instrument: selectedInstrument }: { instrume
       const latest = instrument.latest;
       return <Panel key={instrument.instrument_id} title={instrument.display_name} className="commodity-card">
         <Badge value={instrument.capture_state ?? instrument.readiness}/><p>Worker configuration: {instrument.configured_enabled ? "ENABLED" : "DISABLED"} · Process state unavailable</p>
-        <div className="overview-health-grid"><div className="health-tile"><span>Alpha state</span><Badge value={latest?.alpha.validity_state ?? "UNAVAILABLE"}/><p>{latest?.alpha.status ?? "No Alpha status reported"}</p></div><div className="health-tile"><span>Research classification</span><Badge value={latest?.acts.score_band ?? "UNAVAILABLE"}/><p>Score {number(latest?.acts.opportunity_score, 1)} / 100 · V1 context only</p></div></div>
-        {latest?.acts.score_components && <div className="score-breakdown">{Object.entries(latest.acts.score_components).map(([label, value]) => <div key={label} className="score-component"><span>{label.replaceAll("_", " ")}</span><strong>{number(value, 1)}</strong></div>)}</div>}
+        <div className="overview-health-grid"><div className="health-tile"><span>Alpha state</span><Badge value={latest?.alpha.validity_state ?? "UNAVAILABLE"}/><p>{latest?.alpha.status ?? "No Alpha status reported"}</p></div><div className="health-tile"><span>Research classification</span><Badge value={latest?.acts.score_band ?? "UNAVAILABLE"}/><p>Score {number((latest?.acts.directional_score ?? latest?.acts.opportunity_score), 1)} / 100 · directional context only</p></div></div>
+        {(latest?.acts.directional_components ?? latest?.acts.score_components) && <div className="score-breakdown">{Object.entries(latest.acts.directional_components ?? latest.acts.score_components ?? {}).map(([label, value]) => <div key={label} className="score-component"><span>{label.replaceAll("_", " ")}</span><strong>{number(value, 1)}</strong></div>)}</div>}
         {!instrument.session_configured && <p className="warning">VERIFIED MCX SESSION SETTINGS REQUIRED</p>}
         <p>These cards show V1 scoring/research evidence only. Use the single-short paper panel for authoritative entry and lifecycle state. New commodity spread entries are disabled.</p>
         <dl className="commodity-fields">
@@ -57,8 +57,8 @@ export function CommodityOverview({ instrument: selectedInstrument }: { instrume
           <div><dt>Alpha readiness</dt><dd>{latest?.alpha.validity_state ?? "UNAVAILABLE"}</dd></div>
           <div><dt>Alpha 1 / Alpha 2 state</dt><dd>{latest?.alpha.alpha_1_direction ?? "N/A"} / {latest?.alpha.alpha_2_direction ?? "N/A"}</dd></div>
           <div><dt>ACTS market state / direction</dt><dd>{latest?.acts.market_state ?? "N/A"} / {latest?.acts.direction ?? "N/A"}</dd></div>
-          <div><dt>ACTS score / band</dt><dd>{number(latest?.acts.opportunity_score)} / 100 · {latest?.acts.score_band ?? "N/A"}</dd></div>
-          <div><dt>Underlying ACTS status (entry disabled)</dt><dd>{latest?.acts.status ?? "NOT_CAPTURED"}</dd></div>
+          <div><dt>Context score / band</dt><dd>{number((latest?.acts.directional_score ?? latest?.acts.opportunity_score))} / 100 · {latest?.acts.score_band ?? "N/A"}</dd></div>
+          <div><dt>Directional context status (no entry execution)</dt><dd>{latest?.acts.status ?? "NOT_CAPTURED"}</dd></div>
           <div><dt>Observations / decisions</dt><dd>{integer(instrument.observation_count)} / {integer(instrument.decision_count)}</dd></div>
           <div><dt>Latest observation</dt><dd>{stamp(latest?.observed_at)}</dd></div>
           <div><dt>Session ID</dt><dd>{latest?.session_id ?? "N/A"}</dd></div>
@@ -79,7 +79,7 @@ function DecisionPage({ instrument, offset, onPage }: { instrument: CommodityIns
     <th>Observation (IST)</th><th>Instrument</th><th>Readiness</th><th>Market state</th><th>Score / band</th><th>Direction</th><th>Shadow decision</th><th>Blockers / evidence</th>
   </tr></thead><tbody>{data.items.map(row => <tr key={`${row.instrument_id}:${row.snapshot_id}`}>
     <td>{stamp(row.observed_at)}</td><td>{row.instrument_id}</td><td>{row.readiness}</td><td>{row.acts.market_state ?? "N/A"}</td>
-    <td>{number(row.acts.opportunity_score)} / 100 · {row.acts.score_band ?? "N/A"}</td><td>{row.acts.direction ?? "N/A"}</td>
+    <td>{number((row.acts.directional_score ?? row.acts.opportunity_score))} / 100 · {row.acts.score_band ?? "N/A"}</td><td>{row.acts.direction ?? "N/A"}</td>
     <td>{row.decision_kind ?? "SHADOW_DECISION"} · {row.acts.status ?? "N/A"}</td><td>{row.acts.blockers?.join(" · ") || "N/A"}<Evidence data={row}/></td>
   </tr>)}</tbody></ResponsiveTable></div> : <Empty>NO CAPTURED COMMODITY DECISIONS</Empty>}
     <div className="commodity-pagination"><button disabled={!offset} onClick={() => onPage(Math.max(0, offset - data.limit))}>Previous</button>
