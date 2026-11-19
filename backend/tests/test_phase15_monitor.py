@@ -152,12 +152,12 @@ def acts_event(sessions, sequence, kind, payload, *, snapshot_id=2, trade_id=Non
                                    previous_hash="a" * 64, event_hash="b" * 64, payload=json.dumps(payload)))
 
 
-def test_six_strategies_and_compact_gross_totals(session_factory):
+def test_seven_strategies_and_compact_gross_totals(session_factory):
     seed(session_factory)
     parallel_trade(session_factory, "ORB_15", "closed", "CLOSED", trade_doc(gross=120, exit=True))
     acts_trade(session_factory, "acts-open", "OPEN", trade_doc(mark=-35))
     result = summary(session_factory, AT)
-    assert [row["strategy_id"] for row in result["strategies"]] == ["ACTS_V2", *STRATEGIES]
+    assert [row["strategy_id"] for row in result["strategies"]] == ["ACTS_V2", *STRATEGIES, "ACTS_V3"]
     assert result["totals"] == {"realized_gross_pnl_today": 120,
                                 "unrealized_gross_pnl": -35, "combined_gross_pnl": 85,
                                 "open_positions": 1, "unresolved_exposures": 0,
@@ -287,7 +287,7 @@ def test_endpoint_reads_only_and_missing_schema_is_503(session_factory):
     event.listen(session_factory.class_, "before_flush", on_flush)
     try:
         result = TestClient(app).get("/api/phase15/summary")
-        assert result.status_code == 200 and len(result.json()["strategies"]) == 6
+        assert result.status_code == 200 and len(result.json()["strategies"]) == 7
         assert not flushed
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(ParallelPaperEvent)) == 0

@@ -149,6 +149,17 @@ describe("Phase 15 positions and journal", () => {
     await waitFor(() => expect(api.phase15Journal).toHaveBeenLastCalledWith({ date: undefined, strategy: "ORB_30", state: "CLOSED", offset: 0 }));
   });
 
+  it("filters V3 journal evidence independently from V2", async () => {
+    vi.mocked(api.phase15Journal).mockImplementation(async filters => page([
+      trade({strategy_id:filters?.strategy||"ACTS_V2",display_name:filters?.strategy==="ACTS_V3"?"ACTS V3":"ACTS V2"}),
+    ]));
+    render(<Phase15Journal/>);
+    await screen.findByRole("table",{name:"Paper trade journal"});
+    fireEvent.change(screen.getByLabelText("Strategy"),{target:{value:"ACTS_V3"}});
+    await waitFor(()=>expect(api.phase15Journal).toHaveBeenLastCalledWith(expect.objectContaining({strategy:"ACTS_V3",offset:0})));
+    expect(await within(screen.getByRole("table",{name:"Paper trade journal"})).findByText("ACTS V3")).toBeInTheDocument();
+  });
+
   it("paginates and resets to the first page when a filter changes", async () => {
     vi.mocked(api.phase15Journal).mockImplementation(async filters => page([trade()], { has_more: !filters?.offset, offset: filters?.offset ?? 0 }));
     render(<Phase15Journal/>);

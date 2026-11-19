@@ -12,7 +12,7 @@ import { OrbRange, OptionExecution } from "@/components/phase15-orb-evidence";
 import type { Phase15PaperTrade, Phase15Quote, Phase15TradePage } from "@/types";
 
 const STRATEGIES = [
-  ["ACTS_V2", "ACTS V2"], ["ORB_15", "ORB 15"], ["ORB_30", "ORB 30"], ["ORB_60", "ORB 60"],
+  ["ACTS_V2", "ACTS V2"], ["ACTS_V3", "ACTS V3"], ["ORB_15", "ORB 15"], ["ORB_30", "ORB 30"], ["ORB_60", "ORB 60"],
   ["EMA_PULLBACK", "EMA Pullback"], ["SUPERTREND_RSI_VOLUME", "Supertrend + RSI + Volume"],
 ];
 const STATES = ["OPEN", "CLOSED", "ENTRY_REJECTED", "PENDING_PAPER_ENTRY", "UNRESOLVED_EXPOSURE"];

@@ -6,6 +6,7 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 import json
 from math import isfinite
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy import JSON, Text, and_, case, cast, column, func, literal_column, or_, select, text
@@ -20,7 +21,11 @@ from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST, _aware
 
 
-NAMES = {"ACTS_V2": "ACTS V2", "ORB_15": "ORB 15", "ORB_30": "ORB 30",
+ACTS_VERSIONS = ("ACTS_V2", "ACTS_V3")
+ACTS_HISTORY_EVENT_LIMIT = 512
+V3_AUDIT_FIELDS = ("cycle_id", "cycle_state", "rearm_reason", "previous_direction", "previous_exit_reason",
+                   "previous_exit_timestamp", "reversal_confirmation_seconds", "opportunity_cycle_policy_version")
+NAMES = {"ACTS_V2": "ACTS V2", "ACTS_V3": "ACTS V3", "ORB_15": "ORB 15", "ORB_30": "ORB 30",
          "ORB_60": "ORB 60", "EMA_PULLBACK": "EMA Pullback",
          "SUPERTREND_RSI_VOLUME": "Supertrend + RSI + Volume"}
 ORDER = ("ACTS_V2", *STRATEGIES)
@@ -33,6 +38,17 @@ def _on_day(value: str | None, day) -> bool:
 
 def _number(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _cycle_audit(doc: dict) -> dict:
+    if doc.get("strategy_version") != "ACTS_V3":
+        return {}
+    nested = doc.get("opportunity_cycle")
+    evidence = {**(nested if isinstance(nested, dict) else {}),
+                **{key: doc[key] for key in V3_AUDIT_FIELDS if key in doc}}
+    return {key: value for key, value in evidence.items() if key in V3_AUDIT_FIELDS and (
+        value is None or isinstance(value, (str, bool)) or
+        isinstance(value, (int, float)) and isfinite(value))}
 
 
 def _decision_features(latest: dict) -> dict:
@@ -66,6 +82,7 @@ def _trade(row: Any, doc: dict, mark_available: bool) -> dict:
         holding = (datetime.fromisoformat(exit_at) - datetime.fromisoformat(entry_at)).total_seconds()
     return {
         "trade_id": row.id, "state": row.state,
+        **_cycle_audit(doc),
         "expiry_terminalization": expiry.is_unpriced(doc),
         "exit_pricing_status": doc.get("exit_pricing_status"),
         "terminalized_at": doc.get("terminalized_at"),
@@ -102,22 +119,27 @@ def _unavailable(strategy: str) -> dict:
 
 
 def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[Any], at: datetime,
-             future_price: float | None = None) -> dict:
-    if cursor is None or cursor.observed_at is None:
+             future_price: float | None = None, *, historical: bool = False,
+             decoded_latest: dict | None = None, documents: dict | None = None,
+             event_payloads: dict | None = None) -> dict:
+    if (cursor is None or cursor.observed_at is None) and not historical:
         return _unavailable(strategy)
     day = at.astimezone(IST).date()
-    latest = json.loads(cursor.latest_json)
-    if (not isinstance(latest, dict) or not latest
-            or (strategy == "ACTS_V2" and latest.get("strategy_version") != "ACTS_V2")):
+    latest = (decoded_latest if decoded_latest is not None else
+              json.loads(cursor.latest_json) if cursor is not None else {})
+    if (not isinstance(latest, dict) or not latest and not historical
+            or (latest and strategy in ACTS_VERSIONS and latest.get("strategy_version") != strategy)):
         return _unavailable(strategy)
     rejections: list[str | None] = []
     failed_marks: dict[str, bool] = {}
     blocked_signals: set[tuple] = set()
     rejected_trades: set[str] = set()
     for event in events:
-        payload = json.loads(event.payload)
-        if strategy == "ACTS_V2":
-            if payload.get("strategy_version") != "ACTS_V2":
+        payload = event_payloads[event.sequence] if event_payloads is not None else json.loads(event.payload)
+        if not isinstance(payload, dict):
+            raise ValueError("INVALID_SUMMARY_EVENT_OBJECT")
+        if strategy in ACTS_VERSIONS:
+            if payload.get("strategy_version") != strategy:
                 continue
             if event.event_type == "ACTS_ENTRY_REJECTED":
                 if event.trade_id is None or event.trade_id not in rejected_trades:
@@ -149,8 +171,10 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     active: list[dict] = []
     unresolved_count = expired_count = 0
     for row in rows:
-        doc = json.loads(row.document)
-        if strategy == "ACTS_V2" and doc.get("strategy_version") != "ACTS_V2":
+        doc = documents[row.id] if documents is not None else json.loads(row.document)
+        if not isinstance(doc, dict):
+            raise ValueError("INVALID_SUMMARY_TRADE_OBJECT")
+        if strategy in ACTS_VERSIONS and doc.get("strategy_version") != strategy:
             continue
         mark_available = not failed_marks.get(row.id, False)
         unresolved_count += row.state == "UNRESOLVED_EXPOSURE"
@@ -166,9 +190,10 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     mark_values = [trade["current_unrealized_gross_pnl"] for trade in active]
     realized = sum(realized_values) if all(value is not None for value in realized_values) else None
     unrealized = sum(mark_values) if all(value is not None for value in mark_values) else None
-    latest_blocker = (latest.get("primary_blocker") if strategy == "ACTS_V2" else
+    latest_blocker = (latest.get("primary_blocker") if strategy in ACTS_VERSIONS else
                       next(iter(latest.get("blockers") or []), None))
-    orb_range = orb_features(strategy, latest.get("features"), cursor.observed_at)
+    observed_at = cursor.observed_at if cursor is not None else None
+    orb_range = orb_features(strategy, latest.get("features"), observed_at)
     if orb_range is not None:
         orb_range.update(current_future_price=future_price, status=latest.get("status"),
                          blocker=latest_blocker, decision_reason=latest.get("entry_reason"))
@@ -184,10 +209,71 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
             "latest_status": latest.get("status"),
             "direction": latest.get("direction"), "decision_features": _decision_features(latest),
             "latest_blocker": latest_blocker,
-            "latest_timestamp": latest.get("timestamp") or cursor.observed_at,
+            "latest_timestamp": latest.get("timestamp") or observed_at,
             "orb_range": orb_range,
             "accounting_status": "GROSS_ONLY",
             "today_trades": sorted(entered, key=lambda trade: (trade["entry_timestamp"], trade["trade_id"]))}
+
+
+def _event_version(session: Session, payload: Any) -> tuple[Any, Any]:
+    """Guard JSON extraction even when the planner reorders WHERE predicates."""
+    if session.get_bind().dialect.name == "postgresql":
+        valid = payload.op("IS JSON", is_comparison=True)(literal_column("OBJECT"))
+        field = cast(payload, JSON)["strategy_version"].as_string()
+    else:
+        valid = case((func.json_valid(payload), func.json_type(payload) == "object"), else_=False)
+        field = func.json_extract(payload, "$.strategy_version")
+    return valid, case((valid, field))
+
+
+def _acts_latest(session: Session, cursor: Any, versions: Sequence[str],
+                 decoded_latest: dict | None = None) -> dict[str, Any]:
+    """Recover historical signals from at most 512 sequence slots, never replay.
+
+    An older signal outside this indexed tail remains unavailable. Its trade
+    metrics still come from the complete trade projection, not this tail.
+    """
+    result: dict[str, Any] = {}
+    if cursor is not None:
+        try:
+            latest = decoded_latest if decoded_latest is not None else json.loads(cursor.latest_json)
+            current = latest.get("strategy_version") if isinstance(latest, dict) else None
+        except (TypeError, ValueError):
+            return result
+        if current in ACTS_VERSIONS:
+            result[current] = cursor
+    missing = [version for version in versions if version not in result]
+    if not missing:
+        return result
+    model = ActsPaperEvent
+    head = select(func.max(model.sequence)).correlate(None).scalar_subquery()
+    # Primary-key range bounds all JSON inspection; no historical journal scan.
+    # LIMIT precedes event/version predicates: otherwise PostgreSQL can choose
+    # a full-table scan for a rare historical version despite the sequence bound.
+    tail = select(model.sequence, model.snapshot_id, model.event_type, model.payload).where(
+        model.sequence > head - ACTS_HISTORY_EVENT_LIMIT).order_by(model.sequence.desc()).limit(
+            ACTS_HISTORY_EVENT_LIMIT).subquery()
+    valid, version = _event_version(session, tail.c.payload)
+    document = case((valid, cast(tail.c.payload, JSON))) if session.get_bind().dialect.name == "postgresql" else None
+    for wanted in missing:
+        latest_field = (document["latest"] if document is not None else
+                        case((valid, func.json_extract(tail.c.payload, "$.latest"))))
+        time_field = (document["market_timestamp"].as_string() if document is not None else
+                      case((valid, func.json_extract(tail.c.payload, "$.market_timestamp"))))
+        row = session.execute(select(tail.c.snapshot_id, latest_field.label("latest"),
+                                     time_field.label("observed_at")).where(
+                                         tail.c.event_type == "ACTS_OBSERVATION", version == wanted).order_by(
+                                         tail.c.sequence.desc()).limit(1)).first()
+        if row is None or not row.observed_at:
+            continue
+        try:
+            latest = json.loads(row.latest) if isinstance(row.latest, str) else row.latest
+        except (TypeError, ValueError):
+            continue
+        if isinstance(latest, dict) and latest.get("strategy_version") == wanted:
+            result[wanted] = SimpleNamespace(snapshot_id=row.snapshot_id, observed_at=row.observed_at,
+                                             latest_json=json.dumps(latest), decoded_latest=latest)
+    return result
 
 
 def _event_payload(session: Session, payload: Any, acts: bool) -> Any:
@@ -230,21 +316,15 @@ def _summary_events(session: Session, model: Any, rows: Sequence[Any], start: da
             position(model.payload, "ENTRY_REJECTED") > 0, position(model.payload, "\\") > 0)), else_=False)
         wanted = or_(wanted, and_(model.event_type == "OBSERVATION", could_reject))
     if acts:
-        if session.get_bind().dialect.name == "postgresql":
-            valid = model.payload.op("IS JSON", is_comparison=True)(literal_column("OBJECT"))
-            version_field = cast(model.payload, JSON)["strategy_version"].as_string()
-        else:
-            valid = case((func.json_valid(model.payload), func.json_type(model.payload) == "object"),
-                         else_=False)
-            version_field = func.json_extract(model.payload, "$.strategy_version")
-        version = case((valid, version_field))
+        valid, version = _event_version(session, model.payload)
         # Filter versions BEFORE ranking: a later V1 mark must not hide a V2 mark.
         # Malformed selected evidence still reaches per-strategy failure handling.
-        wanted = and_(wanted, or_(~valid, version == "ACTS_V2"))
+        wanted = and_(wanted, or_(~valid, version.in_(ACTS_VERSIONS)))
     columns = [model.sequence, model.event_type, model.trade_id, model.payload]
     partitions = [model.event_type, model.trade_id]
     if acts:
         columns.append(valid.label("valid_payload"))
+        partitions.append(version)
     else:
         columns.append(model.strategy_id)
         partitions.append(model.strategy_id)
@@ -293,6 +373,31 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
         acts_rows = session.execute(select(ActsPaperTrade.id, ActsPaperTrade.state, ActsPaperTrade.document)).all()
         acts_events = _summary_events(session, ActsPaperEvent, acts_rows, start, end)
 
+        try:
+            acts_latest = json.loads(acts_cursor.latest_json) if acts_cursor else {}
+            acts_latest = acts_latest if isinstance(acts_latest, dict) else {}
+        except (TypeError, ValueError):
+            acts_latest = {}
+        current_version = acts_latest.get("strategy_version")
+        # Decode once for version selection AND projection. Preserve the
+        # production JSON budget even when only V2 is present.
+        acts_documents = {}
+        for trade in acts_rows:
+            try:
+                acts_documents[trade.id] = json.loads(trade.document)
+            except (TypeError, ValueError):
+                acts_documents[trade.id] = None
+        # Both reporting versions exist before their first observation/trade.
+        # Reuse decoded event projections across versions, preserving the V2
+        # JSON budget and malformed-evidence failure handling.
+        acts_payloads = {}
+        for item in acts_events:
+            try:
+                acts_payloads[item.sequence] = json.loads(item.payload)
+            except (TypeError, ValueError):
+                acts_payloads[item.sequence] = None
+        cursors = _acts_latest(session, acts_cursor, ACTS_VERSIONS, acts_latest)
+
         rows_by_strategy: dict[str, list[Any]] = defaultdict(list)
         events_by_strategy: dict[str, list[Any]] = defaultdict(list)
         for row in parallel_rows:
@@ -301,10 +406,10 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
             events_by_strategy[event.strategy_id].append(event)
 
         strategies = []
-        for strategy in ORDER:
-            cursor = acts_cursor if strategy == "ACTS_V2" else parallel_cursors.get(strategy)
-            rows = acts_rows if strategy == "ACTS_V2" else rows_by_strategy[strategy]
-            events = acts_events if strategy == "ACTS_V2" else events_by_strategy[strategy]
+        for strategy in (*ORDER, *ACTS_VERSIONS[1:]):
+            cursor = cursors.get(strategy) if strategy in ACTS_VERSIONS else parallel_cursors.get(strategy)
+            rows = acts_rows if strategy in ACTS_VERSIONS else rows_by_strategy[strategy]
+            events = acts_events if strategy in ACTS_VERSIONS else events_by_strategy[strategy]
             try:
                 snapshot = futures.get(cursor.snapshot_id) if cursor and strategy in ORB_MINUTES else None
                 future_price = (float(snapshot.nifty_future) if cursor is not None and cursor.observed_at
@@ -312,7 +417,15 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
                                 and snapshot.nifty_future is not None
                                 and _aware(snapshot.captured_at) == datetime.fromisoformat(cursor.observed_at)
                                 else None)
-                strategies.append(_project(strategy, cursor, rows, events, at, future_price))
+                strategies.append(_project(strategy, cursor, rows, events, at, future_price,
+                                           historical=strategy in ACTS_VERSIONS and (
+                                               current_version in ACTS_VERSIONS and strategy != current_version
+                                               or strategy == "ACTS_V3" and cursor is None),
+                                           decoded_latest=(acts_latest if cursor is acts_cursor else
+                                                           getattr(cursor, "decoded_latest", None))
+                                           if strategy in ACTS_VERSIONS else None,
+                                           documents=acts_documents if strategy in ACTS_VERSIONS else None,
+                                           event_payloads=acts_payloads if strategy in ACTS_VERSIONS else None))
             except (KeyError, TypeError, ValueError):
                 strategies.append(_unavailable(strategy))
 

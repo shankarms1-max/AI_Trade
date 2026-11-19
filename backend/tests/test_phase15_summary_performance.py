@@ -54,7 +54,10 @@ def projection_sessions(engine):
 
 def same(sessions, at=AT):
     expected = legacy_summary(sessions, at)
-    assert summary(sessions, at) == expected
+    actual = summary(sessions, at)
+    assert {
+        **actual, "strategies": [row for row in actual["strategies"] if row["strategy_id"] != "ACTS_V3"],
+    } == expected
     return expected
 
 
@@ -234,7 +237,9 @@ def test_moderate_event_history_is_pruned_before_python_decoding(session_factory
     started = perf_counter()
     actual = summary(session_factory, AT)
     elapsed_ms = (perf_counter() - started) * 1000
-    assert actual == expected
+    assert {
+        **actual, "strategies": [row for row in actual["strategies"] if row["strategy_id"] != "ACTS_V3"],
+    } == expected
     assert actual["strategies"][1]["unrealized_gross_pnl"] is None
     assert actual["strategies"][0]["unrealized_gross_pnl"] is None
     # Six cursors, two trades and two latest active MARKs, not 1,500 event bodies.

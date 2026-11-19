@@ -10,12 +10,12 @@ import json
 from math import isfinite
 from typing import Any
 
-from sqlalchemy import JSON, cast, func, literal, select, text, type_coerce, union_all
+from sqlalchemy import JSON, case, cast, func, or_, select, text, type_coerce, union_all
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperEvent, ActsPaperTrade
 from app.parallel_paper.models import ParallelPaperEvent, ParallelPaperTrade
-from app.parallel_paper.monitor import NAMES, ORDER
+from app.parallel_paper.monitor import ACTS_VERSIONS, NAMES, ORDER, _cycle_audit, _event_version
 from app.parallel_paper.orb_evidence import orb_features
 from app.paper import expiry
 from app.scalper.models import ScalperMarketSnapshotRecord
@@ -75,20 +75,30 @@ def _marks(session: Session, rows: list[Any]) -> dict[tuple[str, str], dict]:
     result = {}
     model: Any
     for model, acts in ((ActsPaperEvent, True), (ParallelPaperEvent, False)):
-        ids = [row.trade_id for row in rows if (row.strategy_id == "ACTS_V2") == acts]
+        versions = {row.trade_id: row.strategy_id for row in rows if (row.strategy_id in ACTS_VERSIONS) == acts}
+        ids = list(versions)
         if not ids:
             continue
+        source_strategy = case(versions, value=model.trade_id) if acts else model.strategy_id
+        compatible: Any = True
+        if acts:
+            valid, version = _event_version(session, model.payload)
+            # Older V2 fixtures/evidence can omit the version; V3 must identify
+            # itself. A conflicting newer mark must not mask a correct older one.
+            compatible = or_(~valid, version == source_strategy, version.is_(None))
         query = select(
-            literal("ACTS_V2").label("strategy_id") if acts else model.strategy_id,
+            source_strategy.label("strategy_id"),
             model.trade_id, model.payload, model.snapshot_id,
             func.row_number().over(partition_by=(model.trade_id,) if acts else
                                    (model.strategy_id, model.trade_id),
                                    order_by=model.sequence.desc()).label("rank"),
-        ).where(model.trade_id.in_(ids), model.event_type == ("ACTS_MARK" if acts else "MARK")).subquery()
+        ).where(model.trade_id.in_(ids), model.event_type == ("ACTS_MARK" if acts else "MARK"), compatible).subquery()
         for mark in session.execute(select(query, ScalperMarketSnapshotRecord.captured_at).join(
                 ScalperMarketSnapshotRecord, ScalperMarketSnapshotRecord.id == query.c.snapshot_id
         ).where(query.c.rank == 1)):
             payload = _dict(json.loads(mark.payload))
+            if acts and mark.strategy_id == "ACTS_V3" and payload.get("strategy_version") is None:
+                payload = {"available": False, "reason": "ACTS_MARK_VERSION_UNAVAILABLE"}
             result[(mark.strategy_id, mark.trade_id)] = {
                 "available": payload.get("available") is True,
                 "timestamp": _aware(mark.captured_at), "snapshot_id": mark.snapshot_id,
@@ -126,6 +136,7 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
     rejected = _dict(doc.get("candidate_rejections") or decision.get("candidate_rejections"))
     return {
         "trade_id": row.trade_id, "strategy_id": row.strategy_id,
+        **_cycle_audit(doc),
         "expiry_terminalization": expiry.is_unpriced(doc),
         "exit_pricing_status": doc.get("exit_pricing_status"),
         "terminalized_at": doc.get("terminalized_at"),
@@ -178,7 +189,7 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
            day: date | None = None, strategy: str | None = None, state: str | None = None,
            limit: int = 100, offset: int = 0) -> dict:
     """One bounded page, no writes, recomputation of market evidence, or engines."""
-    if (strategy is not None and strategy not in ORDER) or (state is not None and state not in STATES):
+    if (strategy is not None and strategy not in (*ORDER, "ACTS_V3")) or (state is not None and state not in STATES):
         raise ValueError("INVALID_PHASE15_TRADE_FILTER")
     if not 1 <= limit <= 100 or not 0 <= offset <= 100000:
         raise ValueError("INVALID_PHASE15_TRADE_PAGE")
@@ -189,15 +200,18 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
         queries = []
         model: Any
         for model, acts in ((ActsPaperTrade, True), (ParallelPaperTrade, False)):
-            source_strategy = literal("ACTS_V2") if acts else model.strategy_id
+            if acts:
+                document = (cast(model.document, JSON) if session.get_bind().dialect.name == "postgresql"
+                            else type_coerce(model.document, JSON))
+                source_strategy = document["strategy_version"].as_string()
+            else:
+                source_strategy = model.strategy_id
             query = select(model.id.label("trade_id"), source_strategy.label("strategy_id"),
                            model.state, model.document, ScalperMarketSnapshotRecord.captured_at.label("decision_at")
                            ).join(ScalperMarketSnapshotRecord,
                                   ScalperMarketSnapshotRecord.id == model.decision_snapshot_id)
             if acts:
-                document = (cast(model.document, JSON) if session.get_bind().dialect.name == "postgresql"
-                            else type_coerce(model.document, JSON))
-                query = query.where(document["strategy_version"].as_string() == "ACTS_V2")
+                query = query.where(document["strategy_version"].as_string().in_(ACTS_VERSIONS))
             else:
                 query = query.where(model.strategy_id.in_(ORDER[1:]))
             if strategy is not None:

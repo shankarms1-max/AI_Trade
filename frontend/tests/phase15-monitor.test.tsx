@@ -76,6 +76,47 @@ describe("Phase 15 responsive strategy monitor",()=>{
   data.strategies[5].decision_features={supertrend_direction:"BEAR",rsi:34,volume_ratio:1.3};
   render(<Phase15Monitor summary={data}/>);expect(screen.getByText("58.6")).toBeInTheDocument();expect(screen.getByText("25,701.00")).toBeInTheDocument();expect(screen.getByText("34.0")).toBeInTheDocument();
  });
+ it("keeps V3 separate and uses ACTS facts rather than Supertrend facts",()=>{
+  const data=fixture();data.strategies[0].decision_features={opportunity_score:58.6,score_band:"TRADEABLE",alpha_state:"BEAR"};
+  data.strategies.push({...structuredClone(data.strategies[0]),strategy_id:"ACTS_V3",display_name:"ACTS V3",trades_today:2,
+   realized_gross_pnl_today:125,decision_features:{opportunity_score:86.2,score_band:"VERY_STRONG",alpha_state:"BULL"},
+   today_trades:[{...openTrade,cycle_id:"stored-cycle",cycle_state:"ENTERED",reversal_confirmation_seconds:60}]});
+  const before=structuredClone(data);render(<Phase15Monitor summary={data} workspace/>);
+  const v2=within(screen.getByRole("article",{name:"ACTS V2 strategy"}));
+  const v3=within(screen.getByRole("article",{name:"ACTS V3 strategy"}));
+  expect(v2.getByText("58.6")).toBeInTheDocument();expect(v2.queryByText("86.2")).not.toBeInTheDocument();
+  expect(v3.getByText("Score")).toBeInTheDocument();expect(v3.getByText("86.2")).toBeInTheDocument();
+  expect(v3.getByText("VERY STRONG")).toBeInTheDocument();expect(v3.getByText("Alpha")).toBeInTheDocument();
+  expect(v3.queryByText("RSI")).not.toBeInTheDocument();expect(v3.queryByText("Volume ratio")).not.toBeInTheDocument();
+  expect(screen.getByText(/7 NIFTY strategies/)).toBeInTheDocument();expect(data).toEqual(before);
+  fireEvent.change(screen.getByLabelText("Strategy selection"),{target:{value:"ACTS_V3"}});
+  expect(screen.getByRole("button",{name:"Expand ACTS V3"})).toBeInTheDocument();
+  expect(screen.queryByRole("button",{name:"Expand ACTS V2"})).not.toBeInTheDocument();
+  expect(screen.getByText(/7 NIFTY strategies/)).toBeInTheDocument();
+ });
+ it.each([1,6,7])("derives the strategy count from the %s supplied rows",count=>{
+  const data=fixture();data.strategies=Array.from({length:count},(_,index)=>index<6?data.strategies[index]:{
+   ...data.strategies[0],strategy_id:"ACTS_V3",display_name:"ACTS V3"});
+  render(<Phase15Monitor summary={data}/>);expect(screen.getByText(`${count} NIFTY strategies`,{exact:false})).toBeInTheDocument();
+ });
+ it("keeps missing V3 scores unknown",()=>{
+  const data=fixture();data.strategies=[{...data.strategies[0],strategy_id:"ACTS_V3",display_name:"ACTS V3",decision_features:undefined}];
+  render(<Phase15Monitor summary={data}/>);const facts=within(screen.getByRole("article",{name:"ACTS V3 strategy"}));
+  for(const label of ["Score","Band","Alpha"])expect(within(facts.getByText(label)).getByText("N/A")).toBeInTheDocument();
+  expect(facts.queryByText("RSI")).not.toBeInTheDocument();
+ });
+ it("shows an unobserved V3 row alongside V2 with zero counts and no inherited facts",()=>{
+  const data=fixture();data.strategies[0].decision_features={opportunity_score:58.6,score_band:"TRADEABLE",alpha_state:"BEAR"};
+  data.strategies.push({...data.strategies[0],strategy_id:"ACTS_V3",display_name:"ACTS V3",trades_today:0,
+   open_position_count:0,unresolved_exposure_count:0,realized_gross_pnl_today:0,unrealized_gross_pnl:0,
+   latest_status:null,latest_timestamp:null,direction:null,latest_blocker:null,today_trades:[],
+   decision_features:{opportunity_score:null,score_band:null,alpha_state:null}});
+  render(<Phase15Monitor summary={data}/>);const v3=within(screen.getByRole("article",{name:"ACTS V3 strategy"}));
+  expect(screen.getByText(/7 NIFTY strategies/)).toBeInTheDocument();expect(v3.getByText("0 open · 0 trades")).toBeInTheDocument();
+  for(const label of ["Score","Band","Alpha"])expect(within(v3.getByText(label)).getByText("N/A")).toBeInTheDocument();
+  expect(v3.queryByText("58.6")).not.toBeInTheDocument();expect(v3.queryByText("BEAR")).not.toBeInTheDocument();
+  expect(v3.queryByText("RSI")).not.toBeInTheDocument();
+ });
  it("keeps unavailable strategy inputs unknown",()=>{
   const data=fixture();data.strategies[4]={...data.strategies[4],latest_status:null,open_position_count:null,decision_features:undefined};render(<Phase15Monitor summary={data}/>);
   expect(screen.getByRole("article",{name:"EMA Pullback strategy"})).toHaveTextContent("N/A");

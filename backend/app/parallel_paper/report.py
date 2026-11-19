@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.acts_paper.models import ActsPaperCursor, ActsPaperTrade
 from app.parallel_paper.config import STRATEGIES, VERSIONS
 from app.parallel_paper.models import ParallelPaperCursor, ParallelPaperTrade
+from app.parallel_paper.monitor import ACTS_VERSIONS, _acts_latest
 from app.research.manifest import json_value
 from app.paper import expiry
 from app.scalper.repository import IST
@@ -91,12 +92,15 @@ def report(sessions: sessionmaker[Session], at: datetime) -> dict:
                                 **statistics([(row.state, json.loads(row.document)) for row in rows], at)}
         # Read the original ACTS projection without instantiating or invoking its service.
         acts_rows = session.scalars(select(ActsPaperTrade).order_by(ActsPaperTrade.decision_snapshot_id)).all()
-        acts_docs = [(row.state, json.loads(row.document)) for row in acts_rows
-                     if json.loads(row.document).get("strategy_version") == "ACTS_V2"]
         acts_cursor = session.get(ActsPaperCursor, 1)
-        result["ACTS_V2"] = {
-            "strategy_id": "ACTS_V2", "strategy_version": "ACTS_V2",
-            "latest": json.loads(acts_cursor.latest_json) if acts_cursor else {},
-            "journal_head": acts_cursor.head_hash if acts_cursor else None,
-            **statistics(acts_docs, at)}
+        latest = json.loads(acts_cursor.latest_json) if acts_cursor else {}
+        docs = [(row.state, json.loads(row.document)) for row in acts_rows]
+        cursors = _acts_latest(session, acts_cursor, ACTS_VERSIONS, latest)
+        for version in ACTS_VERSIONS:
+            version_cursor = cursors.get(version)
+            result[version] = {
+                "strategy_id": version, "strategy_version": version,
+                "latest": json.loads(version_cursor.latest_json) if version_cursor else {},
+                "journal_head": acts_cursor.head_hash if acts_cursor else None,
+                **statistics([(state, doc) for state, doc in docs if doc.get("strategy_version") == version], at)}
         return json_value({"mode": "PAPER", "as_of": at, "strategies": result})

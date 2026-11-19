@@ -10,7 +10,7 @@ import { OrbRange } from "@/components/phase15-orb-evidence";
 import { observationState } from "@/lib/monitoring";
 
 const DISPLAY_NAMES: Record<string, string> = {
-  ACTS_V2: "ACTS V2", ORB_15: "ORB 15", ORB_30: "ORB 30", ORB_60: "ORB 60",
+  ACTS_V2: "ACTS V2", ACTS_V3: "ACTS V3", ORB_15: "ORB 15", ORB_30: "ORB 30", ORB_60: "ORB 60",
   EMA_PULLBACK: "EMA Pullback", SUPERTREND_RSI_VOLUME: "Supertrend + RSI + Volume",
 };
 
@@ -54,7 +54,7 @@ function TradeDetails({ strategy }: { strategy: Phase15Strategy }) {
 function StrategyFacts({strategy}:{strategy:Phase15Strategy}) {
   const f=strategy.decision_features;
   if(strategy.strategy_id.startsWith("ORB_"))return <div className="strategy-facts"><span>High <b>{number(strategy.orb_range?.opening_high)}</b></span><span>Low <b>{number(strategy.orb_range?.opening_low)}</b></span><span>Future <b>{number(strategy.orb_range?.current_future_price)}</b></span></div>;
-  if(strategy.strategy_id==="ACTS_V2")return <div className="strategy-facts"><span>Score <b>{number(f?.opportunity_score,1)}</b></span><span>Band <b>{f?.score_band?.replaceAll("_"," ")??"N/A"}</b></span><span>Alpha <b>{f?.alpha_state??"N/A"}</b></span></div>;
+  if(strategy.strategy_id==="ACTS_V2"||strategy.strategy_id==="ACTS_V3")return <div className="strategy-facts"><span>Score <b>{number(f?.opportunity_score,1)}</b></span><span>Band <b>{f?.score_band?.replaceAll("_"," ")??"N/A"}</b></span><span>Alpha <b>{f?.alpha_state??"N/A"}</b></span></div>;
   if(strategy.strategy_id==="EMA_PULLBACK")return <div className="strategy-facts"><span>EMA fast <b>{number(f?.ema_fast)}</b></span><span>EMA slow <b>{number(f?.ema_slow)}</b></span><span>Resumption <b>{number(f?.resumption_strength_bps)} bps</b></span></div>;
   return <div className="strategy-facts"><span>Trend <b>{f?.supertrend_direction??"N/A"}</b></span><span>RSI <b>{number(f?.rsi,1)}</b></span><span>Volume ratio <b>{number(f?.volume_ratio)}</b></span></div>;
 }
@@ -71,7 +71,7 @@ export function Phase15Monitor({ workspace=false,compact=false,pending=false,sum
   const visible=(data?.strategies??[]).filter(s=>(selected==="ALL"||selected===s.strategy_id)&&`${s.display_name} ${s.latest_status} ${s.latest_blocker}`.toLowerCase().includes(query.toLowerCase()));
   const range=data?.strategies.find(s=>s.strategy_id===orb);
   return <section className="phase15-monitor" aria-label="Phase 15 paper strategy monitor">
-    <header className="section-title"><h2>Strategy status</h2><span>Six NIFTY strategies · <Badge value={pending?"PENDING":data&&!error?"GROSS_ONLY":"UNAVAILABLE"}/></span></header>
+    <header className="section-title"><h2>Strategy status</h2><span>{data?`${data.strategies.length} NIFTY strategies`:"NIFTY strategies"} · <Badge value={pending?"PENDING":data&&!error?"GROSS_ONLY":"UNAVAILABLE"}/></span></header>
     {error?<SectionError>PHASE 15 MONITOR UNAVAILABLE</SectionError>:!data?<div className="strategy-skeleton" aria-busy="true">Loading strategy evidence…</div>:<>
       {!compact&&<div className="phase15-metrics"><Metric label="Realized Gross Today" value={amount(data.totals.realized_gross_pnl_today)}/><Metric label="Live Unrealized Gross" value={amount(data.totals.unrealized_gross_pnl)}/><Metric label="Open Positions" value={integer(data.totals.open_positions)}/><Metric label="Unresolved" value={integer(data.totals.unresolved_exposures)}/></div>}
       {workspace&&<details className="strategy-filters"><summary>Filter strategies</summary><div className="filter-controls"><label>Strategy<select aria-label="Strategy selection" value={selected} onChange={e=>setSelected(e.target.value)}><option value="ALL">All strategies</option>{data.strategies.map(s=><option key={s.strategy_id} value={s.strategy_id}>{s.display_name}</option>)}</select></label><label>Search<input aria-label="Filter strategies" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Signal or blocker"/></label></div></details>}

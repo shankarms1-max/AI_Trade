@@ -92,7 +92,7 @@ def test_simultaneous_independent_positions_fills_pnl_restart_and_acts_untouched
         assert doc["entry_quotes"]["short"]["side"] == "bid"
         assert doc["entry_quotes"]["long"]["side"] == "ask"
     heads = report(paper.sessions, raw(243).captured_at)
-    assert set(heads["strategies"]) == {*STRATEGIES, "ACTS_V2"}
+    assert set(heads["strategies"]) == {*STRATEGIES, "ACTS_V2", "ACTS_V3"}
     assert heads["strategies"]["ORB_15"]["trades_today"] == 1
     assert heads["strategies"]["EMA_PULLBACK"]["trades_today"] == 0
     restarted = ParallelPaperService(paper.sessions, settings())
@@ -304,7 +304,7 @@ def test_status_has_no_broker_or_strategy_execution_path(engine, monkeypatch, ca
         AssertionError("status attempted broker access")))
     before = report(paper.sessions, START)
     assert worker.main(["--mode", "PAPER", "--status"]) == 0
-    assert set(json.loads(capsys.readouterr().out)["strategies"]) == {*STRATEGIES, "ACTS_V2"}
+    assert set(json.loads(capsys.readouterr().out)["strategies"]) == {*STRATEGIES, "ACTS_V2", "ACTS_V3"}
     assert report(paper.sessions, START) == before
 
 

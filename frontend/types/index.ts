@@ -20,6 +20,10 @@ export interface Phase15OrbRange {
   blocker?: string | null; decision_reason?: string | null;
 }
 export interface Phase15Trade {
+  cycle_id?: string | null; cycle_state?: string | null; rearm_reason?: string | null;
+  previous_direction?: string | null; previous_exit_reason?: string | null;
+  previous_exit_timestamp?: string | null; reversal_confirmation_seconds?: number | null;
+  opportunity_cycle_policy_version?: string | null;
   trade_id: string; state: string; direction: string | null;
   strategy_features?: Phase15OrbRange | null;
   decision_timestamp: string | null; entry_timestamp: string | null; exit_timestamp: string | null;

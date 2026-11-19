@@ -12,7 +12,7 @@ from app.parallel_paper.trade_monitor import trades
 from app.scalper.repository import IST
 
 router = APIRouter(prefix="/api/phase15", tags=["phase15"])
-Strategy = Literal["ACTS_V2", "ORB_15", "ORB_30", "ORB_60", "EMA_PULLBACK", "SUPERTREND_RSI_VOLUME"]
+Strategy = Literal["ACTS_V2", "ACTS_V3", "ORB_15", "ORB_30", "ORB_60", "EMA_PULLBACK", "SUPERTREND_RSI_VOLUME"]
 TradeState = Literal["PENDING_PAPER_ENTRY", "OPEN", "CLOSED", "ENTRY_REJECTED", "UNRESOLVED_EXPOSURE"]
 
 
