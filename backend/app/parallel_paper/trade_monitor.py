@@ -187,9 +187,10 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
 
 def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = False,
            day: date | None = None, strategy: str | None = None, state: str | None = None,
-           limit: int = 100, offset: int = 0) -> dict:
+           limit: int = 100, offset: int = 0, acts_only: bool = False) -> dict:
     """One bounded page, no writes, recomputation of market evidence, or engines."""
-    if (strategy is not None and strategy not in (*ORDER, "ACTS_V3")) or (state is not None and state not in STATES):
+    allowed = ACTS_VERSIONS if acts_only else (*ORDER, "ACTS_V3")
+    if (strategy is not None and strategy not in allowed) or (state is not None and state not in STATES):
         raise ValueError("INVALID_PHASE15_TRADE_FILTER")
     if not 1 <= limit <= 100 or not 0 <= offset <= 100000:
         raise ValueError("INVALID_PHASE15_TRADE_PAGE")
@@ -199,7 +200,8 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
             session.execute(text("SET TRANSACTION READ ONLY"))
         queries = []
         model: Any
-        for model, acts in ((ActsPaperTrade, True), (ParallelPaperTrade, False)):
+        sources = ((ActsPaperTrade, True),) if acts_only else ((ActsPaperTrade, True), (ParallelPaperTrade, False))
+        for model, acts in sources:
             if acts:
                 document = (cast(model.document, JSON) if session.get_bind().dialect.name == "postgresql"
                             else type_coerce(model.document, JSON))
@@ -225,7 +227,7 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
                 query = query.where(ScalperMarketSnapshotRecord.captured_at >= start,
                                     ScalperMarketSnapshotRecord.captured_at < start + timedelta(days=1))
             queries.append(query)
-        combined = union_all(*queries).subquery()
+        combined = (queries[0] if acts_only else union_all(*queries)).subquery()
         rows = list(session.execute(select(combined).order_by(
             combined.c.decision_at.desc(), combined.c.strategy_id, combined.c.trade_id
         ).limit(limit + 1).offset(offset)))

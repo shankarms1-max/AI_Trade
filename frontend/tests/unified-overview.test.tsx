@@ -18,11 +18,13 @@ describe("unified monitoring evidence", () => {
     expect(observationState("2026-10-23T00:05:00Z", Date.parse("2026-10-23T00:00:00Z"))).toBe("FUTURE_OBSERVATION");
   });
   it("retains NIFTY when Commodity fails without fabricating combined metrics", async () => {
-    vi.mocked(api.phase15Summary).mockResolvedValue({ totals: { open_positions: 2, trades_today: 3 }, strategies: [] } as never);
+    vi.mocked(api.phase15Summary).mockResolvedValue({ totals: { open_positions: 2, trades_today: 3 }, strategies: [
+      {strategy_id:"ACTS_V3",display_name:"ACTS V3",open_position_count:2,trades_today:3},
+      {strategy_id:"ACTS_V2",display_name:"ACTS V2",open_position_count:0,trades_today:0}] } as never);
     vi.mocked(api.commodityPaperSummary).mockRejectedValue(new Error("private error"));
     vi.mocked(api.health).mockResolvedValue({ status: "HEALTHY", components: {} } as never);
     render(<CrossMarketOverview/>);
-    await waitFor(() => expect(screen.getByText(/Paper strategies: 0/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/ACTS versions: 2/)).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "NIFTY" })).toBeInTheDocument();
     expect(screen.getByText(/Open: 2/)).toBeInTheDocument();
     expect(screen.queryByText("private error")).not.toBeInTheDocument();

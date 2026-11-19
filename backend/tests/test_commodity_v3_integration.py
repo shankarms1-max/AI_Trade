@@ -78,7 +78,7 @@ def test_real_commodity_routes_are_200_without_capture_or_broker(integration_cli
             response = client.get(f"/api/commodity-acts/paper/{kind}?instrument={instrument}")
             assert response.status_code == 200 and response.json()["items"] == []
         nifty = client.get("/api/phase15/summary")
-        assert nifty.status_code == 200 and len(nifty.json()["strategies"]) == 7
+        assert nifty.status_code == 200 and len(nifty.json()["strategies"]) == 2
     finally:
         event.remove(engine, "before_cursor_execute", read_only)
 

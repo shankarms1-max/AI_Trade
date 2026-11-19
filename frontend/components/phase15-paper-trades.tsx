@@ -8,12 +8,12 @@ import { observationState } from "@/lib/monitoring";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Panel, SectionError } from "@/components/ui";
 import { blockerLabel } from "@/components/phase15-monitor";
-import { OrbRange, OptionExecution } from "@/components/phase15-orb-evidence";
+import { OptionExecution } from "@/components/phase15-orb-evidence";
+import { isActs } from "@/lib/acts";
 import type { Phase15PaperTrade, Phase15Quote, Phase15TradePage } from "@/types";
 
 const STRATEGIES = [
-  ["ACTS_V2", "ACTS V2"], ["ACTS_V3", "ACTS V3"], ["ORB_15", "ORB 15"], ["ORB_30", "ORB 30"], ["ORB_60", "ORB 60"],
-  ["EMA_PULLBACK", "EMA Pullback"], ["SUPERTREND_RSI_VOLUME", "Supertrend + RSI + Volume"],
+  ["ACTS_V3", "ACTS V3"], ["ACTS_V2", "ACTS V2"],
 ];
 const STATES = ["OPEN", "CLOSED", "ENTRY_REJECTED", "PENDING_PAPER_ENTRY", "UNRESOLVED_EXPOSURE"];
 const timestamp = (value: string | null | undefined) => value ? `${dateIST(value)} · ${timeIST(value)}` : "N/A";
@@ -40,7 +40,6 @@ function QuoteEvidence({ title, quotes }: { title: string; quotes: Record<string
 
 function ResearchDetails({ trade }: { trade: Phase15PaperTrade }) {
   return <details className="phase15-research"><summary>Research details · {trade.trade_id}</summary>
-    {trade.strategy_features && <OrbRange title="Frozen entry ORB range" evidence={trade.strategy_features} frozen/>}
     <OptionExecution trade={trade}/>
     <dl className="phase15-trade-fields">
       <div><dt>Decision</dt><dd>{timestamp(trade.decision_timestamp)}</dd></div>
@@ -60,6 +59,16 @@ function ResearchDetails({ trade }: { trade: Phase15PaperTrade }) {
       <div><dt>Mark status</dt><dd>{trade.mark_available ? "AVAILABLE" : "MARK UNAVAILABLE"}</dd></div>
       <div><dt>Rejection reason</dt><dd>{trade.rejection_reason ?? "N/A"}</dd></div>
       <div><dt>Unresolved / mark reason</dt><dd>{trade.unresolved_reason ?? trade.mark_unavailable_reason ?? "N/A"}</dd></div>
+      {trade.strategy_id==="ACTS_V3"&&<>
+        <div><dt>Opportunity cycle</dt><dd>{trade.cycle_id??"N/A"}</dd></div>
+        <div><dt>Cycle state</dt><dd>{trade.cycle_state??"N/A"}</dd></div>
+        <div><dt>Rearm reason</dt><dd>{trade.rearm_reason??"N/A"}</dd></div>
+        <div><dt>Previous direction</dt><dd>{trade.previous_direction??"N/A"}</dd></div>
+        <div><dt>Previous exit</dt><dd>{trade.previous_exit_reason??"N/A"}</dd></div>
+        <div><dt>Previous exit time</dt><dd>{timestamp(trade.previous_exit_timestamp)}</dd></div>
+        <div><dt>Reversal confirmation (seconds)</dt><dd>{number(trade.reversal_confirmation_seconds)}</dd></div>
+        <div><dt>Opportunity policy</dt><dd>{trade.opportunity_cycle_policy_version??"N/A"}</dd></div>
+      </>}
     </dl>
     <p className="phase15-policy-hash">Stored policy hash: <code>{trade.policy_hash ?? "N/A"}</code></p>
     <div className="phase15-evidence"><h4>Candidate rejection evidence</h4>
@@ -111,8 +120,9 @@ function PositionsPage({offset,onPage}:{offset:number;onPage:(offset:number)=>vo
   const {data,error}=usePolling(loader,20000);
   if(error)return <SectionError>OPEN PAPER POSITIONS UNAVAILABLE · Exposure must not be assumed flat</SectionError>;
   if(!data)return <div className="position-skeleton" aria-busy="true">Loading exact paper positions…</div>;
+  const items=data.items.filter(isActs);
   return <>
-    {data.items.length?<div className="phase15-position-grid">{data.items.map(trade=><PositionCard trade={trade} key={`${trade.strategy_id}:${trade.trade_id}`}/>)}</div>:<Empty>NO OPEN PAPER POSITIONS</Empty>}
+    {items.length?<div className="phase15-position-grid">{items.map(trade=><PositionCard trade={trade} key={`${trade.strategy_id}:${trade.trade_id}`}/>)}</div>:<Empty>NO OPEN PAPER POSITIONS</Empty>}
     {Boolean(data.offset||data.has_more)&&<Pagination page={data} onPage={onPage}/>}
   </>;
 }
@@ -130,11 +140,12 @@ function JournalPage({ date, strategy, state, offset, onPage }: {
   const { data, error } = usePolling(loader, 20000);
   if (error) return <SectionError>PAPER TRADE JOURNAL UNAVAILABLE</SectionError>;
   if (!data) return <Empty>LOADING PAPER TRADE JOURNAL</Empty>;
+  const items=data.items.filter(isActs);
   return <>
     <p className="phase15-capture-note">{data.date ?? "All dates"} · Decision observation date (IST) · GROSS_ONLY · Net costs unavailable</p>
-    {data.items.length?<div className="table-wrap"><ResponsiveTable className="phase15-journal-table" aria-label="Paper trade journal">
+    {items.length?<div className="table-wrap"><ResponsiveTable className="phase15-journal-table" aria-label="Paper trade journal">
       <thead><tr><th>Strategy / State</th><th>Time · IST</th><th>Short / Hedge</th><th>Credit / Debit</th><th>Gross P&L</th><th>Reason / Policy</th><th>Evidence</th></tr></thead>
-      <tbody>{data.items.map(trade=><tr key={`${trade.strategy_id}:${trade.trade_id}`}>
+      <tbody>{items.map(trade=><tr key={`${trade.strategy_id}:${trade.trade_id}`}>
         <td><strong>{trade.display_name}</strong><small>{trade.direction??"N/A"}</small><Badge value={trade.state}/></td>
         <td>{timeIST(trade.entry_timestamp??trade.decision_timestamp)}<small>{dateIST(trade.decision_timestamp)} · Exit {timeIST(trade.exit_timestamp)}</small></td>
         <td>{number(trade.short_strike,0)} / {number(trade.hedge_strike,0)}<small>{number(trade.spread_width,0)} pts</small></td>
@@ -156,7 +167,7 @@ export function Phase15Journal() {
   return <Panel title="TRADE JOURNAL" className="phase15-trade-panel">
     <details className="journal-filters"><summary>Filters · {date === "today" ? "Today" : "All dates"}{strategy ? ` · ${strategy.replaceAll("_"," ")}` : ""}{state ? ` · ${state.replaceAll("_"," ")}` : ""}</summary><div className="phase15-journal-filters">
       <label>Date<select aria-label="Date" value={date} onChange={event => { setDate(event.target.value); setOffset(0); }}><option value="today">Today</option><option value="all">All</option></select></label>
-      <label>Strategy<select aria-label="Strategy" value={strategy} onChange={event => { setStrategy(event.target.value); setOffset(0); }}><option value="">All strategies</option>
+      <label>Strategy<select aria-label="Strategy" value={strategy} onChange={event => { setStrategy(event.target.value); setOffset(0); }}><option value="">All ACTS versions</option>
         {STRATEGIES.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
       <label>State<select aria-label="State" value={state} onChange={event => { setState(event.target.value); setOffset(0); }}><option value="">All states</option>
         {STATES.map(value => <option key={value} value={value}>{value}</option>)}</select></label>

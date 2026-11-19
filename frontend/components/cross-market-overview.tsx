@@ -8,6 +8,7 @@ import { usePolling } from "@/hooks/use-polling";
 import { Badge, Metric, PageHeading, Panel } from "@/components/ui";
 import { Icon } from "@/components/icons";
 import { PortfolioEvidence } from "@/components/portfolio-evidence";
+import { actsSummary } from "@/lib/acts";
 
 export function CrossMarketOverview() {
   const loader = useCallback(async () => {
@@ -17,7 +18,7 @@ export function CrossMarketOverview() {
       health: health.status === "fulfilled" ? health.value : null };
   }, []);
   const { data, error } = usePolling(loader, 15000);
-  const nifty = data?.nifty;
+  const nifty = actsSummary(data?.nifty);
   const commodities = data?.commodity?.instruments;
   const completeCommodity = commodities?.length === 2 && ["CRUDEOILM", "NATGASMINI"].every(id => commodities.some(r => r.instrument_id === id)) ? commodities : null;
   const total = (n: number | null | undefined, field: "open_positions" | "trades_today" | "realized_gross_today" | "unrealized_gross") =>
@@ -34,11 +35,11 @@ export function CrossMarketOverview() {
     <p className="command-banner"><Icon name="shield" size={15}/><span>Independent databases. Read-only monitoring. Combined net P&amp;L and capital efficiency remain unavailable without verified costs and margin.</span></p>
     <div className="section-title"><div><h2>Markets at a glance</h2><p>Performance, signal state and evidence freshness</p></div><Link href="/system">System health<Icon name="arrow" size={13}/></Link></div>
     <div className="source-grid">
-      <article className="source-card" aria-label="NIFTY monitoring status"><header><span className="instrument-icon"><Icon name="chart"/></span><div><h3><Link href="/nifty">NIFTY</Link></h3><small>NSE · Six paper strategies</small></div><Link href="/nifty" aria-label="Open NIFTY workspace"><Icon name="arrow" size={16}/></Link></header>
+      <article className="source-card" aria-label="NIFTY monitoring status"><header><span className="instrument-icon"><Icon name="chart"/></span><div><h3><Link href="/nifty">NIFTY</Link></h3><small>NSE · ACTS paper</small></div><Link href="/nifty" aria-label="Open NIFTY workspace"><Icon name="arrow" size={16}/></Link></header>
         <div className="source-status"><Badge value={nifty ? "AVAILABLE" : "UNAVAILABLE"}/><Badge value={nifty?.mode ?? "UNAVAILABLE"}/></div>
         <div className="source-stats"><div><small>Realized gross today</small><strong>{money(nifty?.totals.realized_gross_pnl_today)}</strong></div><div><small>Open positions</small><strong>{integer(nifty?.totals.open_positions)}</strong></div></div>
-        <div className="source-detail"><p>Paper strategies: {integer(nifty?.strategies?.length)} · Open: {integer(nifty?.totals.open_positions)} · Entries today: {integer(nifty?.totals.trades_today)}</p><span>Broker/data status: {data?.health?.components?.market_data ?? "UNAVAILABLE"}</span><span>Worker process state: UNAVAILABLE. Never inferred from activity.</span></div>
-        <Link href="/nifty" className="source-link">ACTS, ORB, EMA & Supertrend<Icon name="arrow" size={13}/></Link>
+        <div className="source-detail"><p>ACTS versions: {integer(nifty?.strategies?.length)} · Open: {integer(nifty?.totals.open_positions)} · Entries today: {integer(nifty?.totals.trades_today)}</p><span>Broker/data status: {data?.health?.components?.market_data ?? "UNAVAILABLE"}</span><span>Worker process state: UNAVAILABLE. Never inferred from activity.</span></div>
+        <Link href="/nifty" className="source-link">ACTS V3 · V2 history<Icon name="arrow" size={13}/></Link>
       </article>
       {(["CRUDEOILM", "NATGASMINI"] as const).map(instrument => {
         const row = commodities?.find(item => item.instrument_id === instrument);

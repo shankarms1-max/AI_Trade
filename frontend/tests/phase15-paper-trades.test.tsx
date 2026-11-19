@@ -33,10 +33,29 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Phase 15 positions and journal", () => {
+  it("filters every retired strategy and preserves V3 cycle/policy/quote evidence",async()=>{
+    const current=trade({strategy_id:"ACTS_V3",display_name:"ACTS V3",cycle_id:"stored-cycle",
+      cycle_state:"ENTERED",rearm_reason:"PULLBACK_RESUMPTION",previous_direction:"BEAR",
+      previous_exit_reason:"SPREAD_STOP",previous_exit_timestamp:"2026-10-14T09:45:00+05:30",
+      reversal_confirmation_seconds:60,opportunity_cycle_policy_version:"ACTS_V3_OPPORTUNITY_CYCLE_V1"});
+    const retired=["ORB 15","ORB 30","ORB 60","EMA Pullback","Supertrend"];
+    const items=[current,...retired.map((name,index)=>trade({strategy_id:`RETIRED_${index}`,display_name:name}))];
+    vi.mocked(api.phase15Positions).mockResolvedValue(page(items));vi.mocked(api.phase15Journal).mockResolvedValue(page(items));
+    render(<><Phase15Positions/><Phase15Journal/></>);
+    const card=await screen.findByRole("article",{name:"ACTS V3 position acts-stored-1"});
+    await screen.findByRole("table",{name:"Paper trade journal"});
+    for(const name of retired)expect(screen.queryByText(name,{exact:true})).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Strategy")).getAllByRole("option").map(node=>node.textContent)).toEqual(["All ACTS versions","ACTS V3","ACTS V2"]);
+    fireEvent.click(within(card).getByText(/Research details/));
+    for(const value of ["stored-cycle","PULLBACK_RESUMPTION","ACTS_V3_OPPORTUNITY_CYCLE_V1","stored-policy-hash"])
+      expect(within(card).getByText(value)).toBeInTheDocument();
+    expect(within(card).getByText("60.00")).toBeInTheDocument();
+    expect(within(card).getByText(/STORED_NIFTY/)).toBeInTheDocument();
+  });
   it("labels older captured evidence as historical rather than streaming current marks",()=>{render(<PositionCard trade={trade({latest_mark_timestamp:"2000-01-01T10:00:00Z"})}/>);expect(screen.getByText("Last marked debit")).toBeInTheDocument();expect(screen.getByText("Last gross mark")).toBeInTheDocument();expect(screen.getByText(/STALE · Captured exact mark/)).toBeInTheDocument();});
 
-  it("keeps frozen futures levels separate from exact option entry fills and current mark quotes", async () => {
-    vi.mocked(api.phase15Positions).mockResolvedValue(page([trade({ strategy_id: "ORB_15", display_name: "ORB 15",
+  it("preserves ACTS exact option prices without retired range presentation", async () => {
+    vi.mocked(api.phase15Positions).mockResolvedValue(page([trade({ strategy_id: "ACTS_V3", display_name: "ACTS V3",
       short_option_type: "CE", hedge_option_type: "CE", short_strike: 25700, hedge_strike: 26100,
       strategy_features: { range_minutes: 15, range_start: "2026-10-14T09:15:00+05:30", range_end: "2026-10-14T09:30:00+05:30",
         opening_high: 25684.40, opening_low: 25621.15, complete: true, confirmation_seconds: 45,
@@ -45,12 +64,9 @@ describe("Phase 15 positions and journal", () => {
       latest_mark_quotes: { short: { ask: 100.20 }, long: { bid: 31 } }, entry_credit: 70, current_debit: 69.20,
     })]));
     render(<Phase15Positions/>);
-    const card = await screen.findByRole("article", { name: "ORB 15 position acts-stored-1" });
+    const card = await screen.findByRole("article", { name: "ACTS V3 position acts-stored-1" });
     fireEvent.click(within(card).getByText(/Research details/));
-    const range = within(card).getByRole("article", { name: "Frozen entry ORB range" });
-    expect(within(range).getByText("25,684.40")).toBeInTheDocument();
-    expect(within(range).getByText("25,621.15")).toBeInTheDocument();
-    expect(within(range).queryByText(/100.20/)).not.toBeInTheDocument();
+    expect(within(card).queryByRole("article",{name:"Frozen entry ORB range"})).not.toBeInTheDocument();
     const options = within(card).getByRole("region", { name: "Option execution" });
     expect(within(options).getByText("Short CE 25,700")).toBeInTheDocument();
     expect(within(options).getByText("₹100.00")).toBeInTheDocument();
@@ -144,9 +160,9 @@ describe("Phase 15 positions and journal", () => {
     await waitFor(() => expect(api.phase15Journal).toHaveBeenCalled());
     expect(api.phase15Journal).toHaveBeenLastCalledWith(expect.objectContaining({ date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), strategy: undefined, state: undefined, offset: 0 }));
     fireEvent.change(screen.getByLabelText("Date"), { target: { value: "all" } });
-    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "ORB_30" } });
+    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "ACTS_V3" } });
     fireEvent.change(screen.getByLabelText("State"), { target: { value: "CLOSED" } });
-    await waitFor(() => expect(api.phase15Journal).toHaveBeenLastCalledWith({ date: undefined, strategy: "ORB_30", state: "CLOSED", offset: 0 }));
+    await waitFor(() => expect(api.phase15Journal).toHaveBeenLastCalledWith({ date: undefined, strategy: "ACTS_V3", state: "CLOSED", offset: 0 }));
   });
 
   it("filters V3 journal evidence independently from V2", async () => {
@@ -173,11 +189,11 @@ describe("Phase 15 positions and journal", () => {
 
   it("does not let a late old-filter response replace the current journal", async () => {
     let resolveOld!: (value: Phase15TradePage) => void;
-    vi.mocked(api.phase15Journal).mockImplementation(filters => filters?.strategy === "ORB_15" ?
-      Promise.resolve(page([trade({ trade_id: "selected", display_name: "ORB 15" })])) : new Promise(resolve => { resolveOld = resolve; }));
+    vi.mocked(api.phase15Journal).mockImplementation(filters => filters?.strategy === "ACTS_V3" ?
+      Promise.resolve(page([trade({ trade_id: "selected", display_name: "ACTS V3" })])) : new Promise(resolve => { resolveOld = resolve; }));
     render(<Phase15Journal/>);
     await waitFor(() => expect(api.phase15Journal).toHaveBeenCalled());
-    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "ORB_15" } });
+    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "ACTS_V3" } });
     expect(await screen.findByText(/Research details · selected/)).toBeInTheDocument();
     resolveOld(page([trade({ trade_id: "stale-response" })]));
     await waitFor(() => expect(screen.queryByText(/stale-response/)).not.toBeInTheDocument());

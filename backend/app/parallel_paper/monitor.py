@@ -347,7 +347,7 @@ def _summary_events(session: Session, model: Any, rows: Sequence[Any], start: da
     return session.execute(select(*fields).where(keep).order_by(*ordering)).all()
 
 
-def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
+def summary(sessions: sessionmaker[Session], at: datetime, *, acts_only: bool = False) -> dict:
     """Read ORM projections and immutable events, without running a paper engine."""
     at = at.astimezone(IST)
     start = datetime.combine(at.date(), time.min, IST)
@@ -355,19 +355,20 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
     with sessions() as session:
         if session.get_bind().dialect.name == "postgresql":
             session.execute(text("SET TRANSACTION READ ONLY"))
-        parallel_cursors = {row.strategy_id: row for row in session.execute(select(
+        parallel_cursors = {} if acts_only else {row.strategy_id: row for row in session.execute(select(
             ParallelPaperCursor.strategy_id, ParallelPaperCursor.snapshot_id,
             ParallelPaperCursor.observed_at, ParallelPaperCursor.latest_json))}
         snapshot_ids = {cursor.snapshot_id for strategy, cursor in parallel_cursors.items()
                         if strategy in ORB_MINUTES and cursor.snapshot_id is not None}
-        futures = {row.id: row for row in session.execute(select(
+        futures = {} if acts_only else {row.id: row for row in session.execute(select(
             ScalperMarketSnapshotRecord.id, ScalperMarketSnapshotRecord.captured_at,
             ScalperMarketSnapshotRecord.nifty_future).where(ScalperMarketSnapshotRecord.id.in_(snapshot_ids)))}
         # Preserve lifetime unpriced-expiry counts and trades closed today after
         # an earlier entry. The small trade projection must not be day-truncated.
-        parallel_rows = session.execute(select(ParallelPaperTrade.id, ParallelPaperTrade.strategy_id,
-                                               ParallelPaperTrade.state, ParallelPaperTrade.document)).all()
-        parallel_events = _summary_events(session, ParallelPaperEvent, parallel_rows, start, end)
+        parallel_rows = [] if acts_only else session.execute(select(
+            ParallelPaperTrade.id, ParallelPaperTrade.strategy_id,
+            ParallelPaperTrade.state, ParallelPaperTrade.document)).all()
+        parallel_events = [] if acts_only else _summary_events(session, ParallelPaperEvent, parallel_rows, start, end)
         acts_cursor = session.execute(select(ActsPaperCursor.snapshot_id, ActsPaperCursor.observed_at,
                                              ActsPaperCursor.latest_json).where(ActsPaperCursor.id == 1)).first()
         acts_rows = session.execute(select(ActsPaperTrade.id, ActsPaperTrade.state, ActsPaperTrade.document)).all()
@@ -406,7 +407,8 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
             events_by_strategy[event.strategy_id].append(event)
 
         strategies = []
-        for strategy in (*ORDER, *ACTS_VERSIONS[1:]):
+        reporting_order = tuple(reversed(ACTS_VERSIONS)) if acts_only else (*ORDER, *ACTS_VERSIONS[1:])
+        for strategy in reporting_order:
             cursor = cursors.get(strategy) if strategy in ACTS_VERSIONS else parallel_cursors.get(strategy)
             rows = acts_rows if strategy in ACTS_VERSIONS else rows_by_strategy[strategy]
             events = acts_events if strategy in ACTS_VERSIONS else events_by_strategy[strategy]

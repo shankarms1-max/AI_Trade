@@ -287,7 +287,7 @@ def test_endpoint_reads_only_and_missing_schema_is_503(session_factory):
     event.listen(session_factory.class_, "before_flush", on_flush)
     try:
         result = TestClient(app).get("/api/phase15/summary")
-        assert result.status_code == 200 and len(result.json()["strategies"]) == 7
+        assert result.status_code == 200 and len(result.json()["strategies"]) == 2
         assert not flushed
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(ParallelPaperEvent)) == 0
