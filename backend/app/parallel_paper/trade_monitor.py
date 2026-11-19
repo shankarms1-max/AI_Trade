@@ -20,6 +20,8 @@ from app.paper import expiry
 from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST, _aware
 
+ACTS_VERSIONS = ("ACTS_V2", "ACTS_V3")
+
 ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "UNRESOLVED_EXPOSURE")
 STATES = (*ACTIVE, "CLOSED", "ENTRY_REJECTED")
 
@@ -73,7 +75,7 @@ def _marks(session: Session, rows: list[Any]) -> dict[tuple[str, str], dict]:
     result = {}
     model: Any
     for model, acts in ((ActsPaperEvent, True), (ParallelPaperEvent, False)):
-        ids = [row.trade_id for row in rows if (row.strategy_id == "ACTS_V2") == acts]
+        ids = [row.trade_id for row in rows if (row.strategy_id in ACTS_VERSIONS) == acts]
         if not ids:
             continue
         query = select(
@@ -87,7 +89,9 @@ def _marks(session: Session, rows: list[Any]) -> dict[tuple[str, str], dict]:
                 ScalperMarketSnapshotRecord, ScalperMarketSnapshotRecord.id == query.c.snapshot_id
         ).where(query.c.rank == 1)):
             payload = _dict(json.loads(mark.payload))
-            result[(mark.strategy_id, mark.trade_id)] = {
+            version = next(row.strategy_id for row in rows if row.trade_id == mark.trade_id
+                           and (row.strategy_id in ACTS_VERSIONS) == acts)
+            result[(version, mark.trade_id)] = {
                 "available": payload.get("available") is True,
                 "timestamp": _aware(mark.captured_at), "snapshot_id": mark.snapshot_id,
                 "reason": payload.get("reason"), "quotes": _quotes(payload.get("quotes")),
@@ -124,6 +128,10 @@ def _project(row: Any, mark: dict | None, at: datetime) -> dict:
     rejected = _dict(doc.get("candidate_rejections") or decision.get("candidate_rejections"))
     return {
         "trade_id": row.trade_id, "strategy_id": row.strategy_id,
+        **(_fields(doc.get("opportunity_cycle"), (
+            "cycle_id", "cycle_state", "rearm_reason", "previous_direction", "previous_exit_reason",
+            "previous_exit_timestamp", "reversal_confirmation_seconds", "opportunity_cycle_policy_version"))
+           if row.strategy_id == "ACTS_V3" else {}),
         "expiry_terminalization": expiry.is_unpriced(doc),
         "exit_pricing_status": doc.get("exit_pricing_status"),
         "terminalized_at": doc.get("terminalized_at"),
@@ -168,7 +176,7 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
            day: date | None = None, strategy: str | None = None, state: str | None = None,
            limit: int = 100, offset: int = 0) -> dict:
     """One bounded page, no writes, recomputation of market evidence, or engines."""
-    if (strategy is not None and strategy not in ORDER) or (state is not None and state not in STATES):
+    if (strategy is not None and strategy not in (*ORDER, "ACTS_V3")) or (state is not None and state not in STATES):
         raise ValueError("INVALID_PHASE15_TRADE_FILTER")
     if not 1 <= limit <= 100 or not 0 <= offset <= 100000:
         raise ValueError("INVALID_PHASE15_TRADE_PAGE")
@@ -179,15 +187,18 @@ def trades(sessions: sessionmaker[Session], at: datetime, *, positions: bool = F
         queries = []
         model: Any
         for model, acts in ((ActsPaperTrade, True), (ParallelPaperTrade, False)):
-            source_strategy = literal("ACTS_V2") if acts else model.strategy_id
+            if acts:
+                document = (cast(model.document, JSON) if session.get_bind().dialect.name == "postgresql"
+                            else type_coerce(model.document, JSON))
+                source_strategy = document["strategy_version"].as_string()
+            else:
+                source_strategy = model.strategy_id
             query = select(model.id.label("trade_id"), source_strategy.label("strategy_id"),
                            model.state, model.document, ScalperMarketSnapshotRecord.captured_at.label("decision_at")
                            ).join(ScalperMarketSnapshotRecord,
                                   ScalperMarketSnapshotRecord.id == model.decision_snapshot_id)
             if acts:
-                document = (cast(model.document, JSON) if session.get_bind().dialect.name == "postgresql"
-                            else type_coerce(model.document, JSON))
-                query = query.where(document["strategy_version"].as_string() == "ACTS_V2")
+                query = query.where(document["strategy_version"].as_string().in_(ACTS_VERSIONS))
             else:
                 query = query.where(model.strategy_id.in_(ORDER[1:]))
             if strategy is not None:

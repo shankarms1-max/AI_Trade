@@ -53,7 +53,12 @@ def main(argv: list[str] | None = None) -> int:
     engine = build_engine(settings.database_url.get_secret_value())
     try:
         sessions = build_session_factory(engine)
-        service = ActsPaperService(sessions, settings)
+        service: ActsPaperService
+        if settings.acts_paper_strategy_version == "ACTS_V3":
+            from app.acts_paper.service_v3 import ActsV3PaperService
+            service = ActsV3PaperService(sessions, settings)
+        else:
+            service = ActsPaperService(sessions, settings)
         if args.status:
             print(json.dumps(service.status(datetime.now(IST)), indent=2, sort_keys=True))
             return 0

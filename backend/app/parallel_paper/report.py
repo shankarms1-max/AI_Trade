@@ -91,12 +91,19 @@ def report(sessions: sessionmaker[Session], at: datetime) -> dict:
                                 **statistics([(row.state, json.loads(row.document)) for row in rows], at)}
         # Read the original ACTS projection without instantiating or invoking its service.
         acts_rows = session.scalars(select(ActsPaperTrade).order_by(ActsPaperTrade.decision_snapshot_id)).all()
-        acts_docs = [(row.state, json.loads(row.document)) for row in acts_rows
-                     if json.loads(row.document).get("strategy_version") == "ACTS_V2"]
         acts_cursor = session.get(ActsPaperCursor, 1)
-        result["ACTS_V2"] = {
-            "strategy_id": "ACTS_V2", "strategy_version": "ACTS_V2",
-            "latest": json.loads(acts_cursor.latest_json) if acts_cursor else {},
-            "journal_head": acts_cursor.head_hash if acts_cursor else None,
-            **statistics(acts_docs, at)}
+        latest = json.loads(acts_cursor.latest_json) if acts_cursor else {}
+        versions = ["ACTS_V2"]
+        if latest.get("strategy_version") == "ACTS_V3" or any(
+                json.loads(row.document).get("strategy_version") == "ACTS_V3" for row in acts_rows):
+            versions.append("ACTS_V3")
+        for version in versions:
+            acts_docs = [(row.state, json.loads(row.document)) for row in acts_rows
+                         if json.loads(row.document).get("strategy_version") == version]
+            result[version] = {
+                "strategy_id": version, "strategy_version": version,
+                "latest": latest if version == "ACTS_V2" and latest.get("strategy_version") != "ACTS_V3"
+                or latest.get("strategy_version") == version else {},
+                "journal_head": acts_cursor.head_hash if acts_cursor else None,
+                **statistics(acts_docs, at)}
         return json_value({"mode": "PAPER", "as_of": at, "strategies": result})

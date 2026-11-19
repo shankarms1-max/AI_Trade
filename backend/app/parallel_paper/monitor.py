@@ -5,8 +5,9 @@ from collections.abc import Sequence
 from datetime import datetime, time, timedelta
 import json
 from typing import Any
+from types import SimpleNamespace
 
-from sqlalchemy import select, text
+from sqlalchemy import JSON, cast, select, text, type_coerce
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.acts_paper.models import ActsPaperCursor, ActsPaperEvent, ActsPaperTrade
@@ -17,7 +18,7 @@ from app.scalper.models import ScalperMarketSnapshotRecord
 from app.scalper.repository import IST
 
 
-NAMES = {"ACTS_V2": "ACTS V2", "ORB_15": "ORB 15", "ORB_30": "ORB 30",
+NAMES = {"ACTS_V3": "ACTS V3", "ACTS_V2": "ACTS V2", "ORB_15": "ORB 15", "ORB_30": "ORB 30",
          "ORB_60": "ORB 60", "EMA_PULLBACK": "EMA Pullback",
          "SUPERTREND_RSI_VOLUME": "Supertrend + RSI + Volume"}
 ORDER = ("ACTS_V2", *STRATEGIES)
@@ -83,7 +84,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     day = at.astimezone(IST).date()
     latest = json.loads(cursor.latest_json)
     if (not isinstance(latest, dict) or not latest
-            or (strategy == "ACTS_V2" and latest.get("strategy_version") != "ACTS_V2")):
+            or (strategy in ("ACTS_V2", "ACTS_V3") and latest.get("strategy_version") != strategy)):
         return _unavailable(strategy)
     rejections: list[str | None] = []
     failed_marks: dict[str, bool] = {}
@@ -91,8 +92,8 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     rejected_trades: set[str] = set()
     for event in events:
         payload = json.loads(event.payload)
-        if strategy == "ACTS_V2":
-            if payload.get("strategy_version") != "ACTS_V2":
+        if strategy in ("ACTS_V2", "ACTS_V3"):
+            if payload.get("strategy_version") != strategy:
                 continue
             if event.event_type == "ACTS_ENTRY_REJECTED":
                 if event.trade_id is None or event.trade_id not in rejected_trades:
@@ -125,7 +126,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     unresolved_count = expired_count = 0
     for row in rows:
         doc = json.loads(row.document)
-        if strategy == "ACTS_V2" and doc.get("strategy_version") != "ACTS_V2":
+        if strategy in ("ACTS_V2", "ACTS_V3") and doc.get("strategy_version") != strategy:
             continue
         mark_available = not failed_marks.get(row.id, False)
         unresolved_count += row.state == "UNRESOLVED_EXPOSURE"
@@ -141,7 +142,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
     mark_values = [trade["current_unrealized_gross_pnl"] for trade in active]
     realized = sum(realized_values) if all(value is not None for value in realized_values) else None
     unrealized = sum(mark_values) if all(value is not None for value in mark_values) else None
-    latest_blocker = (latest.get("primary_blocker") if strategy == "ACTS_V2" else
+    latest_blocker = (latest.get("primary_blocker") if strategy in ("ACTS_V2", "ACTS_V3") else
                       next(iter(latest.get("blockers") or []), None))
     return {"strategy_id": strategy, "display_name": NAMES[strategy],
             "trades_today": len(entered),
@@ -185,12 +186,27 @@ def summary(sessions: sessionmaker[Session], at: datetime) -> dict:
                     ActsPaperEvent.sequence)).all()
 
         strategies = []
-        for strategy in ORDER:
-            cursor = acts_cursor if strategy == "ACTS_V2" else parallel_cursors.get(strategy)
-            rows = acts_rows if strategy == "ACTS_V2" else [
+        order = list(ORDER)
+        if (acts_cursor and json.loads(acts_cursor.latest_json).get("strategy_version") == "ACTS_V3"
+                or any(json.loads(row.document).get("strategy_version") == "ACTS_V3" for row in acts_rows)):
+            order.append("ACTS_V3")
+        for strategy in order:
+            cursor: Any = acts_cursor if strategy in ("ACTS_V2", "ACTS_V3") else parallel_cursors.get(strategy)
+            rows = acts_rows if strategy in ("ACTS_V2", "ACTS_V3") else [
                 row for row in parallel_rows if row.strategy_id == strategy]
-            events = acts_events if strategy == "ACTS_V2" else [
+            events = acts_events if strategy in ("ACTS_V2", "ACTS_V3") else [
                 event for event in parallel_events if event.strategy_id == strategy]
+            if strategy in ("ACTS_V2", "ACTS_V3") and cursor is not None and json.loads(
+                    cursor.latest_json).get("strategy_version") != strategy:
+                document = (cast(ActsPaperEvent.payload, JSON) if session.get_bind().dialect.name == "postgresql"
+                            else type_coerce(ActsPaperEvent.payload, JSON))
+                previous = session.scalar(select(ActsPaperEvent).where(
+                    ActsPaperEvent.event_type == "ACTS_OBSERVATION",
+                    document["strategy_version"].as_string() == strategy).order_by(
+                        ActsPaperEvent.sequence.desc()).limit(1))
+                payload = json.loads(previous.payload) if previous else None
+                cursor = SimpleNamespace(observed_at=payload["market_timestamp"],
+                                         latest_json=json.dumps(payload["latest"])) if payload else None
             try:
                 strategies.append(_project(strategy, cursor, rows, events, at))
             except (KeyError, TypeError, ValueError):

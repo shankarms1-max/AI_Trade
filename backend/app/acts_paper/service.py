@@ -160,10 +160,30 @@ class ActsPaperService:
                 self._assert_entry_policy_upgrade_safe(session.scalars(select(ActsPaperTrade).where(
                     ActsPaperTrade.state.in_(ACTIVE))).all())
 
+    def _uses_v2_execution(self, strategy: str | None) -> bool:
+        return strategy == acts_v2.STRATEGY_ID
+
+    def _construction_strategy(self) -> str:
+        return self.strategy_id
+
+    def _entry_market_state(self, ctx: dict[str, Any], watch: dict) -> tuple:
+        assert self.v2_config is not None
+        if watch.get("strategy_version") != acts_v2.STRATEGY_ID:
+            watch.clear()
+        return acts_v2.market_state(ctx, watch, self.v2_config)
+
+    def _entry_decision(self, ctx: dict, watch: dict, candidate: Any,
+                        rejected: dict, reasons: list[str]) -> dict:
+        assert self.v2_config is not None
+        return acts_v2.decide(ctx, watch, candidate, rejected, reasons, self.v2_config)
+
+    def _entry_audit(self, decision: dict) -> dict:
+        return {}
+
     def _terminalize_expired(self, session: Session, cursor: ActsPaperCursor,
                              snapshot_id: int, raw: ScalperMarketSnapshot, trade: ActsPaperTrade) -> bool:
         doc = json.loads(trade.document)
-        if doc.get("strategy_version") != acts_v2.STRATEGY_ID:
+        if not self._uses_v2_execution(doc.get("strategy_version")):
             return False
         state = expiry.terminalize(trade.state, doc, raw.captured_at, snapshot_id)
         if state is None:
@@ -194,7 +214,7 @@ class ActsPaperService:
     @staticmethod
     def _entry_expiry_reason(raw: ScalperMarketSnapshot, candidate: ScalperCandidate,
                              strategy_id: str) -> str | None:
-        if strategy_id == acts_v2.STRATEGY_ID:
+        if strategy_id in {acts_v2.STRATEGY_ID, "ACTS_V3"}:
             return ("EXPIRED_CONTRACT_ENTRY_FORBIDDEN"
                     if candidate.short_leg.expiry < raw.captured_at.date() else None)
         return ("EXPIRY_DAY_ENTRY_FORBIDDEN"
@@ -307,7 +327,7 @@ class ActsPaperService:
                          else self.policy_hash if doc.get("strategy_version") ==
                          self.strategy_id else None)
         if (doc["policy_hash"] != expected_hash or
-                (doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                (self._uses_v2_execution(doc.get("strategy_version"))
                  and doc.get("exit_policy_version") != mirror_exit.VERSION)):
             doc["unresolved_reason"] = "ACTS_PAPER_POLICY_CHANGED"
             self._save(trade, doc, "UNRESOLVED_EXPOSURE")
@@ -328,7 +348,7 @@ class ActsPaperService:
                       "MARKET_EVENT_BLOCKED" if blocked else
                       failure or (acts_v2.entry_valid(
                           ctx, doc["decision"]["direction"], self.v2_config)
-                          if doc.get("strategy_version") == acts_v2.STRATEGY_ID
+                          if self._uses_v2_execution(doc.get("strategy_version"))
                           and self.v2_config is not None else
                           acts.entry_valid(ctx, doc["decision"]["direction"])))
             if reason is None:
@@ -357,7 +377,7 @@ class ActsPaperService:
             return
         pair, failure = executable_pair(
             raw, candidate, self.config, entry=False,
-            exit_book_policy=exit_book.VERSION if doc.get("strategy_version") == acts_v2.STRATEGY_ID else None)
+            exit_book_policy=exit_book.VERSION if self._uses_v2_execution(doc.get("strategy_version")) else None)
         if failure is not None:
             terminal = (failure == "MISSING_EXACT_CONTRACT" or
                         raw.captured_at.astimezone(IST).time().replace(tzinfo=None) >= self.config.forced_exit_time)
@@ -473,12 +493,10 @@ class ActsPaperService:
             candidate = None
             rejected: dict[str, int] = {}
             if self.v2_config is not None:
-                if watch.get("strategy_version") != acts_v2.STRATEGY_ID:
-                    watch.clear()
-                _, direction, _ = acts_v2.market_state(ctx, watch, self.v2_config)
+                _, direction, _ = self._entry_market_state(ctx, watch)
                 if direction is not None:
                     candidate, rejected = _candidate(
-                        raw, {"strategy_id": self.strategy_id, "direction": direction},
+                        raw, {"strategy_id": self._construction_strategy(), "direction": direction},
                         ctx, self.config)
                 ledger = Ledger(trades=[lab for item in self._trades(session)
                                         if (lab := _lab_trade(item)) is not None])
@@ -492,8 +510,7 @@ class ActsPaperService:
                 if candidate is not None and candidate.defined_max_loss_per_lot > (
                         self.config.max_loss_per_trade):
                     reasons.append("MAX_LOSS_PER_TRADE_EXCEEDED")
-                decision = acts_v2.decide(ctx, watch, candidate, rejected,
-                                          reasons, self.v2_config)
+                decision = self._entry_decision(ctx, watch, candidate, rejected, reasons)
             else:
                 decision = acts.decide(ctx, watch)
             decision["snapshot_id"] = snapshot_id
@@ -532,6 +549,7 @@ class ActsPaperService:
                     if self.v2_config is not None else {})
                 doc = json_value({
                     "strategy_version": self.strategy_id,
+                    **self._entry_audit(decision),
                     "policy_hash": self.policy_hash,
                     **({"policy": self.policy, "exit_policy_version": mirror_exit.VERSION,
                         "future_instrument_id": raw.future_instrument_id,
@@ -601,6 +619,7 @@ class ActsPaperService:
                     hard_blockers=decision["hard_blockers"],
                     candidate_rejections=decision["candidate_rejections"],
                     entry_reason=decision["entry_reason"])
+            latest.update(self._entry_audit(decision))
             cursor.watch_json = canonical(watch)
             cursor.latest_json = canonical(latest)
             cursor.snapshot_id = snapshot_id
@@ -618,7 +637,8 @@ class ActsPaperService:
             result: dict[tuple[str, str], OptionContractSnapshot] = {}
             for row in rows:
                 doc = json.loads(row.document)
-                if doc.get("strategy_version") == acts_v2.STRATEGY_ID and expiry.expired(doc, at or datetime.now(IST)):
+                if (self._uses_v2_execution(doc.get("strategy_version"))
+                        and expiry.expired(doc, at or datetime.now(IST))):
                     continue
                 candidate = doc["candidate"]
                 for name in ("short_leg", "long_leg"):
