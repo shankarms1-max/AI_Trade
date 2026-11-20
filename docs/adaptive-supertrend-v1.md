@@ -279,3 +279,107 @@ Signal-research positions lacking an observed, valid session-end exit remain unp
 and excluded, as before. Neither the gap marker nor the next session supplies an exit
 price for the incomplete session. No strategy, optimizer scoring, ADX/ER policy, paper
 worker or ACTS behavior changes are made by this CSV input correction.
+
+## ADX/ER regime walk-forward research harness
+
+`app.adaptive_supertrend.regime_research` is a standalone **futures signal research** CLI.
+It uses the same `load_bars`, `_segments`, `signal_trades`, `metrics`, ATR, SuperTrend,
+ADX and ER implementations. It does not require `ExecutionPolicy`, broker credentials,
+a database, or an enabled worker. It cannot configure or deploy any runtime policy.
+
+The default **research candidates only** are FAST: 5/1.1, 5/1.2, 6/1.1, 6/1.2,
+7/1.1, 7/1.2; SLOW: 20/1.2, 22/1.2, 24/1.2, 25/1.2, 26/1.1, 26/1.2, 26/1.3.
+`--ast-configs` accepts an optional comma list such as `FAST:5/1.1,SLOW:26/1.2`.
+Unlabelled configurations use CUSTOM. Multipliers remain exact integer tenths.
+All period ranges, quantiles, block sizes and minimum trades must be supplied explicitly;
+there are no approved threshold defaults. The example below is an illustrative research
+experiment specification, not a recommendation for production strategy settings:
+
+```sh
+PYTHONPATH=backend python -m app.adaptive_supertrend.regime_research \
+  --csv /research/futures-5m.csv \
+  --json /research/ast-regime-walk-forward.json \
+  --csv-output /research/ast-regime-walk-forward.csv \
+  --adx-period-min 10 --adx-period-max 14 \
+  --er-lookback-min 5 --er-lookback-max 10 \
+  --threshold-quantiles 0.25,0.5,0.75 \
+  --minimum-trades-per-block 3 \
+  --train-sessions 15 --validation-sessions 5 --oos-sessions 3
+```
+
+For each chronological fold, the training, validation and OOS blocks use consecutive
+observed session dates. The window advances by `oos_sessions`, so OOS dates never
+repeat. Later training windows may legitimately include earlier folds' OOS observations
+once those dates are in the past. No fold uses its own validation/OOS values to create
+thresholds. ADX and ER distributions include only non-missing **training** indicator
+observations. Each period's sorted training distribution is interpolated using linear
+R7 quantiles (`h=(n-1)q`). Quantiles are crossed independently for ADX and ER. Every
+concrete threshold and its training sample count is recorded per fold. Missing training
+distributions produce null thresholds/unavailable results, not a neutral or zero filter.
+
+Indicator context starts at each fold's training start and advances causally through
+validation/OOS. Existing session gaps and contract-roll boundaries reset that context;
+non-price markers never enter indicator calculations. Validation can choose among the
+threshold candidates already created from training; it cannot recompute their values.
+Changing OOS prices cannot change that fold's or earlier folds' thresholds or
+training/validation selection. A previously OOS date can affect a later fold after it
+becomes legitimate historical training data.
+
+Two rankings are deliberately separate:
+
+1. **Training/validation selection**, used for the honest selected-policy OOS evaluation,
+   sees training/validation statistics only. It prefers more minimum-evidence AST
+   configurations positive in both blocks, then better worst validation points, better
+   median validation points, lower summed validation max drawdowns, more combined
+   training/validation trades, and the deterministic parameter tie break.
+2. **Post-OOS descriptive research ranking**, per fold and across folds, first places
+   candidates with at least one minimum-evidence AST configuration ahead of candidates
+   without one. It then sorts lexicographically by: more qualified AST configurations
+   positive in BOTH validation and OOS; higher worst OOS points; higher median OOS points;
+   lower sum of per-configuration OOS max drawdowns; more combined validation/OOS trades;
+   then ADX period, ADX quantile, ER lookback, ER quantile ascending. Total P&L is not
+   a ranking key. This retrospective ranking uses OOS and must **not** be represented
+   as the policy selected before that OOS block.
+
+Minimum trades is evaluated per AST configuration and per block. Ranking positivity
+counts require the configured minimum in its two relevant blocks (training/validation
+for selection; validation/OOS for retrospective analysis). Raw positive counts and all
+individual evidence flags remain visible. No single outcome approves a runtime policy.
+A fold without sufficient selection evidence records no selected policy; the selected
+OOS series reports its actual covered dates rather than filling unselected dates with
+zero trades/P&L.
+
+Each candidate reports the existing full metrics separately for every AST configuration
+and training/validation/OOS block, alongside the identical **UNFILTERED** AST baseline.
+Baseline quality masks impose no ADX/ER gate or ADX/ER warm-up; AST warm-up, ORB, causal
+signal timing, existing signal exits and unpriced-position exclusions remain unchanged.
+Family robustness is shown for ALL configurations and separately for FAST/SLOW/CUSTOM.
+Global OOS metrics concatenate only disjoint OOS trades chronologically. Aggregate
+validation figures are explicitly labelled sums of fold evaluations: validation windows
+may overlap, so those totals are research evidence, not a once-traded portfolio curve.
+Summed drawdowns/counts across alternative AST configurations also are not a portfolio.
+
+`regime_filter_value` always means **filtered OOS minus unfiltered OOS** for points,
+max drawdown and trade count. Negative drawdown delta is improvement. The report also
+shows changes in worst/median OOS and qualified positive configurations, and flags trade
+reduction without points/drawdown or family-robustness gains. All the component deltas
+remain available to inspect trade-offs. No option fills, option P&L, costs or net cash
+returns are inferred from futures bars.
+
+Input bars are grouped by session once, so rolling folds do not repeatedly scan the
+entire dataset. Precomputation reuses ATR by period, AST directions by configuration,
+ADX by period and bounded ER windows. Training distributions are sorted once per indicator period, and a
+4096-entry per-fold LRU reuses identical quality-mask signal evaluations. JSON is written
+incrementally and optional CSV emits per-fold/per-policy/per-AST rows. A 100,000
+fold-policy-AST evaluation guard rejects excessive experiments explicitly; it never
+silently truncates the grid and is not a trading threshold. Input CSVs cannot be used
+as output destinations. Repeated runs with the same inputs/arguments are deterministic;
+no wall-clock or random values enter the report.
+
+In the global retrospective table, positivity/worst/median validation figures use the
+per-configuration sums of validation fold evaluations; OOS figures use each configuration's
+chronologically accumulated, nonoverlapping OOS series. Global evidence flags require the
+minimum in every relevant fold block, and `thresholds_by_fold` preserves the actual
+training-derived values instead of presenting a single fictitious global threshold.
+The CLI records the input SHA-256 and rejects an input changed during calculation before
+writing reports. None of the example research arguments becomes a runtime default.
