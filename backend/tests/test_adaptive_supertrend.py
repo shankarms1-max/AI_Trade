@@ -387,3 +387,162 @@ def test_invalid_current_future_cannot_create_a_partial_bar_breakout(invalid):
     data = bars(12)
     result = decide(data, data[-1].end + timedelta(seconds=15), invalid, parameters(), {}, policy())
     assert result["status"] == "NO_SETUP" and "AST_FUTURE_PRICE_UNAVAILABLE" in result["blockers"]
+
+
+def _write_session_csv(path, sessions, *, second_identity="FUT"):
+    import csv
+
+    with path.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["start", "end", "open", "high", "low", "close", "future_instrument_id", "future_expiry"])
+        for index, session in enumerate(sessions):
+            for bar in session:
+                writer.writerow(
+                    [
+                        bar.start.isoformat(),
+                        bar.end.isoformat(),
+                        bar.open,
+                        bar.high,
+                        bar.low,
+                        bar.close,
+                        "FUT" if index == 0 else second_identity,
+                        EXPIRY.isoformat(),
+                    ]
+                )
+
+
+def _prices(row):
+    return row.start, row.end, row.open, row.high, row.low, row.close
+
+
+@pytest.mark.parametrize("second_identity", ["FUT", "NEXT"])
+def test_csv_truncated_sessions_keep_real_opening_bars_and_explicit_nonprice_gaps(tmp_path, second_identity):
+    from app.adaptive_supertrend.research import SessionGap, SESSION_GAP
+
+    first = bars(73)
+    second = bars(73, day=START + timedelta(days=1))
+    source = tmp_path / "two-truncated-sessions.csv"
+    _write_session_csv(source, [first, second], second_identity=second_identity)
+    original = source.read_bytes()
+    loaded = load_bars(source)
+    genuine = [row for row in loaded if row.valid]
+    boundaries = [row for row in loaded if not row.valid]
+    assert len(genuine) == 146 and len(boundaries) == 2
+    assert [_prices(row) for row in genuine] == [_prices(row) for row in first + second]
+    for boundary, session in zip(boundaries, [first, second]):
+        assert isinstance(boundary, SessionGap) and boundary.reason == SESSION_GAP
+        assert boundary.start == session[-1].end
+        assert boundary.end == session[-1].end.replace(hour=15, minute=30)
+        assert boundary.end - boundary.start == timedelta(minutes=10)
+        assert (boundary.open, boundary.high, boundary.low, boundary.close, boundary.volume) == (None,) * 5
+        assert not any(row.valid and boundary.start <= row.start < boundary.end for row in loaded)
+    assert loaded[74].valid and loaded[74].start == second[0].start
+    assert loaded[74].future_id == second_identity
+    cutoff = second[2].end
+    causal = [row for row in loaded if row.end <= cutoff]
+    orb = opening_range(causal, cutoff)
+    assert orb["complete"] and orb["opening_range_date"] == second[0].start.date().isoformat()
+    assert orb["range_start"] == second[0].start.isoformat() and orb["range_end"] == cutoff.isoformat()
+    assert orb["opening_high"] == max(row.high for row in second[:3])
+    assert orb["opening_low"] == min(row.low for row in second[:3])
+    assert source.read_bytes() == original
+
+
+def test_csv_session_boundaries_reset_supertrend_adx_and_er_warmup(tmp_path):
+    from app.adaptive_supertrend.optimizer import _segments
+
+    first, second = bars(73), bars(73, day=START + timedelta(days=1))
+    source = tmp_path / "warmup.csv"
+    _write_session_csv(source, [first, second])
+    segments = _segments(load_bars(source))
+    assert list(map(len, segments)) == [73, 73]
+    assert all(row.valid and row.close is not None for segment in segments for row in segment)
+    assert supertrend(segments[0], 5, 10) == supertrend(first, 5, 10)
+    assert supertrend(segments[1], 5, 10) == supertrend(second, 5, 10)
+    assert all(row["direction"] is None for row in supertrend(segments[1], 5, 10)[:4])
+    assert adx(segments[1], 3) == adx(second, 3)
+    assert adx(segments[1], 3)[:5] == [None] * 5
+    assert adx(segments[1], 3)[5] == 100
+    assert efficiency_ratio(segments[1][:2], 2) is None
+
+
+def test_csv_session_boundaries_are_deterministic_and_do_not_leak_next_session(tmp_path):
+    from app.adaptive_supertrend.optimizer import _segments
+
+    first, second = bars(73), bars(73, day=START + timedelta(days=1))
+    previous_only, both, changed = [tmp_path / name for name in ("prior.csv", "both.csv", "changed.csv")]
+    _write_session_csv(previous_only, [first])
+    _write_session_csv(both, [first, second])
+    modified = [
+        replace(row, open=row.open + 1000, high=row.high + 1000, low=row.low + 1000, close=row.close + 1000)
+        for row in second
+    ]
+    _write_session_csv(changed, [first, modified])
+    original = load_bars(both)
+    assert original == load_bars(both)
+    prior = load_bars(previous_only)
+    close = first[-1].end.replace(hour=15, minute=30)
+    assert [row for row in original if row.end <= close] == prior
+    assert [row for row in load_bars(changed) if row.end <= close] == prior
+    # At the last actual capture, the later missing-interval marker is not yet an observation.
+    assert [_prices(row) for row in original if row.end <= first[-1].end] == [_prices(row) for row in first]
+    assert _segments(prior) == _segments(original)[:1]
+    before_second_open = second[0].start - timedelta(seconds=1)
+    assert all(row.start.date() == START.date() for row in original if row.end <= before_second_open)
+    before_first_completion = second[0].end - timedelta(seconds=1)
+    assert not opening_range([row for row in original if row.end <= before_first_completion], before_first_completion)[
+        "complete"
+    ]
+
+
+def test_csv_incomplete_session_positions_remain_unpriced_in_signal_research(tmp_path):
+    from app.adaptive_supertrend.optimizer import _segments, signal_trades
+
+    first, second = bars(73), bars(73, day=START + timedelta(days=1))
+    source = tmp_path / "unpriced.csv"
+    _write_session_csv(source, [first, second])
+    loaded = load_bars(source)
+    for segment in _segments(loaded):
+        sequence = supertrend(segment, 5, 10)
+        assert sequence[4]["direction"] == "BULL" and segment[4].close > max(row.high for row in segment[:3])
+        assert signal_trades(segment, sequence, [True] * len(segment)) == []
+    # A separate complete source supplies a real 15:30 close; the research exit requires that evidence.
+    complete = bars()
+    priced = signal_trades(complete, supertrend(complete, 5, 10), [True] * len(complete))
+    assert len(priced) == 1 and priced[0]["exit_at"] == complete[-1].end.isoformat()
+    result = optimize(
+        loaded, (START + timedelta(days=2)).date(), (START + timedelta(days=2)).replace(hour=9, minute=0), policy()
+    )
+    assert result["selected"] is None and result["grid_count"] == 1886
+    assert all(row["metrics"]["total_trades"] == 0 for row in result["ranking"])
+    assert any(row["valid"] is False and row["close"] is None for row in result["training_bars"])
+    json.dumps(result, allow_nan=False)
+
+
+def test_csv_full_sessions_keep_existing_overnight_continuity(tmp_path):
+    from app.adaptive_supertrend.optimizer import _segments
+    from app.adaptive_supertrend.research import SessionGap
+
+    source = tmp_path / "complete.csv"
+    inputs = [bars(), bars(day=START + timedelta(days=1))]
+    _write_session_csv(source, inputs)
+    loaded = load_bars(source)
+    assert len(loaded) == 150 and all(row.valid for row in loaded)
+    assert not any(isinstance(row, SessionGap) for row in loaded)
+    assert len(_segments(loaded)) == 1
+
+
+@pytest.mark.parametrize("missing_open", [False, True])
+def test_csv_session_boundary_does_not_repair_intraday_gaps_or_missing_open(tmp_path, missing_open):
+    source = tmp_path / "missing-data.csv"
+    first = bars(73)
+    second = bars(73, day=START + timedelta(days=1))
+    second.pop(0 if missing_open else 4)
+    _write_session_csv(source, [first, second])
+    loaded = load_bars(source)
+    bad_start = second[0].start if missing_open else second[4].start
+    bad = next(row for row in loaded if row.start == bad_start)
+    assert not bad.valid and bad.reason == "AST_CONTRACT_OR_SEQUENCE_BOUNDARY"
+    if missing_open:
+        cutoff = (START + timedelta(days=1)).replace(minute=30)
+        assert not opening_range([row for row in loaded if row.end <= cutoff], cutoff)["complete"]

@@ -16,6 +16,29 @@ from app.adaptive_supertrend.optimizer import optimize, walk_forward
 from app.parallel_paper.bars import Bar
 from app.scalper.repository import IST
 
+SESSION_GAP = "AST_INCOMPLETE_SESSION_GAP"
+
+
+class SessionGap(Bar):
+    """Non-price missing-session interval; existing segmentation excludes invalid rows.
+
+    Only this immutable invalid marker has None OHLC, rather than fake zero/filled prices.
+    Its times describe the missing interval, not a broker observation or executable bar.
+    """
+
+    def __init__(self, start: datetime, end: datetime) -> None:
+        super().__init__(start, end, None, None, None, None, None, False, SESSION_GAP)  # type: ignore[arg-type]
+
+
+def _append_session_gap(result: list[Bar]) -> bool:
+    if result:
+        previous = result[-1]
+        close = datetime.combine(previous.start.date(), time(15, 30), IST)
+        if previous.end < close:
+            result.append(SessionGap(previous.end, close))
+            return True
+    return False
+
 
 def load_bars(path: Path) -> list[Bar]:
     result: list[Bar] = []
@@ -41,6 +64,9 @@ def load_bars(path: Path) -> list[Bar]:
                 or not values[2] <= min(values[0], values[3]) <= max(values[0], values[3]) <= values[1]
             ):
                 raise ValueError("AST_MALFORMED_OHLC")
+            if result and result[-1].end.date() < start.date() and _append_session_gap(result):
+                # The boundary already breaks continuity; do not sacrifice the new opening bar.
+                previous_identity = None
             contiguous = (
                 not result
                 or result[-1].end == start
@@ -68,6 +94,9 @@ def load_bars(path: Path) -> list[Bar]:
                 )
             )
             previous_identity = identity
+    # Also represent the final truncated session without depending on a future CSV row.
+    # A causal prefix before the scheduled close excludes this non-price marker by end time.
+    _append_session_gap(result)
     if any(left.end > right.start for left, right in zip(result, result[1:])):
         raise ValueError("AST_CHRONOLOGICAL_BARS_REQUIRED")
     return result

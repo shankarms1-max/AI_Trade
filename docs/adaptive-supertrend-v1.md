@@ -252,3 +252,30 @@ The candidate builder's legacy `holding_horizon_minutes` is construction metadat
 AST never consumes it as an exit rule. The explicit AST safety policy alone determines
 whether a time stop exists. Subperiod consistency includes chronological sessions with
 zero trades rather than deleting inactive days from the ranking evidence.
+
+## Historical CSV session boundaries
+
+ACTS_PAPER historical captures can end around 15:20 IST. The CSV loader preserves all
+supplied five-minute OHLC rows; it does not fill the missing 15:20–15:30 interval or treat
+15:20 as the research strategy's session-end exit.
+
+For an incomplete source session, it appends an explicit `AST_INCOMPLETE_SESSION_GAP`
+marker from the final supplied bar's end to the scheduled 15:30 boundary. This is **not a
+market bar**: it is immutable, `valid=false`, with every OHLC/volume value `null`.
+Its timestamps describe missing coverage, not a quote or a simulated fill. The final CSV
+session receives the same marker without needing any following day's prices. Causal
+prefixes select by `end <= observation_time`, so the marker never changes evidence at
+the last actual capture. Any optimizer cutoff that includes this marker includes boundary
+metadata; it does not assert that a 15:30 market price was captured.
+
+Existing research segmentation removes the marker before indicator and trade calculations,
+resets continuity, and starts again on the next genuine session's valid 09:15–09:20 bar.
+That session's three real opening bars remain available for the 09:15–09:30 ORB. A new
+contract after this explicit reset cannot leak the prior contract's indicator state.
+Complete 15:30 sessions retain existing overnight handling; missing intraday bars or a
+missing 09:15 opening bar are not repaired.
+
+Signal-research positions lacking an observed, valid session-end exit remain unpriced
+and excluded, as before. Neither the gap marker nor the next session supplies an exit
+price for the incomplete session. No strategy, optimizer scoring, ADX/ER policy, paper
+worker or ACTS behavior changes are made by this CSV input correction.
