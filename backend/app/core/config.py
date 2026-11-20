@@ -270,6 +270,10 @@ class Settings(BaseSettings):
     acts_v2_veto_strong_opposite_alpha: bool = False
 
     # Separate paper experiments; no changes to ACTS configuration or state.
+    adaptive_supertrend_enabled: bool = False
+    ast_capture_offset_seconds: int = Field(default=10, ge=0, lt=15)
+    ast_config_json: str = "{}"
+
     parallel_paper_enabled: bool = False
     parallel_paper_capture_offset_seconds: int = Field(default=5, ge=0, lt=15)
     parallel_paper_config_json: str = "{}"

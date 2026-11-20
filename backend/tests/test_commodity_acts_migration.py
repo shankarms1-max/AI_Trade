@@ -70,9 +70,10 @@ def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, marke
     _check_additive_migration(f"sqlite+pysqlite:///{tmp_path / 'commodity-migration.db'}", market_snapshot)
 
 
-def test_commodity_migration_is_the_single_head_with_unchanged_parent():
+def test_additive_ast_head_preserves_commodity_migration_parents():
     scripts = ScriptDirectory.from_config(migration_config("sqlite://"))
-    assert scripts.get_heads() == ["0021_commodity_paper_trades"]
+    assert scripts.get_heads() == ["0022_adaptive_supertrend"]
+    assert scripts.get_revision("0022_adaptive_supertrend").down_revision == "0021_commodity_paper_trades"
     assert scripts.get_revision("0021_commodity_paper_trades").down_revision == "0020_commodity_acts_research"
     assert scripts.get_revision("0020_commodity_acts_research").down_revision == "0019_parallel_paper"
 

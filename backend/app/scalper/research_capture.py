@@ -22,6 +22,7 @@ IST = ZoneInfo("Asia/Kolkata")
 MODE = "RESEARCH_ONLY"
 ACTS_PAPER_MODE = "ACTS_PAPER"
 PARALLEL_PAPER_MODE = "PARALLEL_PAPER"
+AST_PAPER_MODE = "AST_PAPER"
 INTERVAL_SECONDS = 15
 logger = get_logger(__name__)
 
@@ -60,7 +61,7 @@ class ResearchSnapshotRepository:
 
     def __init__(self, engine: Engine, *, mode: str = MODE,
                  capture_evidence: dict[str, str] | None = None) -> None:
-        if mode not in {MODE, ACTS_PAPER_MODE, PARALLEL_PAPER_MODE}:
+        if mode not in {MODE, ACTS_PAPER_MODE, PARALLEL_PAPER_MODE, AST_PAPER_MODE}:
             raise ValueError("SCALPER_RESEARCH_CAPTURE_MODE_INVALID")
         self.engine = engine
         self.mode = mode

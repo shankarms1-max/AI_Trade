@@ -672,3 +672,7 @@ from app.commodity_acts.paper_models import (  # noqa: F401, E402
     CommodityPaperControl, CommodityPaperCursor, CommodityPaperEvent, CommodityPaperFill,
     CommodityPaperOrder, CommodityPaperPosition,
 )
+
+from app.adaptive_supertrend.models import (  # noqa: F401, E402
+    AstCursor, AstEvent, AstTrade, OptimizerRun, SessionParameters,
+)
