@@ -43,10 +43,16 @@ class OptimizerPolicy(StrictPolicy):
 
 
 class RegimePolicy(StrictPolicy):
+    # Legacy policies without a mode retain their original ADX/ER semantics.
+    mode: Literal["ADX_ER"] = "ADX_ER"
     adx_period: int = Field(ge=2, le=100)
     adx_threshold: float = Field(ge=0, le=100)
     er_lookback: int = Field(ge=1, le=200)
     er_threshold: float = Field(ge=0, le=1)
+
+
+class NoRegimePolicy(StrictPolicy):
+    mode: Literal["NONE"]
 
 
 class SafetyPolicy(StrictPolicy):
@@ -139,7 +145,7 @@ class AstPolicy(StrictPolicy):
     lots: Literal[1] = 1
     max_sequence_gap_seconds: int = Field(default=45, ge=15, le=60)
     optimizer: OptimizerPolicy | None = None
-    regime: RegimePolicy | None = None
+    regime: RegimePolicy | NoRegimePolicy | None = None
     execution: ExecutionPolicy | None = None
     costs: dict = Field(default_factory=dict)
 

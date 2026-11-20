@@ -135,6 +135,30 @@ def test_fill_mark_forced_exit_restart_idempotency_and_isolation(engine):
             assert session.scalar(select(func.count()).select_from(model)) == 0
 
 
+def test_explicit_none_keeps_exact_paper_books_risk_and_journal(engine):
+    cfg = policy(regime={"mode": "NONE"})
+    service, value = setup(engine, cfg)
+    _, filled = enter(engine, service)
+    document = rows(service)[0][2]
+    assert document["policy"]["regime"] == {"mode": "NONE"}
+    assert document["policy_hash"] == cfg.policy_hash
+    assert document["entry_quotes"]["short"]["side"] == "bid"
+    assert document["entry_quotes"]["long"]["side"] == "ask"
+    assert document["entry_credit"] == (
+        document["entry_quotes"]["short"]["fill_price"] - document["entry_quotes"]["long"]["fill_price"]
+    )
+    restarted = AstPaperService(service.sessions, value)
+    assert restarted.process_snapshot(filled) == "DUPLICATE"
+    restarted.process_snapshot(capture(engine, raw(1461)))
+    document = rows(restarted)[0][2]
+    assert rows(restarted)[0][1] == "CLOSED" and document["exit_reason"] == "FORCED_CLOSE"
+    assert document["mark_quotes"]["short"]["side"] == "ask"
+    assert document["mark_quotes"]["long"]["side"] == "bid"
+    assert document["net_pnl"] is None
+    assert cfg.execution == policy().execution
+    verify(restarted.sessions, full=True)
+
+
 def test_persistent_opportunity_consumed_after_closed_and_no_spam(engine):
     cfg = policy()
     execution = cfg.execution.model_copy(

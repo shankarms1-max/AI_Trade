@@ -81,7 +81,7 @@ def decide(
     # A gap at the right edge cannot expose an older indicator as current.
     if not bars or not bars[-1].valid or (at - bars[-1].end).total_seconds() >= 300:
         blockers.append("AST_CURRENT_COMPLETED_BAR_UNAVAILABLE")
-    if policy.regime is not None:
+    if policy.regime is not None and policy.regime.mode == "ADX_ER":
         adxs = adx(usable, policy.regime.adx_period)
         features["adx"] = adxs[-1] if adxs else None
         features["efficiency_ratio"] = efficiency_ratio(usable, policy.regime.er_lookback)

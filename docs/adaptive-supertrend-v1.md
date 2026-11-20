@@ -60,9 +60,9 @@ an old range.
 
 After range completion:
 
-- Current futures above the range + completed AST BULL + configured ADX/ER pass → BULL,
+- Current futures above the range + completed AST BULL + explicit regime policy pass → BULL,
   construct a PE credit spread.
-- Current futures below the range + completed AST BEAR + configured ADX/ER pass → BEAR,
+- Current futures below the range + completed AST BEAR + explicit regime policy pass → BEAR,
   construct a CE credit spread.
 - Disagreement → `AST_ORB_DIRECTION_CONFLICT`; inside → `ORB_NOT_BROKEN`.
 - Unavailable indicators, range, causal observation timing, policy or daily parameters →
@@ -83,7 +83,7 @@ is used as the primary duplicate guard.
 - all metric weights: profitability, drawdown, profit factor, Sharpe-equivalent,
   frequency, consistency, neighbours;
 - validation and out-of-sample session counts;
-- ADX period/threshold, ER lookback/threshold;
+- explicit regime `NONE`, or `ADX_ER` with ADX period/threshold and ER lookback/threshold;
 - allowed spread widths, entry end, minimum short distance/credit/credit-width ratio;
 - maximum spread percentage and quote age, minimum OI and volume;
 - max defined loss, daily loss, trades/day, loss streak, both cooldowns and entry TTL;
@@ -383,3 +383,117 @@ minimum in every relevant fold block, and `thresholds_by_fold` preserves the act
 training-derived values instead of presenting a single fictitious global threshold.
 The CLI records the input SHA-256 and rejects an input changed during calculation before
 writing reports. None of the example research arguments becomes a runtime default.
+
+## Explicit unfiltered regime
+
+AST now distinguishes an explicit **`{"mode":"NONE"}`** from a missing/null regime.
+NONE is fully configured and produces an all-True quality mask. It imposes no ADX/ER
+threshold or ADX/ER warm-up requirement; diagnostic ADX/ER decision values remain null.
+It does **not** bypass AST warm-up, causal completed bars, session/contract boundaries,
+ORB, daily parameter selection, execution/risk checks or exact executable option books.
+A null/absent regime still blocks entry as `AST_POLICY_UNCONFIGURED`. NONE accepts no
+ADX/ER parameters; it never guesses them.
+
+`{"mode":"ADX_ER", ...}` retains the existing indicator calculations and gates.
+Legacy ADX/ER policy JSON without `mode` is still accepted as ADX_ER with the same
+mathematics and decisions. Normalized policy JSON now includes the mode, so its hash
+explicitly identifies the choice. Stored historical policies, hashes, optimizer results
+and journals are not rewritten. Existing active-policy mismatch guards are unchanged;
+this is not an instruction to update a running worker with active exposure.
+
+No optimizer/execution choices or production activation values are supplied by this
+change. Static 7/1.1 is a research benchmark, never a runtime fallback or fixed policy.
+
+## Daily optimizer-policy research (regime NONE)
+
+`app.adaptive_supertrend.optimizer_policy_research` is a standalone, CSV-only signal
+experiment. It imports no paper service, broker, worker or database connection. It uses
+`load_bars()` including its explicit non-price incomplete-session boundaries, the exact
+1,886 grid, existing `optimize()`/`rank()`, completed-bar SuperTrend and `signal_trades()`.
+Only an explicit `signal_research_only=True` call exempts missing **execution** policy
+from `optimize()`; normal runtime calls still require the full policy. Missing optimizer
+or regime is never exempted. No fake option execution policy or costs are constructed.
+
+Every candidate is an explicit tuple of lookback, chronological subperiod count, minimum
+closed training trades, named seven-field weight profile, validation sessions and OOS
+sessions. All six candidate axes are required. Weight profiles are discrete caller-owned
+JSON objects, not a continuous search and not runtime defaults. For example, a research
+weights file can contain this **illustrative, unapproved experiment input**:
+
+```json
+{
+  "balanced_experiment": {
+    "profitability": 1, "drawdown": 1, "profit_factor": 1,
+    "sharpe": 1, "frequency": 1, "consistency": 1, "neighbours": 1
+  },
+  "drawdown_experiment": {
+    "profitability": 1, "drawdown": 2, "profit_factor": 1,
+    "sharpe": 1, "frequency": 1, "consistency": 1, "neighbours": 1
+  }
+}
+```
+
+Example command, also **not** an approved runtime configuration:
+
+```sh
+PYTHONPATH=backend python -m app.adaptive_supertrend.optimizer_policy_research \
+  --csv /research/futures-5m.csv \
+  --weight-profiles /research/optimizer-weights.json \
+  --lookback-sessions 5,10,15 --subperiods 2,3 --minimum-trades 3,5 \
+  --validation-sessions 3 --oos-sessions 1,3 \
+  --json /research/optimizer-policies.json \
+  --csv-output /research/optimizer-policies-daily.csv
+```
+
+For **each validation and OOS day**, parameters are selected using precisely the preceding
+candidate lookback sessions. The simulated selection clock is 09:00 IST before that day;
+it is explicitly labelled historical simulation, not a fabricated broker/source timestamp.
+No current-day bar can enter selection. Parameters are frozen for that entire day, even
+inside a multi-day OOS block. Indicator context begins at that same rolling training
+prefix and advances causally into the evaluated day. A missing grid selection remains
+unavailable; static benchmarks cannot fill the hole. Later OOS sessions may legitimately
+enter later historical training once those dates are in the past.
+
+Each validation/OOS layout starts after the largest supplied lookback and its validation
+window, so different lookbacks have comparable validation/OOS dates within that layout.
+Windows advance by the OOS block size and use only complete blocks; unused tail dates
+are reported. Validation windows may overlap, but OOS dates within a layout never repeat.
+Different layouts can cover different dates; their comparisons are descriptive only.
+The tool does not select a layout by OOS performance or install a winning runtime policy.
+
+Before an OOS block, a separate, fixed **research-only policy selection rule** ranks the
+candidate optimizers by validation results only. Eligibility requires a valid daily AST
+selection on every validation session and at least one closed validation signal trade.
+The order is higher validation daily consistency, higher expectancy, lower maximum
+closed-trade drawdown, more closed trades, then candidate ID. Training affects each
+validation day's full-grid ranking; OOS prices/metrics never enter this policy selector.
+The chosen optimizer policy is held for the block, but its ATR/multiplier are still
+reselected before every day. If no candidate qualifies, that selected-policy OOS path is
+explicitly unavailable. Every individual candidate is also evaluated independently, so
+this meta rule does not hide the alternatives. It is not a change to runtime grid ranking.
+
+JSON contains per-candidate daily selected ATR/tenths, causal training dates/hash/cutoff,
+policy/hash, closed OOS signal trades and full metrics: points, expectancy, profit factor
+(with its undefined status), drawdown, Sharpe-equivalent, win rate, and positive-session
+consistency. Coverage counts distinguish a valid selected configuration from an actual
+closed trade. Partial coverage metrics describe the observed closed trades, not an
+assumed flat return for missing selections. Turnover/stability use only adjacent planned
+OOS days with valid selections on both; missing days are not bridged. FAST occupancy is
+ATR 5–7 / multiplier 1.0–1.3; SLOW is ATR 20–26 / multiplier 1.1–1.3, with selected-day
+denominators. Static 7/1.1, 7/1.2 and 26/1.2 are separately labelled benchmarks, evaluated
+with the same causal lookback prefix and OOS dates. Both whole-OOS and matched-selected-day
+benchmark metrics are shown; the point delta uses matched dates. No option P&L or net
+cash returns are inferred, and unpriced incomplete-session positions remain excluded by
+the existing signal engine. CSV provides deterministic per-candidate/day selections and
+metrics; JSON also contains validation rankings, folds and selected-policy OOS evidence.
+
+Grid metrics are computed once per (day, lookback, subperiods); minimum-trade and weight
+variants rerank fresh rows with the unchanged rank function. Grid rows are discarded after
+that day's group, and only daily selection/trade evidence is retained. Benchmarks share
+causal signal calculations where possible. Limits of 256 explicit candidates and 512
+full-grid fits bound an invocation; oversized experiments fail before fitting rather than
+truncating candidates or changing the grid. Reduce/split explicit axes if a guard fires.
+Candidate/grid/fold progress goes to **STDERR**, never deterministic JSON/CSV. Both source
+CSVs and weight files have SHA-256 recorded and are checked unchanged before output;
+outputs cannot alias either input or each other. No wall-clock duration/randomness enters
+research output. This change neither changes nor launches a worker, ACTS or deployment.

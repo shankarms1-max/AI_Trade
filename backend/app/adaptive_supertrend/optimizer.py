@@ -83,6 +83,8 @@ def _segments(bars: list[Bar]) -> list[list[Bar]]:
 def _quality(bars: list[Bar], policy: AstPolicy) -> list[bool]:
     assert policy.regime is not None
     regime = policy.regime
+    if regime.mode == "NONE":
+        return [True] * len(bars)
     values = adx(bars, regime.adx_period)
     result = []
     for index, value in enumerate(values):
@@ -244,7 +246,14 @@ def rank(rows: list[dict], policy: AstPolicy) -> list[dict]:
     return rows
 
 
-def optimize(bars: list[Bar], trading_date: date, selected_at: datetime, policy: AstPolicy) -> dict:
+def optimize(
+    bars: list[Bar],
+    trading_date: date,
+    selected_at: datetime,
+    policy: AstPolicy,
+    *,
+    signal_research_only: bool = False,
+) -> dict:
     cutoff = datetime.combine(trading_date, time(9, 15), IST)
     if (
         selected_at.tzinfo is None
@@ -255,7 +264,9 @@ def optimize(bars: list[Bar], trading_date: date, selected_at: datetime, policy:
         )
     ):
         raise ValueError("AST_TRAINING_CUTOFF_VIOLATION")
-    if policy.missing:
+    # Futures-only research has no option execution configuration. Runtime calls
+    # retain the complete policy requirement; missing signal policy never passes.
+    if any(name != "execution" or not signal_research_only for name in policy.missing):
         raise ValueError("AST_POLICY_UNCONFIGURED")
     assert policy.optimizer is not None
     days = sorted({bar.start.date() for bar in bars})
