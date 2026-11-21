@@ -1,7 +1,8 @@
 """In-memory research projections delegating fills/risk/exits to AstPaperService.
 
 No session factory, database, repository, broker, worker or network is constructed.
-The shadow strategies never switch policies or discard unresolved exposures.
+Original unresolved evidence is retained. Only explicitly coverage-censored
+historical rows may leave the active research portfolio in a later session.
 """
 
 from collections import Counter, defaultdict
@@ -39,6 +40,7 @@ CONTROL_REASONS = {
     "HARD_DAILY_LOSS_EXIT",
     "MARKET_EVENT_EXIT",
 }
+HISTORICAL_COVERAGE_CENSORED = "HISTORICAL_BOOK_COVERAGE_CENSORED"
 
 
 def distribution(values: list[float]) -> dict:
@@ -52,11 +54,15 @@ def distribution(values: list[float]) -> dict:
     }
 
 
-def option_metrics(documents: list[dict], days: list[str]) -> dict:
+def option_metrics(documents: list[dict], days: list[str], *, censored_days: set[str] | None = None) -> dict:
     # Reuse the existing statistics exactly, with actual gross RUPEES as inputs.
     # Do not relabel these as futures points or fabricate unsupported net results.
     values = [{"date": doc["exit_timestamp"][:10], "signal_points": doc["gross_pnl"]} for doc in documents]
-    result = metrics(values, len(days), max(len(days), 1), days)
+    # A censor-only session is unpriced, not an observed zero-return session.
+    closed_days = {value["date"] for value in values}
+    excluded_days = (censored_days or set()).intersection(days) - closed_days
+    observed_days = [day for day in days if day not in excluded_days]
+    result = metrics(values, len(observed_days), max(len(observed_days), 1), observed_days)
     fields = (
         "expectancy",
         "profit_factor",
@@ -72,8 +78,11 @@ def option_metrics(documents: list[dict], days: list[str]) -> dict:
     )
     return {
         **{k: result[k] for k in fields},
+        "population": "FULLY_OBSERVED_PATHS_ONLY",
+        "confidence": "DESCRIPTIVE_ONLY_NO_CONFIDENCE_CLAIM",
+        "censor_only_sessions_excluded": sorted(excluded_days),
         "unit": "INR_CLOSED_OBSERVED_OPTION_BOOKS",
-        "gross_option_pnl": sum(doc["gross_pnl"] for doc in documents),
+        "gross_option_pnl": sum(doc["gross_pnl"] for doc in documents) if documents else None,
         "net_option_pnl": (
             sum(doc["net_pnl"] for doc in documents)
             if documents and all(doc.get("net_pnl") is not None for doc in documents)
@@ -121,9 +130,34 @@ class ExecutionShadow(AstPaperService):
         self.trace_count = 0
         self.entry_metadata: dict[str, dict] = {}
         self.lifecycle: dict[str, list[tuple[str, str]]] = defaultdict(list)
+        self.coverage_censoring: dict[str, dict] = {}
+
+    def _prior_session_censored(self, trade_id: str, at: datetime) -> bool:
+        record = self.coverage_censoring.get(trade_id)
+        return bool(
+            record and datetime.fromisoformat(record["classified_at"]) < at and record["session_date"] < str(at.date())
+        )
 
     def _save(self, session, cursor, raw, snapshot_id, row, doc, kind, **details):
         row.document = canonical(doc)
+        if (
+            kind == "UNRESOLVED_EXPOSURE"
+            and row.state == "UNRESOLVED_EXPOSURE"
+            and doc.get("unresolved_reason") == "MISSING_EXACT_CONTRACT"
+        ):
+            # Sidecar only: never alter the runtime state/reason/document or price
+            # an exit that the historical capture cannot establish.
+            self.coverage_censoring[row.id] = {
+                "classification": HISTORICAL_COVERAGE_CENSORED,
+                "classified_at": raw.captured_at.isoformat(),
+                "session_date": str(raw.captured_at.date()),
+                "snapshot_line": snapshot_id,
+                "unresolved_reason": doc["unresolved_reason"],
+                "original_document_hash": digest(doc),
+                "pnl_status": "UNPRICED",
+                "pnl": None,
+            }
+            details = {**details, "research_metadata": dict(self.coverage_censoring[row.id])}
         self.trace_count += 1
         payload = {
             "sequence": self.trace_count,
@@ -185,10 +219,13 @@ class ExecutionShadow(AstPaperService):
         rows = [
             row
             for row in self.rows
-            if row.state in ACTIVE
-            or row.trading_date == at.date()
-            or row.closed_date is not None
-            and row.closed_date >= earliest
+            if not self._prior_session_censored(row.id, at)
+            and (
+                row.state in ACTIVE
+                or row.trading_date == at.date()
+                or row.closed_date is not None
+                and row.closed_date >= earliest
+            )
         ]
         blocked = any(e.block_entries for e in self.events.events_at(at))
         for row in rows:
@@ -289,6 +326,19 @@ class ExecutionShadow(AstPaperService):
             raise ValueError("AST_EXECUTION_RESEARCH_COMPLETED_SESSION_SUMMARY_REQUIRED")
         selected_days = set(days)
         docs = [json.loads(row.document) for row in self.rows]
+        states = {
+            row.id: next(
+                (state for at, state in reversed(self.lifecycle[row.id]) if datetime.fromisoformat(at) < cutoff), None
+            )
+            for row in self.rows
+        }
+        known_censored = {
+            trade_id: record
+            for trade_id, record in self.coverage_censoring.items()
+            if datetime.fromisoformat(record["classified_at"]) < cutoff
+            and states.get(trade_id) == "UNRESOLVED_EXPOSURE"
+        }
+        window_censored = [record for record in known_censored.values() if record["session_date"] in selected_days]
         # Only facts already known at cutoff can enter validation ranking.
         entries = [
             d
@@ -297,24 +347,29 @@ class ExecutionShadow(AstPaperService):
             and datetime.fromisoformat(d["entry_timestamp"]) < cutoff
         ]
         cohort_closed = [
-            d for d in entries if d.get("exit_timestamp") and datetime.fromisoformat(d["exit_timestamp"]) < cutoff
+            d
+            for d in entries
+            if states[d["trade_id"]] == "CLOSED"
+            and d.get("exit_timestamp")
+            and datetime.fromisoformat(d["exit_timestamp"]) < cutoff
         ]
         closed = sorted(
             [
                 d
                 for d in docs
-                if d.get("exit_timestamp", "")[:10] in selected_days
+                if states[d["trade_id"]] == "CLOSED"
+                and d.get("exit_timestamp", "")[:10] in selected_days
                 and datetime.fromisoformat(d["exit_timestamp"]) < cutoff
             ],
             key=lambda d: d["exit_timestamp"],
         )
-        states = {
-            row.id: next(
-                (state for at, state in reversed(self.lifecycle[row.id]) if datetime.fromisoformat(at) < cutoff), None
-            )
-            for row in self.rows
-        }
+        cohort_censored = [d for d in entries if d["trade_id"] in known_censored]
         counts = Counter(states.values())
+        excluded_from_risk = sum(
+            state in ACTIVE and self._prior_session_censored(trade_id, cutoff) for trade_id, state in states.items()
+        )
+        completion_count = len(closed) + len(window_censored)
+        cohort_completion_count = len(cohort_closed) + len(cohort_censored)
         counters: dict[str, Counter] = {
             key: Counter() for key in ("entry_rejects", "construction_rejects", "controls", "fill_rejects", "exits")
         }
@@ -356,12 +411,28 @@ class ExecutionShadow(AstPaperService):
             "decision_to_fill_successes": len(entries),
             "actual_trades_opened": len(entries),
             "actual_closed_trades": len(closed),
+            "fully_observed_closed_trades": len(closed),
+            "historical_coverage_censored_trades": len(window_censored),
+            "other_unresolved_exposure": counts["UNRESOLVED_EXPOSURE"] - len(known_censored),
+            "retained_historical_coverage_censored_exposure": len(known_censored),
+            "observed_path_completion_rate": len(closed) / completion_count if completion_count else None,
+            "coverage_censor_rate": len(window_censored) / completion_count if completion_count else None,
+            "censor_reason_counts": dict(Counter(r["unresolved_reason"] for r in window_censored)),
             "unresolved_exposure": counts["UNRESOLVED_EXPOSURE"],
             "entry_cohort_closed_trades": len(cohort_closed),
+            "entry_cohort_fully_observed_closed": len(cohort_closed),
+            "entry_cohort_coverage_censored": len(cohort_censored),
+            "entry_cohort_observed_path_completion_rate": (
+                len(cohort_closed) / cohort_completion_count if cohort_completion_count else None
+            ),
+            "entry_cohort_coverage_censor_rate": (
+                len(cohort_censored) / cohort_completion_count if cohort_completion_count else None
+            ),
             "entry_cohort_unpriced_at_cutoff": len(entries) - len(cohort_closed),
             "open_at_cutoff": counts["OPEN"],
             "pending_at_cutoff": counts["PENDING_PAPER_ENTRY"],
-            "active_exposure_at_cutoff": sum(counts[s] for s in ACTIVE),
+            "active_exposure_at_cutoff": sum(counts[s] for s in ACTIVE) - excluded_from_risk,
+            "prior_session_censored_excluded_from_risk": excluded_from_risk,
             "width_usage": dict(sorted(widths.items())),
             "distributions": {
                 key: distribution(samples[key])
@@ -381,6 +452,10 @@ class ExecutionShadow(AstPaperService):
             "research_control_block_counts": dict(sorted(counters["controls"].items())),
             "fill_rejection_counts": dict(sorted(counters["fill_rejects"].items())),
             "exit_reason_counts": dict(sorted(counters["exits"].items())),
-            "closed_option_metrics": option_metrics(closed, days),
-            "entry_cohort_closed_metrics": option_metrics(cohort_closed, days),
+            "closed_option_metrics": option_metrics(
+                closed, days, censored_days={record["session_date"] for record in window_censored}
+            ),
+            "entry_cohort_closed_metrics": option_metrics(
+                cohort_closed, days, censored_days={doc["entry_timestamp"][:10] for doc in cohort_censored}
+            ),
         }

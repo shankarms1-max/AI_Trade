@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from bisect import bisect_right
 from collections import Counter
+from copy import deepcopy
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 import gzip
@@ -219,6 +220,10 @@ def run_research(
                         "candidate_id": shadow.candidate_id,
                         "name": shadow.name,
                         "validation": value,
+                        "closed_sample_size": value["entry_cohort_fully_observed_closed"],
+                        "coverage_censored_sample_size": value["entry_cohort_coverage_censored"],
+                        "censor_rate": value["entry_cohort_coverage_censor_rate"],
+                        "confidence": "DESCRIPTIVE_ONLY_NO_CONFIDENCE_CLAIM",
                         "eligible": value["entry_cohort_closed_metrics"]["total_trades"] > 0
                         and value["active_exposure_at_cutoff"] == 0,
                     }
@@ -322,6 +327,7 @@ def run_research(
                 "oos": shadow.summary(oos_dates, final_cutoff),
                 "trades": [json.loads(r.document) for r in shadow.rows],
                 "trade_states": {r.id: r.state for r in shadow.rows},
+                "research_trade_metadata": deepcopy(shadow.coverage_censoring),
                 "research_trace": {
                     "events_including_marks": shadow.trace_count,
                     "head": shadow.trace_head,
@@ -333,7 +339,7 @@ def run_research(
         if progress:
             progress(f"candidate={shadow.name} completed trades={len(shadow.rows)}")
     return {
-        "schema_version": "AST_EXECUTION_POLICY_RESEARCH_V1",
+        "schema_version": "AST_EXECUTION_POLICY_RESEARCH_V2",
         "purpose": "OFFLINE_ACTUAL_OPTION_BOOKS_ONLY",
         "signal_policy_id": signal.policy_hash,
         "signal_policy": signal.model_dump(mode="json"),
@@ -371,7 +377,18 @@ def run_research(
                 "VALIDATION_CLOSED_ENTRY_COHORT_TRADES_AND_ZERO_ACTIVE_THEN_CONSISTENCY_EXPECTANCY_DD_COUNT_ID"
             ),
             "oos": "NONOVERLAPPING_BLOCKS_VALIDATION_MAY_OVERLAP_NO_OOS_SELECTION",
-            "shadow_state": "CONTINUOUS_INDEPENDENT_CANDIDATES_UNRESOLVED_EXPOSURE_NEVER_RESET",
+            "shadow_state": "CONTINUOUS_EXCEPT_PRIOR_SESSION_EXPLICIT_COVERAGE_CENSORED_ROWS_EXCLUDED_FROM_RISK",
+            "historical_capture_limitation": (
+                "ACTS_CAPTURE_DID_NOT_GUARANTEE_RETENTION_OF_HYPOTHETICAL_AST_HELD_CONTRACTS"
+            ),
+            "coverage_censoring": (
+                "ONLY_RUNTIME_UNRESOLVED_MISSING_EXACT_CONTRACT_CLASSIFIED_RESEARCH_ONLY_NO_EXIT_OR_PRICE"
+            ),
+            "censor_continuation": "BLOCK_REMAINDER_OF_CENSOR_SESSION_EXCLUDE_ONLY_IN_LATER_RESEARCH_SESSION",
+            "retained_evidence": "ORIGINAL_UNRESOLVED_STATE_REASON_AND_DOCUMENT_UNCHANGED_SIDECAR_METADATA_ONLY",
+            "statistical_population": "FULLY_OBSERVED_PATHS_ONLY_CENSORED_PATHS_EXCLUDED_NOT_PRICED_AS_ZERO",
+            "coverage_counts": "WINDOW_COUNTS_USE_CENSOR_EVENT_DATE_ENTRY_COHORT_COUNTS_USE_ENTRY_DATE_AS_OF_CUTOFF",
+            "confidence": "DESCRIPTIVE_ONLY_CLOSED_SAMPLE_SIZE_AND_CENSOR_RATE_REPORTED_NO_CONFIDENCE_CLAIM",
             "selected_oos": "PER_FOLD_SHADOW_COMPARISON_NOT_A_SWITCHED_POLICY_PORTFOLIO",
             "pnl": "CLOSED_REALIZED_RUPEES_UNPRICED_OPEN_OR_UNRESOLVED_EXCLUDED_NOT_ASSUMED_FLAT",
             "net": "ONLY_EXPLICIT_COMPLETE_DATED_SUPPORTED_COST_SCHEDULE_ELSE_NULL",

@@ -19,7 +19,7 @@ from app.adaptive_supertrend import execution_policy_research as research
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend.decision import decide
 from app.adaptive_supertrend.execution_research_config import ExecutionSpec, SignalOnlyPolicy
-from app.adaptive_supertrend.execution_research_engine import ExecutionShadow
+from app.adaptive_supertrend.execution_research_engine import HISTORICAL_COVERAGE_CENSORED, ExecutionShadow
 from app.adaptive_supertrend.journal import verify
 from app.adaptive_supertrend.models import AstCursor
 from app.adaptive_supertrend.optimizer import GRID, metrics
@@ -299,7 +299,7 @@ def test_pending_fill_fails_closed_without_ltp_fallback(failure):
     assert sum(shadow.days[str(START.date())]["fill_rejects"].values()) == 1
 
 
-def test_missing_held_contract_is_terminal_unresolved_never_reset_or_fake_closed():
+def test_coverage_loss_preserves_unresolved_evidence_and_allows_only_later_session_continuation():
     shadow, value, decision, params, orb = prepared_shadow()
     shadow.observe(value, 1, decision, params, orb)
     shadow.observe(book(value.captured_at + timedelta(seconds=15), instrument="FUT"), 2, decision, params, orb)
@@ -309,9 +309,146 @@ def test_missing_held_contract_is_terminal_unresolved_never_reset_or_fake_closed
     )
     shadow.observe(missing, 3, decision, params, orb)
     assert shadow.rows[0].state == "UNRESOLVED_EXPOSURE"
-    shadow.observe(book(value.captured_at + timedelta(days=1), instrument="FUT"), 4, decision, params, orb)
-    assert len(shadow.rows) == 1 and shadow.rows[0].state == "UNRESOLVED_EXPOSURE"
-    assert "exit_debit" not in json.loads(shadow.rows[0].document)
+    original = shadow.rows[0].document
+    doc = json.loads(original)
+    assert doc["unresolved_reason"] == "MISSING_EXACT_CONTRACT"
+    assert not any(key in doc for key in ("exit_timestamp", "exit_debit", "gross_pnl", "net_pnl"))
+    censored = shadow.coverage_censoring[shadow.rows[0].id]
+    assert censored["classification"] == HISTORICAL_COVERAGE_CENSORED
+    assert censored["pnl"] is None and censored["pnl_status"] == "UNPRICED"
+    assert censored["original_document_hash"] == digest(doc)
+    assert "research_metadata" in shadow.trace[-1]
+    # Synthetic later confirmed transition isolates the risk block from the
+    # already-consumed-opportunity guard. It must not create a same-session trade.
+    later = book(value.captured_at + timedelta(minutes=10), instrument="FUT")
+    fresh = deepcopy(decision)
+    fresh["features"]["ast_transition"] = later.captured_at.isoformat()
+    shadow.observe(later, 4, fresh, params, orb)
+    assert len(shadow.rows) == 1
+    assert shadow.days[str(START.date())]["entry_rejects"]["MAX_OPEN_POSITIONS_REACHED"] > 0
+    next_raw, next_decision, next_params, next_orb = next_session_signal(shadow)
+    shadow.observe(next_raw, 5, next_decision, next_params, next_orb)
+    assert len(shadow.rows) == 2 and shadow.rows[1].state == "PENDING_PAPER_ENTRY"
+    shadow.observe(
+        book(next_raw.captured_at + timedelta(seconds=15), instrument="FUT"), 6, next_decision, next_params, next_orb
+    )
+    assert shadow.rows[1].state == "OPEN"
+    assert shadow.rows[0].state == "UNRESOLVED_EXPOSURE" and shadow.rows[0].document == original
+
+
+def next_session_signal(shadow):
+    day = START + timedelta(days=1)
+    cfg = signal_policy()
+    result = fake_optimize(bars(day=START), day.date(), day.replace(hour=9, minute=0), cfg, signal_research_only=True)
+    value = book(day.replace(hour=10, minute=30), instrument="FUT")
+    state = {}
+    decision = decide(
+        bars(15, day=day),
+        value.captured_at,
+        value.nifty_future,
+        research.parameter_document(result, cfg),
+        state,
+        SignalOnlyPolicy.model_validate(cfg.model_dump(mode="json")),
+        future_identity=("FUT", str(EXPIRY)),
+    )
+    assert decision["status"] == "ENTER"
+    return value, decision, research.parameter_document(result, shadow.policy), state["opening_range"]
+
+
+@pytest.mark.parametrize("reason", ["MISSING_QUOTE_TIMESTAMP", "INSUFFICIENT_DEPTH", "MISSING_EXECUTABLE_SIDE"])
+def test_other_unresolved_reasons_continue_blocking_later_research_sessions(reason):
+    shadow, value, decision, params, orb = prepared_shadow()
+    shadow.observe(value, 1, decision, params, orb)
+    shadow.observe(book(value.captured_at + timedelta(seconds=15), instrument="FUT"), 2, decision, params, orb)
+    bad = book(value.captured_at.replace(hour=15, minute=20), instrument="FUT")
+    changes = {
+        "MISSING_QUOTE_TIMESTAMP": {"source_market_timestamp": None},
+        "INSUFFICIENT_DEPTH": {"bid_quantity": 0, "ask_quantity": 0},
+        "MISSING_EXECUTABLE_SIDE": {"bid": None, "ask": None},
+    }[reason]
+    bad = bad.model_copy(update={"quotes": [q.model_copy(update=changes) for q in bad.quotes]})
+    shadow.observe(bad, 3, decision, params, orb)
+    assert shadow.rows[0].state == "UNRESOLVED_EXPOSURE"
+    assert json.loads(shadow.rows[0].document)["unresolved_reason"] == reason
+    assert not shadow.coverage_censoring
+    raw_next, decision_next, params_next, orb_next = next_session_signal(shadow)
+    shadow.observe(raw_next, 4, decision_next, params_next, orb_next)
+    assert len(shadow.rows) == 1
+    summary = shadow.summary([str(START.date())], START + timedelta(days=1))
+    assert summary["other_unresolved_exposure"] == summary["active_exposure_at_cutoff"] == 1
+    assert summary["historical_coverage_censored_trades"] == 0
+
+
+def test_validation_cutoff_cannot_see_a_future_censor_or_retroactively_clear_active_risk():
+    shadow, value, decision, params, orb = prepared_shadow()
+    shadow.observe(value, 1, decision, params, orb)
+    shadow.observe(book(value.captured_at + timedelta(seconds=15), instrument="FUT"), 2, decision, params, orb)
+    cutoff = (START + timedelta(days=1)).replace(hour=9, minute=15)
+    before = shadow.summary([str(START.date())], cutoff)
+    future = book(value.captured_at + timedelta(days=1), instrument="FUT")
+    future = future.model_copy(
+        update={"quotes": [q.model_copy(update={"instrument_token": q.instrument_token + "X"}) for q in future.quotes]}
+    )
+    shadow.observe(future, 3, decision, params, orb)
+    assert shadow.summary([str(START.date())], cutoff) == before
+    assert before["active_exposure_at_cutoff"] == 1
+    assert before["historical_coverage_censored_trades"] == before["entry_cohort_coverage_censored"] == 0
+    later = shadow.summary([str(START.date())], START + timedelta(days=2))
+    assert later["entry_cohort_coverage_censored"] == 1
+    assert later["entry_cohort_closed_metrics"]["gross_option_pnl"] is None
+
+
+def test_coverage_censoring_keeps_later_oos_folds_evaluable_without_zero_pnl(tmp_path, monkeypatch):
+    futures = source_file(tmp_path, count=4)
+    source = tmp_path / "raw.jsonl"
+    records = snapshots(source)
+    # First eligible session's held legs disappear at the forced-exit observation.
+    at_loss = datetime.combine(DAYS[1], time(15, 20, 5), IST)
+    records = [
+        (
+            r.model_copy(
+                update={
+                    "quotes": [q.model_copy(update={"instrument_token": q.instrument_token + "X"}) for q in r.quotes]
+                }
+            )
+            if r.captured_at == at_loss
+            else r
+        )
+        for r in records
+    ]
+    source.write_text("".join(r.model_dump_json() + "\n" for r in records))
+    monkeypatch.setattr(research, "optimize", fake_optimize)
+    result = research.run_research(load_bars(futures), source, signal_policy(), spec(("WIDTH_100_ONLY",)), 1, 1)
+    candidate = result["candidates"][0]
+    assert result["schema_version"] == "AST_EXECUTION_POLICY_RESEARCH_V2"
+    assert result["folds"][0]["selection"]["candidate_id"] is None  # censor-only validation is not a zero-return win
+    ranking = result["folds"][0]["selection"]["validation_ranking"][0]
+    assert ranking["closed_sample_size"] == 0 and ranking["coverage_censored_sample_size"] == 1
+    assert ranking["censor_rate"] == 1 and ranking["confidence"] == "DESCRIPTIVE_ONLY_NO_CONFIDENCE_CLAIM"
+    assert result["folds"][1]["selection"]["candidate_id"] == candidate["execution_candidate_id"]
+    total = candidate["all_research_sessions"]
+    assert total["actual_trades_opened"] == 3
+    assert total["fully_observed_closed_trades"] == total["entry_cohort_fully_observed_closed"] == 2
+    assert total["historical_coverage_censored_trades"] == total["entry_cohort_coverage_censored"] == 1
+    assert total["other_unresolved_exposure"] == 0 and total["unresolved_exposure"] == 1
+    assert total["observed_path_completion_rate"] == pytest.approx(2 / 3)
+    assert total["censor_reason_counts"] == {"MISSING_EXACT_CONTRACT": 1}
+    first = candidate["trades"][0]
+    assert candidate["trade_states"][first["trade_id"]] == "UNRESOLVED_EXPOSURE"
+    assert candidate["research_trade_metadata"][first["trade_id"]]["classification"] == HISTORICAL_COVERAGE_CENSORED
+    assert "gross_pnl" not in first and "exit_timestamp" not in first
+    metric = total["closed_option_metrics"]
+    closed = [t for t in candidate["trades"] if "exit_timestamp" in t]
+    assert metric["population"] == "FULLY_OBSERVED_PATHS_ONLY" and metric["total_trades"] == 2
+    assert metric["gross_option_pnl"] == pytest.approx(sum(t["gross_pnl"] for t in closed))
+    assert metric["expectancy"] == pytest.approx(sum(t["gross_pnl"] for t in closed) / 2)
+    assert metric["net_option_pnl"] is None
+    compressed = tmp_path / "raw.jsonl.gz"
+    compressed.write_bytes(gzip.compress(source.read_bytes(), mtime=0))
+    assert (
+        research.run_research(load_bars(futures), compressed, signal_policy(), spec(("WIDTH_100_ONLY",)), 1, 1)
+        == result
+    )
 
 
 def test_controls_are_explicit_identical_and_blockers_separate():
@@ -471,7 +608,8 @@ def test_cli_read_only_sources_alias_guard_progress_and_deterministic_output(tmp
         research.main(args)
 
 
-def test_research_shadow_differential_against_real_paper_service(engine):
+@pytest.mark.parametrize("coverage_loss", [False, True])
+def test_research_shadow_differential_against_real_paper_service(engine, coverage_loss):
     sessions = build_session_factory(engine)
     definition = spec(("WIDTH_100_ONLY",))
     sig = signal_policy()
@@ -525,23 +663,32 @@ def test_research_shadow_differential_against_real_paper_service(engine):
         (2, value.captured_at.replace(hour=15, minute=20)),
     ):
         snapshot = book(at, instrument="FUT", closing=offset == 2)
+        if coverage_loss and offset == 2:
+            snapshot = snapshot.model_copy(
+                update={
+                    "quotes": [
+                        q.model_copy(update={"instrument_token": q.instrument_token + "X"}) for q in snapshot.quotes
+                    ]
+                }
+            )
         sid = capture(engine, snapshot)
         service.process_snapshot(sid)
         shadow.observe(snapshot, sid, decision, parameters, orb)
+        assert rows(service)[0][1] == shadow.rows[0].state
+        for key in ("entry_credit", "entry_quotes", "defined_max_risk", "policy_hash", "opportunity_id"):
+            assert json.loads(shadow.rows[0].document)[key] == rows(service)[0][2][key]
     expected, observed = rows(service)[0][2], json.loads(shadow.rows[0].document)
-    for key in (
-        "entry_credit",
-        "entry_quotes",
-        "defined_max_risk",
-        "exit_debit",
-        "exit_quotes",
-        "gross_pnl",
-        "net_pnl",
-        "exit_reason",
-        "policy_hash",
-        "opportunity_id",
-    ):
-        assert observed[key] == expected[key]
+    if coverage_loss:
+        assert observed["unresolved_reason"] == expected["unresolved_reason"] == "MISSING_EXACT_CONTRACT"
+        assert not any(k in expected or k in observed for k in ("exit_timestamp", "exit_debit", "gross_pnl"))
+        assert shadow.coverage_censoring[observed["trade_id"]]["classification"] == HISTORICAL_COVERAGE_CENSORED
+        # Reappearing quotes on a later day do not recover the production paper row.
+        service.process_snapshot(capture(engine, book(value.captured_at + timedelta(days=1), instrument="FUT")))
+        assert len(rows(service)) == 1 and rows(service)[0][1] == "UNRESOLVED_EXPOSURE"
+        assert rows(service)[0][2] == expected
+    else:
+        for key in ("exit_debit", "exit_quotes", "gross_pnl", "net_pnl", "exit_reason"):
+            assert observed[key] == expected[key]
     verify(sessions, full=True)
 
 

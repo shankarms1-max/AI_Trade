@@ -626,12 +626,15 @@ JSON contains no wall-clock duration or random values.
 
 ### Chronology, selection and interpretation
 
-Each candidate is a **continuous independent shadow policy** throughout validation and
-OOS. Unresolved exposures are never reset to make the next fold trade. Validation windows
-may overlap; OOS blocks never overlap and only complete blocks count. Before reading the
+Each candidate is a **continuous independent shadow policy** for normal pending/open/closed
+positions and non-coverage unresolved exposure. The explicit historical coverage-censoring
+exception below retains original unresolved evidence while permitting a later independent
+intraday research session. Validation windows may overlap; OOS blocks never overlap and
+only complete blocks count. Before reading the
 first OOS observation, selection snapshots the preceding contiguous validation sessions.
-A candidate needs at least one closed validation entry-cohort trade and zero active
-pending/open/unresolved exposure. Eligible candidates rank by higher positive-session
+A candidate needs at least one fully observed closed validation entry-cohort trade and
+zero effective active research exposure (excluding only known prior-session coverage-censored
+rows, never normal pending/open or other unresolved exposure). Eligible candidates rank by higher positive-session
 consistency, higher expectancy, lower closed-trade drawdown, more closed trades and a
 stable candidate-ID tie break. This fixed research-only selection rule never uses OOS
 prices/results. A later OOS session may become later validation/training after it is past.
@@ -672,3 +675,69 @@ results. The CLI additionally records physical input SHA-256s/path provenance (w
 naturally differs for compressed versus plain files), checks every source unchanged,
 and refuses input/output aliases. The uncompressed content hash also must match between
 inventory and replay. No input, historical journal or production row is modified.
+
+### Historical held-book coverage censoring (research output V2)
+
+Historical **ACTS_PAPER** capture did not know the hypothetical AST held legs and did
+not guarantee retention of those exact contracts. Loss of a hypothetical held leg is
+therefore an unpriced coverage limit in this offline construction experiment. It is
+not evidence of a zero return, an executable close or a profitable trade. Output schema
+`AST_EXECUTION_POLICY_RESEARCH_V2` identifies these research continuation semantics;
+input policies, the six candidates, combined runtime-policy hashes and the **15:20**
+forced-exit control are unchanged.
+
+The unchanged `AstPaperService._transition()` still produces `UNRESOLVED_EXPOSURE` with
+`unresolved_reason=MISSING_EXACT_CONTRACT`. The research shadow retains that exact state,
+reason and original document, including its entry/last-mark evidence. It adds a separate
+`research_trade_metadata[trade_id]` sidecar with classification
+`HISTORICAL_BOOK_COVERAGE_CENSORED`, actual classification time/source line/session,
+original document hash and `pnl_status=UNPRICED`, `pnl=null`. No exit timestamp, exit debit,
+gross/net P&L, LTP-based value or settlement approximation is added to that trade. The
+research trace records the classification alongside the original document hash.
+
+The censored row blocks all further entries for that candidate for the **remainder of
+the classification session**, even if another signal or exact quote arrives. Only in a
+later research session may that explicitly classified prior-session row be excluded
+from the shadow's active-risk input. It remains `UNRESOLVED_EXPOSURE` in audit output
+forever; this is neither recovery nor a close. Normal OPEN/PENDING rows and unresolved
+rows with **any other reason** retain continuous strict behavior across sessions. In
+particular, missing/stale prices, insufficient depth and expired-contract unresolved
+exposure are not automatically censored. Runtime AST, workers, ordinary replay,
+construction, exact bid/ask books and ACTS have no such exclusion and are unchanged.
+
+All-session, validation and OOS summaries expose:
+
+- `actual_trades_opened`, `fully_observed_closed_trades`,
+  `historical_coverage_censored_trades`, `other_unresolved_exposure` and `censor_reason_counts`;
+- `entry_cohort_fully_observed_closed`, `entry_cohort_coverage_censored`,
+  plus the matching cohort completion/censor rates;
+- `observed_path_completion_rate = fully_observed_closed / (fully_observed_closed + coverage_censored)`,
+  or null when there are no completed/censored paths;
+- legacy `unresolved_exposure` as the total retained unresolved audit rows,
+  `retained_historical_coverage_censored_exposure`, `prior_session_censored_excluded_from_risk`
+  and effective `active_exposure_at_cutoff`, keeping retained evidence distinct from portfolio eligibility.
+
+Window closed/censor counts use the actual exit/classification session date; entry-cohort
+counts use the entry date. All classifications and states are evaluated **as of the
+exclusive cutoff**: a later coverage loss or exit cannot reclassify an earlier validation
+snapshot or retroactively release its risk. Other unresolved exposure remains blocking
+regardless of whether it originated outside the current validation window.
+
+Every P&L/statistics object is labelled `population=FULLY_OBSERVED_PATHS_ONLY` and uses
+only actual CLOSED paths known by cutoff. Censored trades never enter the trade count,
+expectancy, PF, drawdown or win/loss samples as zeros. A session with only censored paths
+and no observed closes is also excluded from the session-consistency buckets, with those
+dates explicitly listed. Normal uncensored-session statistics are unchanged. An empty
+closed population reports null gross/net P&L, not a fabricated flat result. Net still
+requires an explicitly complete, supported, dated cost schedule for the actual closes.
+
+Validation rankings display `closed_sample_size`, `coverage_censored_sample_size`,
+`censor_rate` and `confidence=DESCRIPTIVE_ONLY_NO_CONFIDENCE_CLAIM`. There is no new tuned
+sample-size threshold or censor-based strategy gate: zero closed evidence still selects
+nobody, and the existing deterministic validation-only rank otherwise remains. A small
+observed sample or high censor rate cannot be interpreted as high-confidence performance.
+Previously censored research rows no longer make every later fold ineligible, while
+non-coverage unresolved rows still do. These are conditional observed-path comparisons,
+not a claim of uncensored profitability, a complete portfolio equity curve or executable
+switching between policies. No source snapshot, runtime journal or historical trade is
+rewritten to obtain later observations.
