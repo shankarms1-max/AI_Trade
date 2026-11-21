@@ -48,7 +48,7 @@ A breakout above the frozen range with completed SuperTrend BULL can open a long
 
 ## Paper execution
 
-Kotak's NIFTY reference response supplies the futures symbol, expiry and LTP. Each native capture persists the original request/response times and the scalar futures observation in `scalper_market_snapshots`, with `mode=AST_PAPER` and `producer=AST_FUTURES_V1`. No call/put quote rows are required. The shared schema also requires spot, ATM, reference option expiry and header lot metadata. The futures worker sizes positions from its explicitly configured **exact futures contract**. The header lot is not evidence of the futures multiplier.
+Kotak's NIFTY reference response supplies the futures symbol, expiry and LTP. Each native capture persists the original request/response times and the scalar futures observation in `scalper_market_snapshots`, with `mode=AST_PAPER` and `producer=AST_FUTURES_V1`. No call/put quote rows are required. The shared schema also requires spot, ATM, reference option expiry and header lot metadata. The futures worker uses one independently verified configured lot size and requires the captured header lot to agree. Each pending entry records the actual futures symbol and expiry. The later fill rechecks both and records the confirmed identity and observed lot. A new session can select a new contract under the same policy. A held position retains its original identity and quantity.
 
 A decision creates a pending entry. The next chronological native observation must still support the same opportunity and have the same futures identity and expiry, a finite positive price, valid capture timing, and fall within the entry window and configured sequence gap. Failure rejects the pending entry. Simulated entry, mark and exit prices are labelled **observed futures LTP**. No executable exchange bid/ask, tick-complete path, or futures exchange timestamp is available. `futures_observation_time` is response capture time and `futures_source_timestamp` stays null.
 
@@ -62,7 +62,7 @@ A reversal requires an actual SuperTrend direction change on a completed 5-minut
 
 | Field | Meaning |
 | --- | --- |
-| `contracts` | List of unique objects with exact broker `instrument_id`, ISO `expiry`, and verified integer `lot_size` |
+| `lot_size` | Required positive integer, independently verified for NIFTY futures. A missing or conflicting observed lot blocks execution. |
 | `entry_end_time` | Last permitted entry time in IST |
 | `session_exit_time` | Scheduled session-end exit in IST, after the entry cutoff and no later than 15:30 |
 | `round_trip_cost_per_lot_inr` | Optional flat one-lot round-trip cost, effective for trades under this policy |
@@ -77,6 +77,26 @@ Read status and verify the futures journal using the isolated AST database:
 python worker/adaptive_supertrend_worker.py --mode PAPER --status
 python worker/adaptive_supertrend_worker.py --mode PAPER --verify-journal
 ```
+
+## Historical 15-second futures paper replay
+
+Run the file-only CLI with the archived ACTS_PAPER scalar observations, the research five-minute CSV and one frozen futures policy. Copy the approved optimizer and regime settings unchanged into the futures policy JSON. The execution section requires the verified lot size and explicit entry and session-exit times. Retire the old contract list before a future restart with zero active exposure. Existing journal documents retain their historical policy hashes.
+
+```sh
+PYTHONPATH=backend python -m app.adaptive_supertrend.futures_replay \
+  --futures-csv /research/futures-5m.csv \
+  --snapshots /research/acts-paper-snapshots.jsonl.gz \
+  --policy /research/ast-futures-policy.json \
+  --json /research/ast-futures-replay.json
+```
+
+To test one intended IST cutoff, add `--session-exit-time HH:MM:SS`. Otherwise the policy supplies it. The CLI records the effective policy and the SHA-256 of each input. Daily progress goes to stderr. No worker, broker credential, SQL connection or native capture row is needed.
+
+The latest 15 prior sessions supply each pre-session grid fit. Prior replayed sessions use completed bars built from raw observations and the runtime gap policy. The CSV supplies historical seed sessions lacking raw observations. The current date's CSV never supplies an intraday signal or fill. New parameters are selected only from past sessions, once per day; historical 09:00 IST is the simulated selection clock. The policy remains fixed regardless of P&L. A missing freeze, incomplete ORB or non-executable observation retains its blocker. Replay line numbers are evidence references local to the archive.
+
+`summary` counts distinct eligible signal opportunities before execution checks, pending entries created, fills, rejections and realized results. It reports open/pending positions at the end of the file separately from observed unresolved states. The last observation never forces a synthetic close. Drawdown uses closed trades in exit order, starting at zero. Win rate includes flat closures in the denominator. Expectancy and average wins/losses are points; PF is null without a gross loss.
+
+`comparison` gives deltas against the supplied walk-forward aggregate (14 trades, +395.6 points, PF 2.56, drawdown 119.4 points). It separately runs the existing five-minute signal accounting on the replay dates with the already-frozen parameters. Trades are matched by session, side, exact contract and SuperTrend transition. The report separates entry and exit price differences for matched trades and lists the points from unmatched closures. The supplied aggregate alone cannot identify which individual trades differed. Daily evidence includes raw-versus-CSV bar agreement, observed contract identities, gaps, lot blockers, breakouts visible only on the current observation, and availability at the configured exit cutoff. A missing session-end price leaves exposure unpriced and can block subsequent sessions.
 
 ## One-time historical bootstrap
 

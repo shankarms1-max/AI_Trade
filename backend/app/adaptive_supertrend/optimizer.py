@@ -334,3 +334,32 @@ def walk_forward(bars: list[Bar], policy: AstPolicy) -> list[dict]:
         result.append(record)
         cursor += cfg.validation_sessions + cfg.out_of_sample_sessions
     return result
+
+
+def selected_parameters(result: dict) -> dict:
+    """Serialize one successful daily selection identically for paper and replay."""
+    selected = result["selected"]
+    run_id = digest(result)
+    document = {
+        key: result[key]
+        for key in (
+            "trading_date",
+            "selected_at",
+            "data_cutoff",
+            "policy_hash",
+            "training_data_identity",
+            "walk_forward_status",
+        )
+    }
+    document.update(
+        strategy_id=VERSION,
+        strategy_version=VERSION,
+        optimizer_run_id=run_id,
+        atr_period=selected["atr_period"],
+        multiplier_tenths=selected["multiplier_tenths"],
+        metrics=selected["metrics"],
+        neighbour_robustness=selected["neighbour_robustness"],
+    )
+    if "history_provenance" in result:
+        document["history_provenance"] = result["history_provenance"]
+    return document

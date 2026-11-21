@@ -37,6 +37,7 @@ def raw(index, price=25100):
             "nifty_spot": price,
             "nifty_future": price,
             "future_instrument_id": "FUT",
+            "lot_size": 65,
             "future_expiry": EXPIRY,
             "quotes": [quote.model_copy(update={"source_market_timestamp": at}) for quote in template.quotes],
         }
@@ -540,3 +541,68 @@ def test_invalid_forced_exit_and_unresolved_mark_are_unpriced(engine):
     assert doc["mark_price"] is None and "exit_price" not in doc
     assert report(service.sessions, obs.captured_at)["unrealized_gross_pnl"] is None
     verify(service.sessions, full=True)
+
+
+def test_monthly_roll_new_session_same_policy_and_frozen_fill_identity(engine):
+    # New symbol/expiry isn't present anywhere in the execution configuration.
+    service, _ = setup(engine)
+    enter(engine, service)
+    service.process_snapshot(capture(engine, raw(1461)))
+    later = START + timedelta(days=1)
+    freeze(service.sessions, bars(), later.date(), later.replace(hour=9, minute=0), service.policy)
+    next_expiry = EXPIRY + timedelta(days=28)
+    for i in range(242):
+        value = raw(i, 25000 + (i // 20) * 3 + (i % 20) / 100)
+        at = value.captured_at + timedelta(days=1)
+        idx = capture(
+            engine,
+            value.model_copy(
+                update={
+                    "captured_at": at,
+                    "request_started_at": at - timedelta(seconds=1),
+                    "response_received_at": at,
+                    "future_instrument_id": "NEXT_MONTH",
+                    "future_expiry": next_expiry,
+                }
+            ),
+        )
+        if i >= 240:
+            service.process_snapshot(idx)
+    states = {state: doc for _, state, doc in rows(service)}
+    assert states["CLOSED"]["future_instrument_id"] == "FUT"
+    assert states["OPEN"]["future_instrument_id"] == "NEXT_MONTH"
+    assert states["OPEN"]["future_expiry"] == str(next_expiry)
+    assert states["OPEN"]["entry_observed_lot_size"] == states["OPEN"]["lot_size"] == 65
+    assert states["OPEN"]["policy_hash"] == states["CLOSED"]["policy_hash"]
+    # A second roll during the holding period cannot mark the original position.
+    at += timedelta(seconds=15)
+    service.process_snapshot(
+        capture(
+            engine,
+            value.model_copy(
+                update={
+                    "captured_at": at,
+                    "request_started_at": at,
+                    "response_received_at": at,
+                    "future_instrument_id": "THIRD",
+                    "future_expiry": next_expiry,
+                }
+            ),
+        )
+    )
+    unresolved = next(doc for _, state, doc in rows(service) if state == "UNRESOLVED_EXPOSURE")
+    assert unresolved["gross_mark_rupees"] is None and "exit_price" not in unresolved
+    assert unresolved["future_instrument_id"] == "NEXT_MONTH"
+
+
+def test_decision_and_pending_fill_recheck_observed_lot(engine):
+    service, _ = setup(engine)
+    reason = "FUTURES_LOT_SIZE_UNAVAILABLE_OR_MISMATCH"
+    obs = raw(240).model_copy(update={"lot_size": 50})
+    service.process_snapshot(capture(engine, obs))
+    assert rows(service) == []
+    assert reason in report(service.sessions, obs.captured_at)["latest"]["blockers"]
+    assert service.process_snapshot(capture(engine, raw(241))) == "PENDING_PAPER_ENTRY"
+    service.process_snapshot(capture(engine, raw(242).model_copy(update={"lot_size": 50})))
+    _, state, doc = rows(service)[0]
+    assert state == "ENTRY_REJECTED" and doc["rejection_reason"] == reason and "entry_price" not in doc

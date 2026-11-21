@@ -38,7 +38,7 @@ def policy(**updates):
         "execution": {
             "entry_end_time": "14:45:00",
             "session_exit_time": "15:20:00",
-            "contracts": [{"instrument_id": "FUT", "expiry": str(EXPIRY), "lot_size": 65}],
+            "lot_size": 65,
         },
     }
     value.update(updates)

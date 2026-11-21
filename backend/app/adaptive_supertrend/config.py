@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import time
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -52,33 +52,19 @@ class NoRegimePolicy(StrictPolicy):
     mode: Literal["NONE"]
 
 
-class FuturesContract(StrictPolicy):
-    instrument_id: str = Field(min_length=1, max_length=160, pattern=r"^\S(?:.*\S)?$")
-    expiry: date
-    lot_size: int = Field(gt=0, strict=True)
-
-
 class FuturesExecutionPolicy(StrictPolicy):
-    contracts: tuple[FuturesContract, ...] = Field(min_length=1)
+    lot_size: int = Field(gt=0, strict=True)
     entry_end_time: time
     session_exit_time: time
     round_trip_cost_per_lot_inr: float | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
-    def validate_session_and_contracts(self) -> FuturesExecutionPolicy:
+    def validate_session_times(self) -> FuturesExecutionPolicy:
         if self.entry_end_time.tzinfo is not None or self.session_exit_time.tzinfo is not None:
             raise ValueError("AST_SESSION_TIMES_REQUIRE_LOCAL_IST")
         if not time(9, 30) < self.entry_end_time < self.session_exit_time <= time(15, 30):
             raise ValueError("AST_SESSION_TIMES_INVALID")
-        if len({(item.instrument_id, item.expiry) for item in self.contracts}) != len(self.contracts):
-            raise ValueError("AST_DUPLICATE_FUTURES_CONTRACT")
         return self
-
-    def lot_size(self, instrument_id, expiry) -> int | None:
-        return next(
-            (item.lot_size for item in self.contracts if (item.instrument_id, item.expiry) == (instrument_id, expiry)),
-            None,
-        )
 
 
 class AstPolicy(StrictPolicy):
