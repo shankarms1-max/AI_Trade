@@ -37,7 +37,7 @@ def check(url):
                 if name != "alembic_version"
             }
             columns = {name: inspect(connection).get_columns(name) for name in before}
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0022_adaptive_supertrend")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0022_adaptive_supertrend"
             assert set(inspect(connection).get_table_names()) - set(tables) == {
@@ -81,6 +81,27 @@ def check(url):
                 with pytest.raises(Exception, match="AST_EVIDENCE_IS_IMMUTABLE"):
                     with engine.begin() as connection:
                         connection.execute(text(f"TRUNCATE {table} CASCADE"))
+        # Upgrade a populated historical journal. Compare all pre-existing tables byte-for-byte.
+        with engine.connect() as connection:
+            previous = {
+                name: connection.execute(text(f'SELECT * FROM "{name}"')).all()
+                for name in inspect(connection).get_table_names()
+                if name != "alembic_version"
+            }
+        command.upgrade(cfg, "head")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0023_ast_futures_paper"
+            assert set(inspect(connection).get_table_names()) - set(previous) - {"alembic_version"} == {
+                "ast_futures_paper_trades",
+                "ast_futures_paper_events",
+                "ast_futures_paper_cursor",
+            }
+            for name, records in previous.items():
+                assert connection.execute(text(f'SELECT * FROM "{name}"')).all() == records
+            assert connection.execute(text("SELECT sequence, head_hash FROM ast_futures_paper_cursor")).one() == (
+                0,
+                "GENESIS",
+            )
         command.downgrade(cfg, "0021_commodity_paper_trades")
         with engine.connect() as connection:
             for name, rows in before.items():
@@ -99,11 +120,12 @@ def test_postgresql_ddl():
     command.upgrade(cfg, "0021_commodity_paper_trades:head", sql=True)
     sql = cfg.output_buffer.getvalue()
     assert "TRUNCATE ON ast_paper_events" in sql
+    assert "TRUNCATE ON ast_futures_paper_events" in sql
     assert "CREATE TABLE ast_session_parameters" in sql
     assert "ALTER TABLE acts_" not in sql and "UPDATE acts_" not in sql
 
 
-def test_real_postgresql_16_additive_and_fresh_upgrade():
+def test_real_postgresql_16_additive_and_fresh_upgrade(tmp_path):
     url = os.getenv("AST_POSTGRES_TEST_URL")
     if not url:
         pytest.skip("AST_POSTGRES_TEST_URL must name disposable PostgreSQL 16")
@@ -115,7 +137,51 @@ def test_real_postgresql_16_additive_and_fresh_upgrade():
         connection.execute(text(f'CREATE SCHEMA "{schema}"'))
     isolated = base.update_query_dict({"options": f"-csearch_path={schema}"})
     try:
-        check(isolated.render_as_string(hide_password=False))
+        isolated_url = isolated.render_as_string(hide_password=False)
+        check(isolated_url)
+        # Separate empty schema for the bootstrap guard, independent of the foreign snapshot sentinel in check().
+        schema2 = schema + "_native"
+        with admin.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema2}"'))
+        try:
+            fresh = base.update_query_dict({"options": f"-csearch_path={schema2}"})
+            cfg = migration(fresh.render_as_string(hide_password=False))
+            command.upgrade(cfg, "head")
+            engine = create_engine(fresh)
+            try:
+                from tests.test_adaptive_supertrend_bootstrap import load, source
+                from tests.test_adaptive_supertrend_paper import raw, capture
+                from app.adaptive_supertrend.service import AstPaperService
+                from app.adaptive_supertrend.journal import verify
+                from app.db.session import build_session_factory
+                from tests.test_scalper import settings
+
+                path, _ = source(tmp_path)
+                assert load(engine, path)["rows_inserted"] == 20
+                assert load(engine, path)["rows_already_present"] == 20
+                sessions = build_session_factory(engine)
+                service = AstPaperService(sessions, settings(ast_config_json="{}"))
+                assert service.pending_snapshot_ids() == []
+                observation = capture(engine, raw(0))
+                assert service.process_snapshot(observation) == "NO_SETUP"
+                assert service.process_snapshot(observation) == "DUPLICATE"
+                verify(sessions, full=True)
+                for action in (
+                    "UPDATE ast_futures_paper_events SET payload='{}'",
+                    "DELETE FROM ast_futures_paper_events",
+                    "TRUNCATE ast_futures_paper_events",
+                ):
+                    with pytest.raises(Exception, match="AST_EVIDENCE_IS_IMMUTABLE"):
+                        with engine.begin() as connection:
+                            connection.execute(text(action))
+                with pytest.raises(RuntimeError, match="REQUIRES_EMPTY_JOURNAL"):
+                    command.downgrade(cfg, "0022_adaptive_supertrend")
+                verify(sessions, full=True)
+            finally:
+                engine.dispose()
+        finally:
+            with admin.begin() as connection:
+                connection.execute(text(f'DROP SCHEMA "{schema2}" CASCADE'))
     finally:
         with admin.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))

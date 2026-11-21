@@ -17,9 +17,9 @@ from app.adaptive_supertrend.service import AstPaperService, freeze
 from app.acts_paper.models import ActsPaperEvent, ActsPaperTrade
 from app.db.session import build_session_factory
 from app.parallel_paper.models import ParallelPaperEvent, ParallelPaperTrade
-from app.research.manifest import canonical, digest
+from app.research.manifest import digest
 from app.scalper.models import ScalperEvent, ScalperTrade
-from app.scalper.research_capture import AST_PAPER_MODE, ResearchSnapshotRepository
+from app.scalper.research_capture import ResearchSnapshotRepository
 from tests.test_adaptive_supertrend import EXPIRY, START, bars, policy
 from tests.test_scalper import settings, snapshot
 from worker import adaptive_supertrend_worker as worker
@@ -44,10 +44,12 @@ def raw(index, price=25100):
 
 
 def capture(engine, observation):
-    return ResearchSnapshotRepository(engine, mode=AST_PAPER_MODE).save(observation).snapshot_id
+    from app.adaptive_supertrend.capture import save_capture
+
+    return save_capture(build_session_factory(engine), observation.model_dump(exclude={"quotes"}))
 
 
-def setup(engine, cfg=None, *, shared_source_offset_seconds=0):
+def setup(engine, cfg=None, *, shared_source_offset_seconds=0, sign=1):
     cfg = cfg or policy()
     sessions = build_session_factory(engine)
     with sessions.begin() as session:
@@ -60,7 +62,7 @@ def setup(engine, cfg=None, *, shared_source_offset_seconds=0):
     value = settings(ast_config_json=cfg.model_dump_json())
     service = AstPaperService(sessions, value)
     for index in range(240):
-        price = 25000 + (index // 20) * 3 + (index % 20) / 100
+        price = 25000 + sign * ((index // 20) * 3 + (index % 20) / 100)
         observation = raw(index, price)
         observation = observation.model_copy(
             update={
@@ -80,180 +82,118 @@ def rows(service):
         return [(row.id, row.state, json.loads(row.document)) for row in session.scalars(select(AstTrade))]
 
 
-def enter(engine, service):
-    first = capture(engine, raw(240))
+def enter(engine, service, price=25100):
+    first = capture(engine, raw(240, price))
     assert service.process_snapshot(first) == "PENDING_PAPER_ENTRY"
     assert rows(service)[0][1] == "PENDING_PAPER_ENTRY"
-    assert "entry_credit" not in rows(service)[0][2]
+    assert "entry_price" not in rows(service)[0][2]
     assert service.process_snapshot(first) == "DUPLICATE"
-    following = capture(engine, raw(241))
+    following = capture(engine, raw(241, price + 1))
     service.process_snapshot(following)
     assert rows(service)[0][1] == "OPEN"
     return first, following
 
 
-def test_fill_mark_forced_exit_restart_idempotency_and_isolation(engine):
-    service, value = setup(engine)
-    first, following = enter(engine, service)
-    row = rows(service)[0][2]
-    assert row["strategy_version"] == "AST_V1" and row["strategy_id"] == "AST_V1" and row["lots"] == 1
-    assert row["session_parameters"]["atr_period"] >= 5
-    assert row["candidate"]["construction_method"] == "SHORT_LEG_FIRST_V1"
-    assert (
-        row["entry_credit"] == row["entry_quotes"]["short"]["fill_price"] - row["entry_quotes"]["long"]["fill_price"]
-    )
-    assert row["entry_quotes"]["short"]["side"] == "bid" and row["entry_quotes"]["long"]["side"] == "ask"
+@pytest.mark.parametrize("sign", [1, -1])
+def test_next_observation_marks_excursions_and_session_exit(engine, sign):
+    cfg = policy(regime={"mode": "NONE"})
+    if sign < 0:
+        cfg = cfg.model_copy(
+            update={"execution": cfg.execution.model_copy(update={"round_trip_cost_per_lot_inr": 12})}
+        )
+    service, value = setup(engine, cfg, sign=sign)
+    price = 25000 + 100 * sign
+    first, following = enter(engine, service, price)
     service = AstPaperService(service.sessions, value)
     assert service.process_snapshot(following) == "DUPLICATE"
-    service.process_snapshot(capture(engine, raw(242)))
-    assert len(rows(service)) == 1
-    mark = rows(service)[0][2]
-    assert (
-        mark["current_debit"] == mark["mark_quotes"]["short"]["fill_price"] - mark["mark_quotes"]["long"]["fill_price"]
-    )
-    assert mark["mark_quotes"]["short"]["side"] == "ask" and mark["mark_quotes"]["long"]["side"] == "bid"
-    assert len(service.required_contracts()) == 2
-    forced = raw(1461)
-    service.process_snapshot(capture(engine, forced))
-    doc = rows(service)[0][2]
-    assert rows(service)[0][1] == "CLOSED" and doc["exit_reason"] == "FORCED_CLOSE"
-    assert doc["net_pnl"] is None and doc["final_outcome"]["cost_completeness"] == "GROSS_ONLY"
+    for index, change in [(242, -10), (243, 15), (1461, 5)]:
+        service.process_snapshot(capture(engine, raw(index, price + 1 + sign * change)))
+    trade_id, state, doc = rows(service)[0]
+    assert state == "CLOSED" and doc["exit_reason"] == "SESSION_END"
+    assert doc["side"] == ("LONG" if sign > 0 else "SHORT")
+    assert doc["decision_snapshot_id"] == first and doc["entry_snapshot_id"] == following
+    assert doc["price_basis"] == "OBSERVED_FUTURES_LTP" and doc["entry_price"] == price + 1
+    assert doc["mae_points"] == -10 and doc["mfe_points"] == 15
+    assert doc["gross_points"] == 5 and doc["gross_pnl"] == 325
+    assert doc["net_pnl"] == (None if sign > 0 else 313)
     assert doc["policy_hash"] == digest(doc["policy"])
+    assert doc["strategy_version"] == "AST_FUTURES_V1"
     verify(service.sessions, full=True)
-    heads = report(service.sessions, forced.captured_at, policy())
-    assert heads["trades_today"] == 1 and heads["realized_gross_pnl"] == doc["gross_pnl"]
-    assert service.pending_snapshot_ids() == []
+    assert report(service.sessions, raw(1461).captured_at, cfg)["realized_gross_pnl"] == 325
+    from app.adaptive_supertrend.models import LegacyAstCursor, LegacyAstTrade, LegacyAstEvent
+    from app.scalper.models import ScalperOptionQuoteRecord
+
     with service.sessions() as session:
         for model in (
-            ActsPaperEvent,
+            LegacyAstCursor,
+            LegacyAstEvent,
+            LegacyAstTrade,
             ActsPaperTrade,
-            ParallelPaperEvent,
+            ActsPaperEvent,
             ParallelPaperTrade,
-            ScalperEvent,
+            ParallelPaperEvent,
             ScalperTrade,
+            ScalperEvent,
+            ScalperOptionQuoteRecord,
         ):
             assert session.scalar(select(func.count()).select_from(model)) == 0
 
 
-def test_explicit_none_keeps_exact_paper_books_risk_and_journal(engine):
-    cfg = policy(regime={"mode": "NONE"})
-    service, value = setup(engine, cfg)
-    _, filled = enter(engine, service)
-    document = rows(service)[0][2]
-    assert document["policy"]["regime"] == {"mode": "NONE"}
-    assert document["policy_hash"] == cfg.policy_hash
-    assert document["entry_quotes"]["short"]["side"] == "bid"
-    assert document["entry_quotes"]["long"]["side"] == "ask"
-    assert document["entry_credit"] == (
-        document["entry_quotes"]["short"]["fill_price"] - document["entry_quotes"]["long"]["fill_price"]
-    )
-    restarted = AstPaperService(service.sessions, value)
-    assert restarted.process_snapshot(filled) == "DUPLICATE"
-    restarted.process_snapshot(capture(engine, raw(1461)))
-    document = rows(restarted)[0][2]
-    assert rows(restarted)[0][1] == "CLOSED" and document["exit_reason"] == "FORCED_CLOSE"
-    assert document["mark_quotes"]["short"]["side"] == "ask"
-    assert document["mark_quotes"]["long"]["side"] == "bid"
-    assert document["net_pnl"] is None
-    assert cfg.execution == policy().execution
-    verify(restarted.sessions, full=True)
-
-
-def test_persistent_opportunity_consumed_after_closed_and_no_spam(engine):
-    cfg = policy()
-    execution = cfg.execution.model_copy(
-        update={
-            "safety": cfg.execution.safety.model_copy(
-                update={
-                    "label": "LEGACY_SAFETY_BASELINE",
-                    "profit_capture_pct": 50,
-                    "stop_credit_multiple": 1.5,
-                    "trailing_activation_pct": 35,
-                    "trailing_giveback_pct": 20,
-                    "time_stop_minutes": 1,
-                }
-            )
-        }
-    )
-    cfg = cfg.model_copy(update={"execution": execution})
-    service, _ = setup(engine, cfg)
-    enter(engine, service)
-    for index in range(242, 252):
-        service.process_snapshot(capture(engine, raw(index)))
-    assert len(rows(service)) == 1 and rows(service)[0][1] == "CLOSED"
-    assert rows(service)[0][2]["exit_reason"] == "LEGACY_TIME_STOP"
-    with service.sessions() as session:
-        assert "AST_OPPORTUNITY_CONSUMED" in json.loads(session.get(AstCursor, 1).latest_json)["blockers"]
-    verify(service.sessions, full=True)
-
-
 @pytest.mark.parametrize(
-    "problem", ["missing", "stale", "timestamp_missing", "depth", "ltp_only", "token", "strike", "expiry"]
+    "update", [{"future_instrument_id": "NEXT"}, {"future_expiry": EXPIRY + timedelta(days=1)}, {"nifty_future": None}]
 )
-def test_pending_exact_execution_never_fabricates(engine, problem):
+def test_pending_requires_exact_next_observed_futures_price(engine, update):
     service, _ = setup(engine)
     service.process_snapshot(capture(engine, raw(240)))
-    doc = rows(service)[0][2]
-    token = doc["candidate"]["long_leg"]["instrument_token"]
-    following = raw(241)
-    quotes = []
-    for quote in following.quotes:
-        if quote.instrument_token == token:
-            if problem == "missing":
-                continue
-            update = {
-                "stale": {"source_market_timestamp": following.captured_at - timedelta(minutes=2)},
-                "timestamp_missing": {"source_market_timestamp": None},
-                "depth": {"ask_quantity": 0},
-                "ltp_only": {"bid": None, "ask": None},
-                "token": {"instrument_token": "WRONG"},
-                "strike": {"strike": quote.strike + 1},
-                "expiry": {"expiry": quote.expiry + timedelta(days=1)},
-            }[problem]
-            quote = quote.model_copy(update=update)
-        quotes.append(quote)
-    # Mixed-expiry malformed capture is rejected by the existing domain model before persistence.
-    if problem == "expiry":
-        with pytest.raises(ValueError, match="EXPIRY_MISMATCH"):
-            capture(engine, following.model_validate({**following.model_dump(), "quotes": quotes}))
-        assert rows(service)[0][1] == "PENDING_PAPER_ENTRY"
-        return
-    service.process_snapshot(
-        capture(engine, following.model_copy(update={"quotes": quotes, "source_market_timestamp": None}))
-    )
-    assert rows(service)[0][1] == "ENTRY_REJECTED" and "entry_credit" not in rows(service)[0][2]
-    if problem in {"stale", "timestamp_missing"}:
-        assert rows(service)[0][2]["rejection_reason"] == (
-            "STALE_OR_FUTURE_QUOTE" if problem == "stale" else "MISSING_QUOTE_TIMESTAMP"
-        )
-    verify(service.sessions, full=True)
+    service.process_snapshot(capture(engine, raw(241).model_copy(update=update)))
+    _, state, doc = rows(service)[0]
+    assert state == "ENTRY_REJECTED" and "entry_price" not in doc
 
 
-def test_missing_held_contract_unresolved_and_no_new_atm_substitution(engine):
-    service, value = setup(engine)
+def test_missed_session_exit_remains_unpriced(engine):
+    service, _ = setup(engine)
     enter(engine, service)
-    doc = rows(service)[0][2]
-    token = doc["candidate"]["long_leg"]["instrument_token"]
-    later = raw(242)
-    service.process_snapshot(
-        capture(engine, later.model_copy(update={"quotes": [q for q in later.quotes if q.instrument_token != token]}))
-    )
-    assert rows(service)[0][1] == "UNRESOLVED_EXPOSURE"
-    assert rows(service)[0][2]["unresolved_reason"] == "MISSING_EXACT_CONTRACT"
-    service = AstPaperService(service.sessions, value)
-    service.process_snapshot(capture(engine, raw(243)))
-    assert rows(service)[0][1] == "UNRESOLVED_EXPOSURE" and len(rows(service)) == 1
+    service.process_snapshot(capture(engine, raw(240 + 24 * 60 * 4)))
+    _, state, doc = rows(service)[0]
+    assert state == "UNRESOLVED_EXPOSURE" and doc["unresolved_reason"] == "MISSED_SESSION_EXIT"
+    assert doc["gross_mark_rupees"] is None and "exit_price" not in doc
     verify(service.sessions, full=True)
 
 
-def test_pending_ttl_and_fresh_policy_guards(engine):
+def test_completed_reversal_exits_on_following_observation_after_restart(engine):
+    service, value = setup(engine, policy(regime={"mode": "NONE"}))
+    enter(engine, service)
+    # A decline within the unfinished 10:15 bar cannot trigger a reversal.
+    for index in range(242, 260):
+        service.process_snapshot(capture(engine, raw(index, 24800)))
+        assert rows(service)[0][1] == "OPEN"
+    service.process_snapshot(capture(engine, raw(260, 24799)))
+    _, state, doc = rows(service)[0]
+    assert state == "PENDING_PAPER_EXIT" and "exit_price" not in doc
+    assert doc["reversal_bar_at"] == raw(260).captured_at.isoformat()
+    service = AstPaperService(service.sessions, value)
+    service.process_snapshot(capture(engine, raw(261, 24790)))
+    _, state, doc = rows(service)[0]
+    assert state == "CLOSED" and doc["exit_reason"] == "COMPLETED_5M_REVERSAL"
+    assert doc["exit_price"] == 24790 and doc["gross_points"] == 24790 - doc["entry_price"]
+    verify(service.sessions, full=True)
+
+
+def test_cannot_skip_next_bookless_observation_or_switch_active_policy(engine):
     service, value = setup(engine)
     service.process_snapshot(capture(engine, raw(240)))
-    changed = policy().model_copy(update={"regime": policy().regime.model_copy(update={"er_threshold": 0.1})})
     with pytest.raises(RuntimeError, match="ZERO_ACTIVE"):
-        AstPaperService(service.sessions, value.model_copy(update={"ast_config_json": changed.model_dump_json()}))
-    service.process_snapshot(capture(engine, raw(243)))
-    assert rows(service)[0][2]["rejection_reason"] == "ENTRY_TTL_EXCEEDED"
+        AstPaperService(
+            service.sessions,
+            value.model_copy(update={"ast_config_json": policy(regime={"mode": "NONE"}).model_dump_json()}),
+        )
+    first = capture(engine, raw(241).model_copy(update={"nifty_future": None}))
+    later = capture(engine, raw(242))
+    with pytest.raises(RuntimeError, match="EARLIER_OBSERVATION"):
+        service.process_snapshot(later)
+    assert rows(service)[0][1] == "PENDING_PAPER_ENTRY"
+    service.process_snapshot(first)
+    assert rows(service)[0][1] == "ENTRY_REJECTED"
 
 
 def test_atomic_rollback_and_restart_catchup(engine, monkeypatch):
@@ -291,10 +231,10 @@ def test_readonly_status_disabled_default_no_network_and_paper_only(engine, monk
     def forbidden(*args, **kwargs):
         pytest.fail("NETWORK OR SERVICE CONSTRUCTION")
 
-    monkeypatch.setattr(worker, "make_live_snapshot_builder", forbidden)
+    monkeypatch.setattr(worker, "make_reader", forbidden)
     monkeypatch.setattr(worker, "AstPaperService", forbidden)
     assert worker.main(["--mode", "PAPER", "--status"]) == 0
-    assert json.loads(capsys.readouterr().out)["strategy_version"] == "AST_V1"
+    assert json.loads(capsys.readouterr().out)["strategy_version"] == "AST_FUTURES_V1"
     assert report(service.sessions, START, policy()) == before
     assert worker.main(["--mode", "PAPER"]) == 0
     with pytest.raises(SystemExit):
@@ -341,78 +281,9 @@ def test_journal_tamper_detection(engine):
     enter(engine, service)
     # create_all fixture deliberately has no DB trigger; full verifier still detects raw corruption.
     with engine.begin() as connection:
-        connection.execute(text("UPDATE ast_paper_events SET payload='{}' WHERE sequence=1"))
+        connection.execute(text("UPDATE ast_futures_paper_events SET payload='{}' WHERE sequence=1"))
     with pytest.raises(RuntimeError, match="JOURNAL_INVALID"):
         verify(service.sessions, full=True)
-
-
-def test_execution_replay_deterministic_and_exit_policy_comparison(tmp_path):
-    from app.adaptive_supertrend.replay import replay
-
-    prior = bars(day=START - timedelta(days=1))
-    source = tmp_path / "observations.jsonl"
-    observations = [raw(index, 25000 + (index // 20) * 3 + (index % 20) / 100) for index in range(240)]
-    observations += [raw(240), raw(241), raw(1461)]
-    source.write_text("\n".join(row.model_dump_json() for row in observations) + "\n")
-    original = source.read_bytes()
-    first = replay(prior, source, policy())
-    assert first == replay(prior, source, policy())
-    assert first["result_layer"] == "EXECUTABLE_OPTION_REPLAY" and first["journal_valid"]
-    assert first["gross_option_pnl"] is not None and first["net_option_pnl"] is None
-    assert len(first["trades"]) == 1 and first["trades"][0]["exit_reason"] == "FORCED_CLOSE"
-    assert source.read_bytes() == original
-
-
-@pytest.mark.parametrize(
-    "risk,expected",
-    [
-        ({"kill_switch": True}, "KILL_SWITCH_ACTIVE"),
-        ({"max_trades_per_day": 1}, "MAX_TRADES_PER_DAY_REACHED"),
-        ({"max_consecutive_losses": 1}, "MAX_CONSECUTIVE_LOSSES_REACHED"),
-        ({"hard_daily_loss": 1}, "HARD_DAILY_LOSS_REACHED"),
-        ({"cooldown_after_loss_seconds": 60}, "LOSS_COOLDOWN_ACTIVE"),
-        ({"cooldown_after_exit_seconds": 60}, "ANY_EXIT_COOLDOWN_ACTIVE"),
-    ],
-)
-def test_explicit_risk_guards_remain_enforced(engine, risk, expected):
-    cfg = policy()
-    cfg = cfg.model_copy(update={"execution": cfg.execution.model_copy(update=risk)})
-    service, _ = setup(engine, cfg)
-    at = raw(242).captured_at
-    row = SimpleNamespace(
-        id="prior",
-        state="CLOSED",
-        document=canonical(
-            {
-                "entry_timestamp": raw(240).captured_at.isoformat(),
-                "exit_timestamp": raw(241).captured_at.isoformat(),
-                "gross_pnl": -10,
-            }
-        ),
-    )
-    assert expected in service._risk([row], at, False)
-    assert "MARKET_EVENT_BLOCKED" in service._risk([], at, True)
-    assert "OUTSIDE_ENTRY_WINDOW" in service._risk([], at.replace(hour=15), False)
-
-
-def test_unresolved_blocks_position_and_expiry_never_invents_exit(engine):
-    service, _ = setup(engine)
-    enter(engine, service)
-    row = rows(service)[0]
-    # Use the actual stored expiry, retain original contract identity and miss all expiry-window data.
-    expiry = datetime.fromisoformat(row[2]["candidate"]["short_leg"]["expiry"]).date()
-    later = raw(242)
-    at = datetime.combine(expiry + timedelta(days=1), time(10), START.tzinfo)
-    later = later.model_copy(
-        update={"captured_at": at, "request_started_at": at, "response_received_at": at, "source_market_timestamp": at}
-    )
-    service.process_snapshot(capture(engine, later))
-    doc = rows(service)[0][2]
-    assert rows(service)[0][1] == "UNRESOLVED_EXPOSURE"
-    assert "exit_debit" not in doc and "final_outcome" not in doc
-    with service.sessions() as session:
-        active = session.scalar(select(AstTrade))
-        assert "MAX_OPEN_POSITIONS_REACHED" in service._risk([active], at, False)
 
 
 def test_shared_timestamp_missing_allows_pending_fill_and_foreign_mode_still_rejected(engine):
@@ -421,7 +292,7 @@ def test_shared_timestamp_missing_allows_pending_fill_and_foreign_mode_still_rej
     later = raw(241).model_copy(update={"source_market_timestamp": None})
     service.process_snapshot(capture(engine, later))
     assert rows(service)[0][1] == "OPEN"
-    assert rows(service)[0][2]["entry_quotes"]["short"]["quote"]["source_market_timestamp"] is not None
+    assert rows(service)[0][2]["entry_price"] == later.nifty_future
     verify(service.sessions, full=True)
     foreign = ResearchSnapshotRepository(engine).save(raw(242))
     with pytest.raises(ValueError, match="FOREIGN_CAPTURE_MODE"):
@@ -443,7 +314,7 @@ def test_cursor_compare_and_swap_refuses_lost_lock_without_partial_evidence(engi
     first = capture(engine, raw(240))
 
     def lose_lock(connection, cursor, statement, parameters, context, executemany):
-        if statement.startswith("UPDATE ast_paper_cursor SET lock_version="):
+        if statement.startswith("UPDATE ast_futures_paper_cursor SET lock_version="):
             statement += " AND 1=0"
         return statement, parameters
 
@@ -570,7 +441,7 @@ def test_pending_entry_cannot_fill_before_its_recorded_response(engine):
     later = raw(241).model_copy(update={"response_received_at": raw(241).captured_at + timedelta(seconds=1)})
     service.process_snapshot(capture(engine, later))
     assert rows(service)[0][1] == "ENTRY_REJECTED"
-    assert rows(service)[0][2]["rejection_reason"] == "AST_PENDING_THESIS_INVALID"
+    assert rows(service)[0][2]["rejection_reason"] == "FUTURES_OBSERVATION_UNAVAILABLE"
     status = report(service.sessions, later.captured_at, policy())
     assert "AST_OBSERVATION_TIMING_INVALID" in status["latest"]["blockers"]
 
@@ -597,7 +468,7 @@ def test_immutable_event_orm_and_bounded_startup_queries(engine):
     queries = []
 
     def record(connection, cursor, statement, parameters, context, executemany):
-        if "FROM ast_paper_events" in statement:
+        if "FROM ast_futures_paper_events" in statement:
             queries.append(statement)
 
     event.listen(engine, "before_cursor_execute", record)
@@ -608,59 +479,64 @@ def test_immutable_event_orm_and_bounded_startup_queries(engine):
     assert queries and all("LIMIT" in statement for statement in queries)
 
 
-def test_emergency_kill_is_only_allowed_active_policy_tightening(engine):
-    service, value = setup(engine)
+@pytest.mark.parametrize("wrapped", [True, False])
+def test_native_scalar_capture_without_option_books(engine, monkeypatch, wrapped):
+    from app.adaptive_supertrend import capture as module
+    from app.scalper.models import ScalperMarketSnapshotRecord as Snapshot, ScalperOptionQuoteRecord as Quote
+
+    class ReadOnlyFixture:
+        def quotes(self, **kwargs):
+            assert kwargs["quote_type"] == "ltp"
+            return {"data": [{"ltp": "25000"}]}
+
+        def expiries(self, **kwargs):
+            return {"expiries": ["2099-12-01"]}
+
+        def option_chain(self, **kwargs):
+            header = {
+                "common_data": {"mktLot": "123"},
+                "future": {"symbol": "NIFTY-TEST-FUT", "expiry": "2099-12-24", "ltp": "25015.25"},
+            }
+            return {"data": header} if wrapped else {**header, "data": None}
+
+    monkeypatch.setattr(module, "create_market_data_client", lambda settings: ReadOnlyFixture())
+    fields = module.make_reader(settings())()
+    sessions = build_session_factory(engine)
+    first = module.save_capture(sessions, fields)
+    assert module.save_capture(sessions, fields) == first
+    with sessions() as session:
+        observation = session.get(Snapshot, first)
+        assert observation.future_instrument_id == "NIFTY-TEST-FUT" and str(observation.future_expiry) == "2099-12-24"
+        assert observation.nifty_future == 25015.25 and observation.source_market_timestamp is None
+        assert observation.request_started_at <= observation.response_received_at == observation.captured_at
+        assert observation.lot_size == 123  # raw header metadata only
+        assert session.scalar(select(func.count()).select_from(Quote)) == 0
+
+
+def test_retired_native_capture_is_history_only(engine):
+    from app.adaptive_supertrend.market import history
+
+    sessions = build_session_factory(engine)
+    with sessions.begin() as session:
+        session.add(AstCursor(id=1))
+    repo = ResearchSnapshotRepository(engine, mode="AST_PAPER")
+    for index in range(20):
+        saved = repo.save(raw(index))
+    service = AstPaperService(sessions, settings(ast_config_json=policy().model_dump_json()))
+    with pytest.raises(ValueError, match="FOREIGN_CAPTURE_MODE"):
+        service.process_snapshot(saved.snapshot_id)
+    assert not service.pending_snapshot_ids()
+    assert history(sessions, START + timedelta(minutes=5), 1, 45)[0].valid
+
+
+def test_invalid_forced_exit_and_unresolved_mark_are_unpriced(engine):
+    service, _ = setup(engine)
     enter(engine, service)
-    frozen_hash = rows(service)[0][2]["policy_hash"]
-    cfg = policy()
-    killed = cfg.model_copy(update={"execution": cfg.execution.model_copy(update={"kill_switch": True})})
-    service = AstPaperService(service.sessions, value.model_copy(update={"ast_config_json": killed.model_dump_json()}))
-    service.process_snapshot(capture(engine, raw(242)))
-    doc = rows(service)[0][2]
-    assert rows(service)[0][1] == "CLOSED" and doc["exit_reason"] == "KILL_SWITCH"
-    assert doc["policy_hash"] == frozen_hash and doc["policy"]["execution"]["kill_switch"] is False
-    assert doc["emergency_safety_override"]["applied_policy_hash"] == killed.policy_hash
-    verify(service.sessions, full=True)
-
-
-def test_previous_session_close_is_loaded_for_configured_overnight_cooldown(engine):
-    cfg = policy()
-    cfg = cfg.model_copy(
-        update={"execution": cfg.execution.model_copy(update={"cooldown_after_loss_seconds": 100000})}
-    )
-    service, _ = setup(engine, cfg)
-    enter(engine, service)
-    service.process_snapshot(capture(engine, raw(1461)))
-    tomorrow = START + timedelta(days=1)
-    with service.sessions() as session:
-        records = service._rows(session, tomorrow.replace(hour=10))
-        assert len(records) == 1 and records[0].state == "CLOSED"
-
-
-def test_explicit_dated_json_costs_produce_net_without_altering_fill_prices(engine):
-    cfg = policy(
-        costs={
-            "cost_schedule_version": "SYNTHETIC_EXPLICIT_COSTS",
-            "effective_from": "2026-11-01",
-            "effective_to": "2026-11-30",
-            "declared_complete": True,
-            "brokerage_per_order": 20,
-            "exchange_rate": 0,
-            "stt_rate": 0,
-            "gst_rate": 0,
-            "stamp_rate": 0,
-            "sebi_rate": 0,
-            "slippage_points_per_leg": 0,
-        }
-    )
-    service, _ = setup(engine, cfg)
-    enter(engine, service)
-    service.process_snapshot(capture(engine, raw(1461)))
-    doc = rows(service)[0][2]
-    assert doc["final_outcome"]["cost_completeness"] == "NET_COMPLETE"
-    assert doc["net_pnl"] == doc["gross_pnl"] - 80
-    assert (
-        doc["entry_credit"] == doc["entry_quotes"]["short"]["fill_price"] - doc["entry_quotes"]["long"]["fill_price"]
-    )
-    assert service.costs.effective_from.isoformat() == "2026-11-01"
+    obs = raw(1460).model_copy(update={"nifty_future": None})
+    service.process_snapshot(capture(engine, obs))
+    _, state, doc = rows(service)[0]
+    assert state == "UNRESOLVED_EXPOSURE"
+    assert doc["unresolved_reason"] == "FUTURES_OBSERVATION_UNAVAILABLE"
+    assert doc["mark_price"] is None and "exit_price" not in doc
+    assert report(service.sessions, obs.captured_at)["unrealized_gross_pnl"] is None
     verify(service.sessions, full=True)

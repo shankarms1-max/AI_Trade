@@ -2,26 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
+from decimal import Decimal
 import json
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import select, update
 
-from app.adaptive_supertrend import VERSION
+from app.adaptive_supertrend import CAPTURE_MODE, VERSION
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend.decision import decide
 from app.adaptive_supertrend.journal import ACTIVE, emit, verify
-from app.adaptive_supertrend.market import history, pending_ids
+from app.adaptive_supertrend.market import history, paper_clause, pending_ids
 from app.adaptive_supertrend.models import AstCursor, AstTrade, OptimizerRun, SessionParameters
 from app.adaptive_supertrend.optimizer import optimize
-from app.data.models import OptionContractSnapshot
-from app.paper import exit_book
 from app.research.manifest import canonical, digest, json_value
-from app.risk.event_checks import ConfiguredMarketEventProvider
-from app.scalper.models import ScalperCandidate, ScalperDirection, ScalperSignal, ScalperStrength
-from app.scalper.paper import executable_pair
-from app.scalper.repository import IST, ScalperRepository
-from app.scalper.strategy import build_candidates
+from app.scalper.models import ScalperMarketSnapshotRecord as Snapshot
+from app.scalper.repository import IST, _aware
 
 
 def freeze(sessions, bars, trading_date: date, selected_at: datetime, policy: AstPolicy, *, clock=None) -> dict:
@@ -34,6 +30,9 @@ def freeze(sessions, bars, trading_date: date, selected_at: datetime, policy: As
                 raise RuntimeError("AST_SESSION_ALREADY_FROZEN_DIFFERENT_POLICY")
             return document
     result = optimize(bars, trading_date, selected_at, policy)
+    provenance = getattr(bars, "history_provenance", None)
+    if provenance is not None:
+        result["history_provenance"] = json_value(provenance)
     if result["selected"] is None:
         raise RuntimeError("AST_NO_ELIGIBLE_OPTIMIZER_CONFIGURATION")
     if clock is not None:
@@ -63,6 +62,8 @@ def freeze(sessions, bars, trading_date: date, selected_at: datetime, policy: As
         metrics=selected["metrics"],
         neighbour_robustness=selected["neighbour_robustness"],
     )
+    if provenance is not None:
+        document["history_provenance"] = result["history_provenance"]
     with sessions.begin() as session:
         # Same lock used by paper processing serializes concurrent freezes, including SQLite CAS.
         cursor = session.scalar(select(AstCursor).where(AstCursor.id == 1).with_for_update())
@@ -94,282 +95,136 @@ def freeze(sessions, bars, trading_date: date, selected_at: datetime, policy: As
 class AstPaperService:
     def __init__(self, sessions, settings) -> None:
         self.sessions = sessions
-        self.settings = settings
         self.policy = AstPolicy.model_validate_json(settings.ast_config_json)
-        self.config = self.policy.execution.scalper(settings) if self.policy.execution else None
-        self.costs = self.policy.cost_schedule()
-        self.events = ConfiguredMarketEventProvider.from_json(
-            self.policy.execution.market_events_json if self.policy.execution else "[]"
-        )
-        self.market = ScalperRepository(sessions)
         self._history_cache: dict = {}
         self._parameter_cache: dict = {}
         verify(sessions)
         with sessions() as session:
-            for row in session.scalars(select(AstTrade).where(AstTrade.state.in_(ACTIVE))):
-                doc = json.loads(row.document)
-                if doc["policy_hash"] != self.policy.policy_hash:
-                    original = json.loads(canonical(doc["policy"]))
-                    current = self.policy.model_dump(mode="json")
-                    # A one-way emergency kill tightens safety without replacing the frozen policy.
-                    if (
-                        original.get("execution", {}).get("kill_switch") is False
-                        and current.get("execution", {}).get("kill_switch") is True
-                    ):
-                        original["execution"]["kill_switch"] = True
-                    if original != current:
-                        raise RuntimeError("AST_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+            self._active(session)
 
-    def _rows(self, session, at) -> list[AstTrade]:
-        cooldown = (
-            max(self.config.cooldown_after_loss_seconds, self.config.cooldown_after_exit_seconds) if self.config else 0
-        )
-        earliest_close = (at - timedelta(seconds=cooldown)).date()
-        return list(
-            session.scalars(
-                select(AstTrade).where(
-                    or_(
-                        AstTrade.state.in_(ACTIVE),
-                        AstTrade.trading_date == at.date(),
-                        AstTrade.closed_date >= earliest_close,
-                    )
-                )
-            )
-        )
+    def _active(self, session):
+        active = session.scalars(select(AstTrade).where(AstTrade.state.in_(ACTIVE))).one_or_none()
+        if active is not None and json.loads(active.document)["policy_hash"] != self.policy.policy_hash:
+            raise RuntimeError("AST_POLICY_UPGRADE_REQUIRES_ZERO_ACTIVE_TRADES")
+        return active
 
-    def _risk(self, rows, at, blocked, *, excluding=None) -> list[str]:
-        if self.config is None:
-            return ["AST_POLICY_UNCONFIGURED"]
-        config = self.config
-        docs = [json.loads(row.document) for row in rows if row.id != excluding]
-        closed = sorted([doc for doc in docs if doc.get("exit_timestamp")], key=lambda doc: doc["exit_timestamp"])
-        today = [doc for doc in closed if datetime.fromisoformat(doc["exit_timestamp"]).date() == at.date()]
-        reasons = []
-        if config.kill_switch:
-            reasons.append("KILL_SWITCH_ACTIVE")
-        if blocked:
-            reasons.append("MARKET_EVENT_BLOCKED")
-        if not config.start_time <= at.time().replace(tzinfo=None) <= config.entry_end_time:
-            reasons.append("OUTSIDE_ENTRY_WINDOW")
-        if any(row.state in ACTIVE and row.id != excluding for row in rows):
-            reasons.append("MAX_OPEN_POSITIONS_REACHED")
-        if (
-            sum(
-                bool(doc.get("entry_timestamp")) and datetime.fromisoformat(doc["entry_timestamp"]).date() == at.date()
-                for doc in docs
-            )
-            >= config.max_trades_per_day
-        ):
-            reasons.append("MAX_TRADES_PER_DAY_REACHED")
-        if sum(doc["gross_pnl"] for doc in today) <= -config.hard_daily_loss:
-            reasons.append("HARD_DAILY_LOSS_REACHED")
-        streak = 0
-        for doc in reversed(today):
-            if doc["gross_pnl"] >= 0:
-                break
-            streak += 1
-        if streak >= config.max_consecutive_losses:
-            reasons.append("MAX_CONSECUTIVE_LOSSES_REACHED")
-        if (
-            closed
-            and (at - datetime.fromisoformat(closed[-1]["exit_timestamp"])).total_seconds()
-            < config.cooldown_after_exit_seconds
-        ):
-            reasons.append("ANY_EXIT_COOLDOWN_ACTIVE")
-        losses = [doc for doc in closed if doc["gross_pnl"] < 0]
-        if (
-            losses
-            and (at - datetime.fromisoformat(losses[-1]["exit_timestamp"])).total_seconds()
-            < config.cooldown_after_loss_seconds
-        ):
-            reasons.append("LOSS_COOLDOWN_ACTIVE")
-        return reasons
-
-    def _save(self, session, cursor, raw, snapshot_id, row, doc, kind, **details):
-        row.document = canonical(doc)
-        emit(session, cursor, snapshot_id, raw.captured_at, kind, row, **details)
-
-    def _transition(self, session, cursor, raw, snapshot_id, row, rows, decision, blocked):
-        doc = json.loads(row.document)
+    def _transition(self, session, cursor, raw, at, price, row, decision, state):
         if row.state == "UNRESOLVED_EXPOSURE":
             return
-        assert self.config is not None and self.policy.execution is not None
-        config = self.config
-        candidate = ScalperCandidate.model_validate(doc["candidate"])
-        pending = row.state == "PENDING_PAPER_ENTRY"
-        at = raw.captured_at
-        if candidate.short_leg.expiry < at.date():
-            row.state = "ENTRY_REJECTED" if pending else "UNRESOLVED_EXPOSURE"
-            doc["rejection_reason" if pending else "unresolved_reason"] = "EXPIRED_CONTRACT_NO_EXECUTABLE_EXIT"
-            self._save(session, cursor, raw, snapshot_id, row, doc, row.state)
-            return
-        if pending and at <= datetime.fromisoformat(doc["decision_timestamp"]):
-            return
-        book = raw.model_copy(update={"lot_size": doc["lot_size"]})
-        pair, failure = executable_pair(book, candidate, config, entry=pending, exit_book_policy=exit_book.VERSION)
-        if pending:
-            age = (at - datetime.fromisoformat(doc["decision_timestamp"])).total_seconds()
-            risk = self._risk(rows, at, blocked, excluding=row.id)
-            reason = (
-                "ENTRY_TTL_EXCEEDED"
-                if age > config.entry_ttl_seconds
-                else (
-                    "FUTURES_OR_LOT_IDENTITY_CHANGED"
-                    if (
-                        raw.lot_size != doc["lot_size"]
-                        or raw.future_instrument_id != doc["future_instrument_id"]
-                        or str(raw.future_expiry) != doc["future_expiry"]
-                    )
-                    else (
-                        risk[0]
-                        if risk
-                        else failure
-                        or (
-                            "AST_PENDING_THESIS_INVALID"
-                            if decision["status"] != "ENTER" or decision["opportunity_id"] != doc["opportunity_id"]
-                            else None
-                        )
-                    )
-                )
-            )
-            if reason is None and pair is not None:
-                if (
-                    pair.value < config.min_credit
-                    or pair.value / candidate.spread_width < config.min_credit_to_width
-                    or (candidate.spread_width - pair.value) * doc["lot_size"] > config.max_loss_per_trade
-                ):
-                    reason = "FILL_ECONOMICS_OUTSIDE_RISK"
+        cfg = self.policy.execution
+        assert cfg is not None
+        doc = json.loads(row.document)
+        same_contract = (raw.future_instrument_id, str(raw.future_expiry)) == (
+            doc["future_instrument_id"],
+            doc["future_expiry"],
+        )
+        same_session = row.trading_date == at.date() and at.time() < time(15, 30, 15)
+        ending = at.time() >= cfg.session_exit_time
+        reason = None
+        if not same_session:
+            reason = "MISSED_SESSION_EXIT" if row.state != "PENDING_PAPER_ENTRY" else "SESSION_OVER"
+        elif not same_contract or raw.future_expiry is None or raw.future_expiry < at.date():
+            reason = "EXACT_FUTURES_CONTRACT_UNAVAILABLE"
+        elif price is None:
+            reason = "FUTURES_OBSERVATION_UNAVAILABLE"
+
+        if row.state == "PENDING_PAPER_ENTRY":
+            delay = (at - datetime.fromisoformat(doc["decision_timestamp"])).total_seconds()
+            if reason is None:
+                if delay <= 0 or delay > self.policy.max_sequence_gap_seconds:
+                    reason = "ENTRY_OBSERVATION_GAP"
+                elif at.time() > cfg.entry_end_time:
+                    reason = "OUTSIDE_ENTRY_WINDOW"
+                elif decision["status"] != "ENTER" or decision["opportunity_id"] != doc["opportunity_id"]:
+                    reason = "AST_PENDING_THESIS_INVALID"
             if reason:
-                row.state = "ENTRY_REJECTED"
+                row.state = kind = "ENTRY_REJECTED"
                 doc["rejection_reason"] = reason
-                self._save(session, cursor, raw, snapshot_id, row, doc, "ENTRY_REJECTED")
-                return
-            assert pair is not None
-            row.state = "OPEN"
-            doc.update(
-                entry_timestamp=at.isoformat(),
-                entry_snapshot_id=snapshot_id,
-                entry_credit=pair.value,
-                entry_quotes=pair.evidence,
-                defined_max_risk=(candidate.spread_width - pair.value) * doc["lot_size"],
-                best_gross_points=0,
-            )
-            state = json.loads(cursor.state_json)
-            state.setdefault("consumed", []).append(doc["opportunity_id"])
-            cursor.state_json = canonical(state)
-            self._save(session, cursor, raw, snapshot_id, row, doc, "ENTRY", fill_method="NEXT_OBSERVATION_BID_ASK")
-            return
-        if failure:
-            doc.update(current_debit=None, gross_mark_rupees=None, mark_unavailable_reason=failure)
-            if failure == "MISSING_EXACT_CONTRACT" or at.time().replace(tzinfo=None) >= config.forced_exit_time:
-                row.state = "UNRESOLVED_EXPOSURE"
-                doc["unresolved_reason"] = failure
-            self._save(
-                session,
-                cursor,
-                raw,
-                snapshot_id,
-                row,
-                doc,
-                "UNRESOLVED_EXPOSURE" if row.state == "UNRESOLVED_EXPOSURE" else "MARK_UNAVAILABLE",
-            )
-            return
-        assert pair is not None
-        pnl = doc["entry_credit"] - pair.value
-        best = max(doc.get("best_gross_points", 0), pnl)
-        doc.update(
-            current_debit=pair.value,
-            gross_mark_rupees=pnl * doc["lot_size"],
-            best_gross_points=best,
-            mark_quotes=pair.evidence,
-            mark_at=at.isoformat(),
-            mark_unavailable_reason=None,
-        )
-        safety = self.policy.execution.safety
-        reason = (
-            "FORCED_CLOSE"
-            if at.time().replace(tzinfo=None) >= safety.forced_exit_time
-            else (
-                "KILL_SWITCH"
-                if config.kill_switch
-                else (
-                    "MARKET_EVENT_EXIT"
-                    if blocked
-                    else "HARD_MAX_LOSS" if -pnl * doc["lot_size"] >= config.max_loss_per_trade else None
+            else:
+                row.state, kind = "OPEN", "ENTRY"
+                doc.update(
+                    entry_timestamp=at.isoformat(),
+                    entry_snapshot_id=raw.id,
+                    entry_price=float(price),
+                    mark_at=at.isoformat(),
+                    mark_price=float(price),
+                    gross_mark_rupees=0,
+                    gross_mark_points=0,
+                    mae_points=0,
+                    mfe_points=0,
                 )
+                state.setdefault("consumed", []).append(doc["opportunity_id"])
+        else:
+            features = decision["features"]
+            reversed_at = features.get("ast_reversal_at")
+            reversal = (
+                reversed_at
+                and datetime.fromisoformat(reversed_at) > datetime.fromisoformat(doc["entry_timestamp"])
+                and features["ast_direction"] == ("BEAR" if doc["side"] == "LONG" else "BULL")
+                and "AST_CURRENT_COMPLETED_BAR_UNAVAILABLE" not in decision["blockers"]
             )
-        )
-        if reason is None:
-            realized_today = sum(
-                json.loads(other.document).get("gross_pnl", 0) for other in rows if other.closed_date == at.date()
-            )
-            if realized_today + pnl * doc["lot_size"] <= -config.hard_daily_loss:
-                reason = "HARD_DAILY_LOSS_EXIT"
-        # Deliberately no invented strategy thesis exit. Optional legacy baseline is named and fully explicit.
-        if reason is None and safety.label == "LEGACY_SAFETY_BASELINE":
-            credit = doc["entry_credit"]
-            assert safety.stop_credit_multiple is not None and safety.profit_capture_pct is not None
-            assert safety.trailing_activation_pct is not None and safety.trailing_giveback_pct is not None
-            assert safety.time_stop_minutes is not None
-            reason = (
-                "LEGACY_SPREAD_STOP"
-                if pair.value >= credit * safety.stop_credit_multiple
-                else (
-                    "LEGACY_PROFIT_CAPTURE"
-                    if pair.value <= credit * (1 - safety.profit_capture_pct / 100)
-                    else (
-                        "LEGACY_TRAILING_EXIT"
-                        if best >= credit * safety.trailing_activation_pct / 100
-                        and pnl <= best - credit * safety.trailing_giveback_pct / 100
-                        else (
-                            "LEGACY_TIME_STOP"
-                            if (at - datetime.fromisoformat(doc["entry_timestamp"])).total_seconds()
-                            >= safety.time_stop_minutes * 60
-                            else None
-                        )
+            if reason:
+                doc.update(
+                    mark_price=None,
+                    gross_mark_rupees=None,
+                    gross_mark_points=None,
+                    mark_at=at.isoformat(),
+                    mark_unavailable_reason=reason,
+                )
+                if ending or reason != "FUTURES_OBSERVATION_UNAVAILABLE":
+                    row.state = kind = "UNRESOLVED_EXPOSURE"
+                    doc["unresolved_reason"] = reason
+                else:
+                    kind = "MARK_UNAVAILABLE"
+            else:
+                points = (price - Decimal(str(doc["entry_price"]))) * (1 if doc["side"] == "LONG" else -1)
+                gross = points * doc["lot_size"]
+                doc.update(
+                    mark_at=at.isoformat(),
+                    mark_price=float(price),
+                    gross_mark_points=float(points),
+                    gross_mark_rupees=float(gross),
+                    mark_unavailable_reason=None,
+                    mfe_points=max(doc["mfe_points"], float(points)),
+                    mae_points=min(doc["mae_points"], float(points)),
+                )
+                kind = "MARK"
+                if ending or row.state == "PENDING_PAPER_EXIT":
+                    reason = doc.get("pending_exit_reason", "SESSION_END")
+                    row.state, kind, row.closed_date = "CLOSED", "EXIT", at.date()
+                    cost = cfg.round_trip_cost_per_lot_inr
+                    doc.update(
+                        exit_timestamp=at.isoformat(),
+                        exit_snapshot_id=raw.id,
+                        exit_price=float(price),
+                        exit_reason=reason,
+                        gross_points=float(points),
+                        gross_pnl=float(gross),
+                        round_trip_cost_inr=cost,
+                        net_pnl=None if cost is None else float(gross - Decimal(str(cost))),
                     )
+            if reversal and row.state == "OPEN":
+                row.state = kind = "PENDING_PAPER_EXIT"
+                doc.update(
+                    pending_exit_reason="COMPLETED_5M_REVERSAL",
+                    reversal_bar_at=reversed_at,
+                    exit_decision_at=at.isoformat(),
+                    exit_decision_snapshot_id=raw.id,
                 )
-            )
-        if reason == "KILL_SWITCH" and doc["policy_hash"] != self.policy.policy_hash:
-            doc["emergency_safety_override"] = {
-                "reason": "KILL_SWITCH_ONLY",
-                "applied_policy_hash": self.policy.policy_hash,
-            }
-        if reason:
-            outcome = self.costs.calculate(
-                day=at.date(),
-                lot_size=doc["lot_size"],
-                lots=1,
-                entry_short=doc["entry_quotes"]["short"]["fill_price"],
-                entry_long=doc["entry_quotes"]["long"]["fill_price"],
-                exit_short=pair.short_price,
-                exit_long=pair.long_price,
-            )
-            row.state, row.closed_date = "CLOSED", at.date()
-            doc.update(
-                exit_timestamp=at.isoformat(),
-                exit_snapshot_id=snapshot_id,
-                exit_debit=pair.value,
-                exit_quotes=pair.evidence,
-                exit_reason=reason,
-                final_outcome=outcome,
-                gross_pnl=outcome["gross_rupees"],
-                net_pnl=outcome["net_rupees"],
-            )
-        self._save(session, cursor, raw, snapshot_id, row, doc, "EXIT" if reason else "MARK")
+
+        row.document = canonical(doc)
+        emit(session, cursor, raw.id, at, kind, row)
 
     def process_snapshot(self, snapshot_id: int) -> str:
-        raw = self.market.get_snapshot(snapshot_id)
-        if raw is None:
-            raise ValueError("AST_SNAPSHOT_UNAVAILABLE")
-        at = raw.captured_at.astimezone(IST)
-        raw = raw.model_copy(update={"captured_at": at})
         with self.sessions() as session:
-            from app.scalper.models import ScalperMarketSnapshotRecord
-
-            record = session.get(ScalperMarketSnapshotRecord, snapshot_id)
-            if record is None or json.loads(record.context_json or "{}").get("mode") != "AST_PAPER":
+            record = session.get(Snapshot, snapshot_id)
+            if record is None:
+                raise ValueError("AST_SNAPSHOT_UNAVAILABLE")
+            context = json.loads(record.context_json or "{}")
+            if context.get("mode") != CAPTURE_MODE or context.get("producer") != VERSION:
                 raise ValueError("AST_FOREIGN_CAPTURE_MODE")
+            raw = record
+            at = _aware(raw.captured_at)
             cursor = session.get(AstCursor, 1)
             if cursor is not None and cursor.observed_at and at <= datetime.fromisoformat(cursor.observed_at):
                 return "DUPLICATE"
@@ -414,6 +269,8 @@ class AstPaperService:
             if parameters is None:
                 frozen = session.get(SessionParameters, at.date())
                 parameters = json.loads(frozen.document) if frozen else None
+                if parameters and parameters.get("strategy_version") != VERSION:
+                    parameters = None
                 if parameters is not None:
                     cutoff = at.replace(hour=9, minute=15, second=0, microsecond=0)
                     selected_at = datetime.fromisoformat(parameters["selected_at"])
@@ -437,13 +294,23 @@ class AstPaperService:
             decision = decide(
                 bars,
                 at,
-                raw.nifty_future,
+                float(raw.nifty_future) if raw.nifty_future is not None else None,
                 parameters,
                 state,
                 self.policy,
                 future_identity=(raw.future_instrument_id, str(raw.future_expiry)),
             )
-            if not raw.request_started_at <= raw.response_received_at <= at:
+            requested, responded = _aware(raw.request_started_at), _aware(raw.response_received_at)
+            timing_ok = (
+                requested <= responded <= at
+                and (at - requested).total_seconds() <= self.policy.max_sequence_gap_seconds
+            )
+            price = (
+                raw.nifty_future
+                if timing_ok and raw.nifty_future and raw.nifty_future.is_finite() and raw.nifty_future > 0
+                else None
+            )
+            if not timing_ok:
                 decision["blockers"].append("AST_OBSERVATION_TIMING_INVALID")
                 decision["status"] = "NO_SETUP"
             decision["features"].update(
@@ -451,82 +318,73 @@ class AstPaperService:
                 futures_source_timestamp_status="UNAVAILABLE_IN_SHARED_CAPTURE_SCHEMA",
                 futures_observation_time=at.isoformat(),
                 futures_observation_time_basis="BROKER_RESPONSE_CAPTURE_TIME",
-                snapshot_request_started_at=raw.request_started_at.isoformat(),
-                snapshot_response_received_at=raw.response_received_at.isoformat(),
+                snapshot_request_started_at=requested.isoformat(),
+                snapshot_response_received_at=responded.isoformat(),
                 future_instrument_id=raw.future_instrument_id,
                 future_expiry=str(raw.future_expiry),
             )
+            active = self._active(session)
+            if active is not None:
+                # A skipped native observation must never be substituted as the next fill.
+                next_id = session.scalar(
+                    select(Snapshot.id)
+                    .where(
+                        paper_clause(),
+                        Snapshot.captured_at > datetime.fromisoformat(cursor.observed_at),
+                    )
+                    .order_by(Snapshot.captured_at, Snapshot.id)
+                    .limit(1)
+                )
+                if next_id != snapshot_id:
+                    raise RuntimeError("AST_EARLIER_OBSERVATION_PENDING")
+                self._transition(session, cursor, raw, at, price, active, decision, state)
             cursor.state_json = canonical(state)
-            rows = self._rows(session, at)
-            blocked = any(event.block_entries for event in self.events.events_at(at))
-            for row in rows:
-                if row.state in ("OPEN", "PENDING_PAPER_ENTRY"):
-                    self._transition(session, cursor, raw, snapshot_id, row, rows, decision, blocked)
-            state = json.loads(cursor.state_json)
-            # A fill consumes the opportunity before evaluating another entry on this observation.
+            cfg = self.policy.execution
+            lot = cfg.lot_size(raw.future_instrument_id, raw.future_expiry) if cfg else None
             if decision["opportunity_id"] in state.get("consumed", []):
                 decision["blockers"].append("AST_OPPORTUNITY_CONSUMED")
-            decision["blockers"].extend(self._risk(rows, at, blocked))
-            if decision["status"] == "ENTER" and not decision["blockers"] and self.config is not None:
-                signal = ScalperSignal(
-                    timestamp=at,
-                    direction=ScalperDirection(decision["direction"]),
-                    strength=ScalperStrength.NONE,
-                    score=0,
-                    components={},
-                    contradiction_penalty=0,
-                    reasons=["AST_ORB_REGIME_ALIGNED"],
-                    warnings=[],
-                    confirmation_count=0,
-                    confirmed=True,
+            if active is not None and active.state in ACTIVE:
+                decision["blockers"].append("MAX_OPEN_POSITIONS_REACHED")
+            if cfg and at.time() > cfg.entry_end_time:
+                decision["blockers"].append("OUTSIDE_ENTRY_WINDOW")
+            if lot is None or raw.future_expiry is None or raw.future_expiry < at.date():
+                decision["blockers"].append("AST_FUTURES_CONTRACT_UNCONFIGURED_OR_EXPIRED")
+            if decision["status"] == "ENTER" and not decision["blockers"]:
+                trade_id = digest(
+                    {"strategy": VERSION, "snapshot_id": snapshot_id, "opportunity": decision["opportunity_id"]}
                 )
-                built = build_candidates(raw, signal, self.config)
-                if raw.expiry < at.date():
-                    decision["blockers"].append("EXPIRED_CONTRACT_ENTRY_FORBIDDEN")
-                elif not built.candidates:
-                    decision["blockers"].append("AST_EXECUTABLE_SPREAD_UNAVAILABLE")
-                    decision["candidate_rejections"] = built.rejection_counts
-                else:
-                    candidate = built.candidates[0]
-                    trade_id = digest(
-                        {
-                            "strategy_id": VERSION,
-                            "strategy_version": VERSION,
-                            "snapshot_id": snapshot_id,
-                            "opportunity": decision["opportunity_id"],
-                        }
-                    )
-                    doc = json_value(
-                        {
-                            "trade_id": trade_id,
-                            "strategy_id": VERSION,
-                            "strategy_version": VERSION,
-                            "mode": "PAPER",
-                            "decision_timestamp": at,
-                            "candidate": candidate,
-                            "strategy_features": decision["features"],
-                            "session_parameters": parameters,
-                            "opportunity_id": decision["opportunity_id"],
-                            "lot_size": raw.lot_size,
-                            "lots": 1,
-                            "future_instrument_id": raw.future_instrument_id,
-                            "future_expiry": raw.future_expiry,
-                            "policy": self.policy.model_dump(mode="json"),
-                            "policy_hash": self.policy.policy_hash,
-                            "exit_book_policy": exit_book.policy(),
-                        }
-                    )
-                    trade = AstTrade(
-                        id=trade_id,
-                        decision_snapshot_id=snapshot_id,
-                        trading_date=at.date(),
-                        state="PENDING_PAPER_ENTRY",
-                        document=canonical(doc),
-                    )
-                    session.add(trade)
-                    session.flush()
-                    emit(session, cursor, snapshot_id, at, "PENDING_PAPER_ENTRY", trade)
-                    decision["status"] = "PENDING_PAPER_ENTRY"
+                doc = json_value(
+                    {
+                        "trade_id": trade_id,
+                        "strategy_id": VERSION,
+                        "strategy_version": VERSION,
+                        "mode": "PAPER",
+                        "side": "LONG" if decision["direction"] == "BULL" else "SHORT",
+                        "decision_timestamp": at,
+                        "decision_snapshot_id": snapshot_id,
+                        "strategy_features": decision["features"],
+                        "session_parameters": parameters,
+                        "opportunity_id": decision["opportunity_id"],
+                        "lot_size": lot,
+                        "lots": 1,
+                        "future_instrument_id": raw.future_instrument_id,
+                        "future_expiry": raw.future_expiry,
+                        "price_basis": "OBSERVED_FUTURES_LTP",
+                        "policy_hash": self.policy.policy_hash,
+                        "policy": self.policy.model_dump(mode="json"),
+                    }
+                )
+                trade = AstTrade(
+                    id=trade_id,
+                    decision_snapshot_id=snapshot_id,
+                    trading_date=at.date(),
+                    state="PENDING_PAPER_ENTRY",
+                    document=canonical(doc),
+                )
+                session.add(trade)
+                session.flush()
+                emit(session, cursor, snapshot_id, at, "PENDING_PAPER_ENTRY", trade)
+                decision["status"] = "PENDING_PAPER_ENTRY"
             if decision["blockers"]:
                 decision["status"] = "NO_SETUP"
             cursor.snapshot_id, cursor.observed_at = snapshot_id, at.isoformat()
@@ -548,26 +406,3 @@ class AstPaperService:
             cursor = session.get(AstCursor, 1)
             after = datetime.fromisoformat(cursor.observed_at) if cursor and cursor.observed_at else None
         return pending_ids(self.sessions, after, limit)
-
-    def required_contracts(self, at: datetime | None = None) -> list[OptionContractSnapshot]:
-        with self.sessions() as session:
-            rows = session.scalars(select(AstTrade).where(AstTrade.state.in_(ACTIVE)))
-            contracts: list[OptionContractSnapshot] = []
-            for row in rows:
-                doc = json.loads(row.document)
-                contracts.extend(
-                    OptionContractSnapshot.model_validate(doc["candidate"][key]) for key in ("short_leg", "long_leg")
-                )
-            return list(
-                {
-                    (
-                        item.exchange,
-                        item.instrument_token,
-                        item.expiry,
-                        item.strike,
-                        item.option_type,
-                        item.trading_symbol,
-                    ): item
-                    for item in contracts
-                }.values()
-            )

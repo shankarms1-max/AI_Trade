@@ -5,6 +5,7 @@ import json
 
 from sqlalchemy import or_, select
 
+from app.adaptive_supertrend import VERSION
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend.journal import ACTIVE
 from app.adaptive_supertrend.models import AstCursor, AstTrade, OptimizerRun, SessionParameters
@@ -16,9 +17,11 @@ def report(sessions, at: datetime, policy: AstPolicy | None = None) -> dict:
     with sessions() as session:
         cursor = session.get(AstCursor, 1)
         if cursor is None:
-            return {"strategy_id": "AST_V1", "strategy_version": "AST_V1", "status": "AST_MIGRATION_REQUIRED"}
+            return {"strategy_id": VERSION, "strategy_version": VERSION, "status": "AST_MIGRATION_REQUIRED"}
         parameters = session.get(SessionParameters, at.date())
         document = json.loads(parameters.document) if parameters else None
+        if document is not None and document.get("strategy_version") != VERSION:
+            parameters = document = None
         optimizer = session.get(OptimizerRun, parameters.optimizer_run_id) if parameters else None
         optimizer_doc = json.loads(optimizer.document) if optimizer else None
         rows = list(
@@ -38,10 +41,15 @@ def report(sessions, at: datetime, policy: AstPolicy | None = None) -> dict:
             for doc in docs
             if doc.get("exit_timestamp") and datetime.fromisoformat(doc["exit_timestamp"]).date() == at.date()
         )
-        marks = [doc.get("gross_mark_rupees") for row, doc in zip(rows, docs) if row.state == "OPEN"]
+        closed = [doc for row, doc in zip(rows, docs) if row.closed_date == at.date()]
+        marks = [
+            doc.get("gross_mark_rupees")
+            for row, doc in zip(rows, docs)
+            if row.state in ("OPEN", "PENDING_PAPER_EXIT", "UNRESOLVED_EXPOSURE")
+        ]
         return {
-            "strategy_id": "AST_V1",
-            "strategy_version": "AST_V1",
+            "strategy_id": VERSION,
+            "strategy_version": VERSION,
             "mode": "PAPER",
             "status": (
                 "AST_POLICY_UNCONFIGURED"
@@ -64,10 +72,14 @@ def report(sessions, at: datetime, policy: AstPolicy | None = None) -> dict:
                 bool(doc.get("entry_timestamp")) and datetime.fromisoformat(doc["entry_timestamp"]).date() == at.date()
                 for doc in docs
             ),
-            "open_trades": [doc for row, doc in zip(rows, docs) if row.state == "OPEN"],
+            "open_trades": [doc for row, doc in zip(rows, docs) if row.state in ("OPEN", "PENDING_PAPER_EXIT")],
             "unresolved_exposure": sum(row.state == "UNRESOLVED_EXPOSURE" for row in rows),
             "realized_gross_pnl": realized,
             "unrealized_gross_pnl": sum(marks) if all(v is not None for v in marks) else None,
-            "net_pnl_status": "SEE_DATED_TRADE_COST_COMPLETENESS",
+            "realized_net_pnl": (
+                sum(doc["net_pnl"] for doc in closed)
+                if closed and all(doc.get("net_pnl") is not None for doc in closed)
+                else None
+            ),
             "journal_head": cursor.head_hash,
         }

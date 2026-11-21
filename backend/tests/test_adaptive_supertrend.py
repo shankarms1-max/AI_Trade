@@ -36,23 +36,9 @@ def policy(**updates):
         },
         "regime": {"adx_period": 2, "adx_threshold": 0, "er_lookback": 2, "er_threshold": 0},
         "execution": {
-            "allowed_widths": [400],
             "entry_end_time": "14:45:00",
-            "min_short_distance_points": 0,
-            "min_credit": 1,
-            "min_credit_to_width": 0.01,
-            "max_bid_ask_spread_pct": 20,
-            "max_quote_age_seconds": 30,
-            "min_open_interest": 1,
-            "min_volume": 1,
-            "max_loss_per_trade": 50000,
-            "hard_daily_loss": 50000,
-            "max_trades_per_day": 6,
-            "max_consecutive_losses": 6,
-            "cooldown_after_loss_seconds": 0,
-            "cooldown_after_exit_seconds": 0,
-            "entry_ttl_seconds": 30,
-            "safety": {"label": "HARD_SAFETY_ONLY", "forced_exit_time": "15:20:00"},
+            "session_exit_time": "15:20:00",
+            "contracts": [{"instrument_id": "FUT", "expiry": str(EXPIRY), "lot_size": 65}],
         },
     }
     value.update(updates)
@@ -234,13 +220,13 @@ def test_frozen_orb_date_reset_and_contract_change():
     assert "opening_range" not in state and state["consumed"] == []
 
 
-def test_metrics_hand_calculation_and_no_synthetic_option_pnl():
+def test_metrics_hand_calculation_and_signal_points_only():
     result = metrics([{"signal_points": p, "date": str(i // 2)} for i, p in enumerate([10, -4, 6, -2])], 2, 2)
     assert result["total_trades"] == 4 and result["win_rate"] == 0.5
     assert result["gross_signal_points"] == 10 and result["max_drawdown"] == 4
     assert result["profit_factor"] == pytest.approx(16 / 6)
     assert result["expectancy"] == 2.5 and result["payoff_ratio"] == pytest.approx(8 / 3)
-    assert result["gross_option_pnl"] is None and result["net_option_pnl"] is None
+    assert result["estimated_net_pnl"] is None
 
 
 def test_full_grid_determinism_robustness_and_benchmark(tmp_path):
@@ -251,7 +237,7 @@ def test_full_grid_determinism_robustness_and_benchmark(tmp_path):
     second = evaluate_grid(data, cfg)
     assert first == second and len(first) == 1886
     assert first[0]["eligible"] and first[0]["neighbour_robustness"]["count"] in (2, 3, 4)
-    assert first[0]["metrics"]["gross_option_pnl"] is None
+    assert first[0]["metrics"]["cost_status"] == "SIGNAL_POINTS_ONLY"
     (tmp_path / "grid-benchmark.json").write_text(
         json.dumps({"grid": len(first), "bars": len(data), "seconds": elapsed, "processes": 1})
     )

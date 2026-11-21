@@ -1,4 +1,4 @@
-"""Deterministic CSV futures signal research. Option fills are never inferred."""
+"""Deterministic CSV futures signal research. Completed bars and pre-session optimization."""
 
 from __future__ import annotations
 
@@ -112,9 +112,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--top", type=int, default=10)
     parser.add_argument("--json", type=Path)
     parser.add_argument("--benchmark", action="store_true")
-    parser.add_argument(
-        "--observations", type=Path, help="actual raw ScalperMarketSnapshot JSONL for isolated option replay"
-    )
     args = parser.parse_args(argv)
     if args.top < 1:
         parser.error("--top must be positive")
@@ -124,15 +121,11 @@ def main(argv: list[str] | None = None) -> int:
     training = [bar for bar in bars if bar.start.date() < args.date and bar.end < cutoff]
     started = perf_counter()
     # Historical simulation records a deterministic pre-session selection clock, not wall-clock now.
-    result = optimize(training, args.date, cutoff.replace(hour=9, minute=0), policy)
+    result = optimize(training, args.date, cutoff.replace(hour=9, minute=0), policy, signal_research_only=True)
     result["ranking"] = result["ranking"][: args.top]
     result.pop("training_bars")
     if args.walk_forward:
         result["walk_forward"] = walk_forward(bars, policy)
-    if args.observations:
-        from app.adaptive_supertrend.replay import replay
-
-        result["execution_research"] = replay(bars, args.observations, policy)
     if args.benchmark:
         result["benchmark"] = {
             "elapsed_seconds": perf_counter() - started,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from math import isfinite
 
+from app.adaptive_supertrend import VERSION
 from app.adaptive_supertrend.bars import opening_range
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend.indicators import adx, efficiency_ratio, supertrend
@@ -71,6 +72,15 @@ def decide(
             supertrend=latest["value"],
             atr=latest["atr"],
             ast_transition=latest["transition"],
+            # The initial post-gap direction is a seed, not a reversal.
+            ast_reversal_at=next(
+                (
+                    current["transition"]
+                    for previous, current in reversed(list(zip(sequence, sequence[1:])))
+                    if previous["direction"] is not None and previous["direction"] != current["direction"]
+                ),
+                None,
+            ),
             atr_period=parameters["atr_period"],
             multiplier_tenths=parameters["multiplier_tenths"],
             completed_bar_at=usable[-1].end.isoformat() if usable else None,
@@ -118,8 +128,8 @@ def decide(
             blockers.append("AST_OPPORTUNITY_CONSUMED")
     features.update(breakout_direction=direction, opportunity_id=opportunity)
     return {
-        "strategy_id": "AST_V1",
-        "strategy_version": "AST_V1",
+        "strategy_id": VERSION,
+        "strategy_version": VERSION,
         "timestamp": at.isoformat(),
         "direction": direction,
         "status": "ENTER" if not blockers else "NO_SETUP",

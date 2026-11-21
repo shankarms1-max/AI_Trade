@@ -1,5 +1,7 @@
-"""Isolated AST_V1 paper/research engine. No live execution capability."""
+"""Isolated AST_FUTURES_V1 paper/research engine. No live execution capability."""
 
-STRATEGY_ID = "AST_V1"
+STRATEGY_ID = "AST_FUTURES_V1"
 VERSION = STRATEGY_ID
 CAPTURE_MODE = "AST_PAPER"
+BOOTSTRAP_MODE = "AST_BOOTSTRAP"
+BOOTSTRAP_PURPOSE = "AST_FUTURES_HISTORY_BOOTSTRAP"

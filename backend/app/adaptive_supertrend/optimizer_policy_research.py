@@ -354,7 +354,6 @@ def run_research(bars: list[Bar], choices: list[Candidate], progress: Callable[[
             "grid_cache": "METRICS_SHARED_ONLY_FOR_SAME_DATE_LOOKBACK_SUBPERIODS_RERANK_EACH_WEIGHT_AND_MINIMUM",
             "unpriced_positions": "EXCLUDED_BY_EXISTING_SIGNAL_TRADES_NO_SYNTHETIC_SESSION_CLOSE",
             "missing_selection": "NO_STATIC_FALLBACK_COVERAGE_REPORTED_SEPARATELY_FROM_CLOSED_TRADE_METRICS",
-            "option_pnl": "UNAVAILABLE_NO_OPTION_FILLS_OR_COSTS_INFERRED",
         },
     }
 

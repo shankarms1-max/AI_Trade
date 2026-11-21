@@ -667,7 +667,6 @@ def run_research(bars: list[Bar], spec: ResearchSpec) -> dict:
             "minimum_trade_counts": "PER_AST_CONFIG_PER_BLOCK_RANKING_COUNTS_ONLY_RELEVANT_TWO_QUALIFIED_BLOCKS",
             "drawdown_delta": "FILTERED_MINUS_UNFILTERED_NEGATIVE_IS_IMPROVEMENT",
             "unpriced_positions": "EXCLUDED_BY_UNCHANGED_SIGNAL_TRADES_NO_SYNTHETIC_CLOSE",
-            "option_pnl": "UNAVAILABLE_NO_OPTION_FILLS_OR_COSTS_INFERRED",
         },
         "precomputation": {
             "cache_capacity": 4096,

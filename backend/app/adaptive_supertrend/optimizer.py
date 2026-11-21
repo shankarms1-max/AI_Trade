@@ -1,4 +1,4 @@
-"""Bounded sequential grid and chronological signal research, never synthetic option P&L."""
+"""Bounded sequential grid and chronological signal research, futures signal points."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from datetime import date, datetime, time
 from math import sqrt
 from statistics import mean, median, pstdev
 
+from app.adaptive_supertrend import VERSION
 from app.adaptive_supertrend.bars import opening_range
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend.indicators import adx, atr, efficiency_ratio, supertrend
@@ -17,7 +18,7 @@ GRID = tuple((period, tenths) for period in range(5, 51) for tenths in range(10,
 
 
 def metrics(trades: list[dict], session_count: int, subperiods: int, session_dates: list[str] | None = None) -> dict:
-    """Signal points only; explicit None for unsupported net/option measures."""
+    """Signal points only; cash P&L requires paper fills."""
     pnls = [row["signal_points"] for row in trades]
     wins, losses = [p for p in pnls if p > 0], [p for p in pnls if p < 0]
     equity = peak = drawdown = 0.0
@@ -37,10 +38,8 @@ def metrics(trades: list[dict], session_count: int, subperiods: int, session_dat
         "winning_trades": len(wins),
         "losing_trades": len(losses),
         "gross_signal_points": sum(pnls),
-        "gross_option_pnl": None,
-        "net_option_pnl": None,
         "estimated_net_pnl": None,
-        "cost_status": "SIGNAL_ONLY_NO_OPTION_FILLS",
+        "cost_status": "SIGNAL_POINTS_ONLY",
         "expectancy": mean(pnls) if pnls else None,
         "profit_factor": sum(wins) / abs(sum(losses)) if losses else None,
         "profit_factor_status": "DEFINED" if losses else "NO_LOSSES" if wins else "NO_TRADES",
@@ -147,7 +146,7 @@ def signal_trades(
                     "key": key,
                     "sign": 1 if direction == "BULL" else -1,
                 }
-        # Scheduled session-end signal mark, explicitly not an executable option fill.
+        # Scheduled session-end signal mark, explicitly without a paper execution.
         if position is not None and bar.end.astimezone(IST).time() == time(15, 30):
             trades.append(
                 {
@@ -264,7 +263,7 @@ def optimize(
         )
     ):
         raise ValueError("AST_TRAINING_CUTOFF_VIOLATION")
-    # Futures-only research has no option execution configuration. Runtime calls
+    # Futures-only research has no paper execution configuration. Runtime calls
     # retain the complete policy requirement; missing signal policy never passes.
     if any(name != "execution" or not signal_research_only for name in policy.missing):
         raise ValueError("AST_POLICY_UNCONFIGURED")
@@ -278,7 +277,7 @@ def optimize(
     selected = rows[0] if rows[0]["eligible"] else None
     inputs = json_value(training)
     return {
-        "strategy_id": "AST_V1",
+        "strategy_id": VERSION,
         "trading_date": trading_date.isoformat(),
         "selected_at": selected_at.isoformat(),
         "data_cutoff": max(bar.end for bar in training).isoformat(),

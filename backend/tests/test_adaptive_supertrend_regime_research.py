@@ -184,9 +184,7 @@ def test_repeated_results_and_unfiltered_oracle_are_exact(tmp_path):
             assert actual["unfiltered"] == first["folds"][0]["unfiltered_baseline"][config.key]
             for kind in ("filtered", "unfiltered"):
                 for block in ("training", "validation", "oos"):
-                    assert actual[kind][block]["gross_option_pnl"] is None
-                    assert actual[kind][block]["net_option_pnl"] is None
-                    assert actual[kind][block]["cost_status"] == "SIGNAL_ONLY_NO_OPTION_FILLS"
+                    assert actual[kind][block]["cost_status"] == "SIGNAL_POINTS_ONLY"
             oos, baseline = actual["filtered"]["oos"], actual["unfiltered"]["oos"]
             assert (
                 actual["regime_filter_value"]["points"] == oos["gross_signal_points"] - baseline["gross_signal_points"]
@@ -218,14 +216,14 @@ def test_partial_sessions_and_october_28_roll_reset_all_indicator_context(tmp_pa
 
 
 def test_no_execution_policy_settings_database_or_broker_required(tmp_path, monkeypatch):
-    from app.adaptive_supertrend.config import ExecutionPolicy
+    from app.adaptive_supertrend.config import FuturesExecutionPolicy
     from app.core.config import get_settings
     import app.core.config as core
 
     def forbidden(*args, **kwargs):
         pytest.fail("Runtime policy/settings were accessed")
 
-    monkeypatch.setattr(ExecutionPolicy, "__init__", forbidden)
+    monkeypatch.setattr(FuturesExecutionPolicy, "__init__", forbidden)
     monkeypatch.setattr(core, "get_settings", forbidden)
     monkeypatch.setenv("DATABASE_URL", "forbidden://no-database-may-connect")
     result = research.run_research(load_bars(source_file(tmp_path)), spec())

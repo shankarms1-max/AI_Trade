@@ -6,17 +6,18 @@ import json
 
 from sqlalchemy import select
 
+from app.adaptive_supertrend import VERSION
 from app.adaptive_supertrend.models import AstCursor, AstEvent, AstTrade
 from app.research.manifest import canonical, digest, json_value
 
-ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "UNRESOLVED_EXPOSURE")
+ACTIVE = ("PENDING_PAPER_ENTRY", "OPEN", "PENDING_PAPER_EXIT", "UNRESOLVED_EXPOSURE")
 
 
 def event_hash(sequence: int, key: str, previous: str, payload: dict) -> str:
     return digest(
         {
-            "strategy_id": "AST_V1",
-            "strategy_version": "AST_V1",
+            "strategy_id": VERSION,
+            "strategy_version": VERSION,
             "sequence": sequence,
             "event_key": key,
             "previous_hash": previous,
@@ -31,8 +32,8 @@ def emit(
     key = f"{snapshot_id}:{trade.id if trade else 'SESSION'}:{kind}"
     payload = json_value(
         {
-            "strategy_id": "AST_V1",
-            "strategy_version": "AST_V1",
+            "strategy_id": VERSION,
+            "strategy_version": VERSION,
             "mode": "PAPER",
             "event_type": kind,
             "snapshot_id": snapshot_id,
@@ -65,8 +66,8 @@ def _validate(event: AstEvent) -> dict:
     payload = json.loads(event.payload)
     if (
         event.event_hash != event_hash(event.sequence, event.event_key, event.previous_hash, payload)
-        or payload.get("strategy_id") != "AST_V1"
-        or payload.get("strategy_version") != "AST_V1"
+        or payload.get("strategy_id") != VERSION
+        or payload.get("strategy_version") != VERSION
         or payload.get("mode") != "PAPER"
         or payload.get("snapshot_id") != event.snapshot_id
         or payload.get("trade_id") != event.trade_id
@@ -108,7 +109,7 @@ def verify(sessions, *, full: bool = False) -> None:
             if (
                 payload.get("trade_document") != doc
                 or payload.get("state") != row.state
-                or doc.get("strategy_id") != "AST_V1"
+                or doc.get("strategy_id") != VERSION
                 or doc.get("trade_id") != row.id
                 or doc.get("policy_hash") != digest(doc.get("policy"))
             ):

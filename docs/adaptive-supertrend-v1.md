@@ -1,22 +1,8 @@
-# Adaptive SuperTrend V1: isolated paper/research engine
+# Adaptive SuperTrend futures paper strategy
 
-AST_V1 is an independent NIFTY futures signal and option credit-spread paper experiment.
-It does not modify ACTS V2/V3, run the retired parallel strategies, or appear in the public
-ACTS-only Phase 15 API/frontend. No profitability claim is made. No live mode or order
-adapter exists. Nothing in this commit deploys or enables a worker.
+`AST_FUTURES_V1` is the sole active AST paper strategy. It takes one long or short NIFTY futures lot. The independent worker accepts only `--mode PAPER` and is disabled by default (`ADAPTIVE_SUPERTREND_ENABLED=false`).
 
-## Architecture and frozen facts
-
-`app.adaptive_supertrend` owns its indicators, policy, optimizer, decisions, projections,
-journal, replay and reporting. `worker/adaptive_supertrend_worker.py` is a separate
-PAPER-only entry point, disabled by default with `ADAPTIVE_SUPERTREND_ENABLED=false`.
-Use a separate research database/instance; no production Compose/Caddy changes are provided.
-
-Market-data-only capture reuses the existing collector factory and shared evidence tables
-`scalper_market_snapshots` / `scalper_option_quotes` with explicit **AST_PAPER** provenance.
-Only AST-mode rows enter AST history/catch-up. ACTS and parallel journals are never queried
-or written by the service. Exact held option identities are supplied to the read-only
-collector; if a required quote cannot be captured, there is no ATM/expiry substitution.
+## Signal and daily freeze
 
 Five-minute sampled futures OHLC bars are anchored at 09:15 Asia/Kolkata. They contain
 only observations in `[start,end)` and become available at `end`. An incomplete bar is
@@ -58,106 +44,55 @@ in the AST cursor and copied into every trade. Later prices cannot revise it. A 
 identity change during the session blocks entries rather than using a new contract against
 an old range.
 
-After range completion:
+A breakout above the frozen range with completed SuperTrend BULL can open a long. A breakout below with completed SuperTrend BEAR can open a short. Regime configuration, warm-up, opportunity identity and consumption on fill use the existing decision logic.
 
-- Current futures above the range + completed AST BULL + explicit regime policy pass → BULL,
-  construct a PE credit spread.
-- Current futures below the range + completed AST BEAR + explicit regime policy pass → BEAR,
-  construct a CE credit spread.
-- Disagreement → `AST_ORB_DIRECTION_CONFLICT`; inside → `ORB_NOT_BROKEN`.
-- Unavailable indicators, range, causal observation timing, policy or daily parameters →
-  precise blockers; capture can continue without an entry.
+## Paper execution
 
-An opportunity hashes trading date, direction, exact frozen range, frozen parameters,
-AST transition identity and futures identity. Only a confirmed simulated fill consumes it.
-Continued persistence after an exit cannot create another trade for the same opportunity.
-A later causal AST transition has a different opportunity identity. No arbitrary cooldown
-is used as the primary duplicate guard.
+Kotak's NIFTY reference response supplies the futures symbol, expiry and LTP. Each native capture persists the original request/response times and the scalar futures observation in `scalper_market_snapshots`, with `mode=AST_PAPER` and `producer=AST_FUTURES_V1`. No call/put quote rows are required. The shared schema also requires spot, ATM, reference option expiry and header lot metadata. The futures worker sizes positions from its explicitly configured **exact futures contract**. The header lot is not evidence of the futures multiplier.
 
-## Explicit unresolved policy (entry remains fail-closed)
+A decision creates a pending entry. The next chronological native observation must still support the same opportunity and have the same futures identity and expiry, a finite positive price, valid capture timing, and fall within the entry window and configured sequence gap. Failure rejects the pending entry. Simulated entry, mark and exit prices are labelled **observed futures LTP**. No executable exchange bid/ask, tick-complete path, or futures exchange timestamp is available. `futures_observation_time` is response capture time and `futures_source_timestamp` stays null.
 
-`AST_CONFIG_JSON` is a validated extra-forbidden schema. Default `{}` reports
-`AST_POLICY_UNCONFIGURED`. Required research choices are deliberately **not guessed**:
+Every valid held-contract observation records a mark. Long points are mark minus entry, short points are entry minus mark. Gross INR equals points times the frozen one-lot size. MAE is the lowest observed signed points including zero, MFE the highest. Net INR stays null unless an explicit round-trip cost for one lot is supplied in the frozen policy.
 
-- optimizer lookback sessions, chronological subperiods, minimum acceptable trades;
-- all metric weights: profitability, drawdown, profit factor, Sharpe-equivalent,
-  frequency, consistency, neighbours;
-- validation and out-of-sample session counts;
-- explicit regime `NONE`, or `ADX_ER` with ADX period/threshold and ER lookback/threshold;
-- allowed spread widths, entry end, minimum short distance/credit/credit-width ratio;
-- maximum spread percentage and quote age, minimum OI and volume;
-- max defined loss, daily loss, trades/day, loss streak, both cooldowns and entry TTL;
-- forced exit time and an explicit safety policy;
-- supported, dated costs/slippage if net P&L is required.
+A reversal requires an actual SuperTrend direction change on a completed 5-minute bar after entry. A new post-gap seed alone cannot trigger it. The exit becomes pending and uses a subsequent exact-contract observation. The configured session-end exit uses the first valid observed price at or after its predetermined cutoff in the session. The final scheduled capture bucket starts at 15:30 IST. Lost contract identity, missing exit pricing at cutoff, or reaching a later date with the position still open records unpriced `UNRESOLVED_EXPOSURE`. Restart does not substitute a later day's price. Pending, open, exiting and unresolved positions block a second position. No stop, target or trailing rule is configured.
 
-Frozen facts (AST_V1, 5-minute bars, 15-minute range, exact grid, one lot) cannot be overridden.
-One pending/open/unresolved position is the fixed maximum. Offset defaults to seconds
-10,25,40,55 and is validated in `[0,15)`; this is scheduling, not strategy policy.
-Sample coverage tolerance defaults to the existing 45-second infrastructure convention.
-`kill_switch` and configured market-event blocks are enforced at decision and fill and
-trigger available-book safety exits. All policy inputs and implementation-policy version
-identifiers are hashed into new trade evidence. Active trades reject incompatible policy
-changes on startup. Historical policies/events are never rewritten.
+## Configuration and recovery
 
-## Execution and exits
+`AST_CONFIG_JSON` accepts the signal optimizer and regime settings, plus the following futures-only `execution` fields. Use the approved 15-session optimizer configuration and verified contract metadata when preparing a paper run.
 
-The existing short-leg-first candidate builder and exact quote validators are reused as
-pure functions. Widths are explicit AST policy; AST does **not** invent a 400-point rule.
-One-lot defined maximum loss is checked at decision and again at fill. Entry requires real
-short BID minus hedge ASK on a **later** observation; the decision cannot fill itself.
-Freshness, tick alignment, depth units/quantity, minimum credit, OI/volume, risk counters,
-event blocks, current thesis/opportunity and exact futures/lot identity are rechecked.
-LTP is never an executable fill. No partial depth or inferred quantities are accepted.
+| Field | Meaning |
+| --- | --- |
+| `contracts` | List of unique objects with exact broker `instrument_id`, ISO `expiry`, and verified integer `lot_size` |
+| `entry_end_time` | Last permitted entry time in IST |
+| `session_exit_time` | Scheduled session-end exit in IST, after the entry cutoff and no later than 15:30 |
+| `round_trip_cost_per_lot_inr` | Optional flat one-lot round-trip cost, effective for trades under this policy |
 
-Marks/exits use exact held short ASK minus hedge BID and the original confirmed lot size.
-The proven `PHASE15_EXIT_BOOK_V1` allows a wide spread for risk exits while retaining all
-other executable-book protections. Missing marks are explicitly unavailable. Missing exact
-contracts or a missing executable book at forced exit produce terminal
-`UNRESOLVED_EXPOSURE`; expired positions without an exit price remain unresolved.
-There is no invented settlement or fabricated close.
+Missing configuration blocks entries. Historical spread policies fail validation. The worker verifies the cursor, chain head and active projection on restart. Cursor updates, trade projections and hash-linked events commit in one transaction. A changed policy cannot manage an active trade. Catch-up processes saved observations in capture order and ignores duplicates.
 
-There is no invented AST strategy exit. The selected safety policy is explicit:
+Migration `0023_ast_futures_paper` seeds a new cursor and creates `ast_futures_paper_cursor`, `ast_futures_paper_trades` and `ast_futures_paper_events`. The events are append-only. **LEGACY/RETIRED** tables `ast_paper_cursor`, `ast_paper_trades` and `ast_paper_events` retain their original evidence. No futures projection is seeded from those tables. Shared immutable optimizer/session records remain available. A date already frozen under another policy cannot be overwritten or reused for futures entries.
 
-- `HARD_SAFETY_ONLY`: forced close, kill/event exit, hard cash loss and daily-loss exit.
-- `LEGACY_SAFETY_BASELINE`: additionally requires explicit profit %, stop multiple,
-  trailing activation/giveback and time stop. These remain labelled legacy safety in
-  policy, trade and research outputs; they are **not** AST-optimized rules.
+Read status and verify the futures journal using the isolated AST database:
 
-Costs reuse the existing dated `CostSchedule`. Gross is always separate. Net stays null
-unless a complete supported schedule is configured; unknown costs are never zeroed into net.
+```sh
+python worker/adaptive_supertrend_worker.py --mode PAPER --status
+python worker/adaptive_supertrend_worker.py --mode PAPER --verify-journal
+```
 
-## Persistence, locks and recovery
+## One-time historical bootstrap
 
-Migration `0022_adaptive_supertrend` adds only:
+Use the original ACTS_PAPER raw snapshot JSONL or JSONL.GZ and its audited SHA-256. The four-column futures CSV lacks original request/response timing and required raw header scalars. Set `DATABASE_URL` to the isolated, migrated AST database. Choose a cutoff strictly later than the last archived trading date and no later than the session being prepared.
 
-- `ast_optimizer_runs`
-- `ast_session_parameters`
-- `ast_paper_cursor` (one seeded authoritative row)
-- `ast_paper_trades`
-- `ast_paper_events`
+```sh
+PYTHONPATH=backend python -m app.adaptive_supertrend.bootstrap \
+  --snapshots "$ARCHIVE" --source-file-sha256 "$AUDITED_SHA256" \
+  --source-mode ACTS_PAPER --before-date 2026-11-23 --confirm-isolated-ast-database
+```
 
-PostgreSQL triggers prohibit UPDATE, DELETE and TRUNCATE on evidence; SQLite triggers
-prohibit row UPDATE/DELETE. ORM mutation guards also apply. Events contain unique causal
-keys, previous/event hashes and full transition evidence. Cursor CAS/row lock, trades and
-events commit atomically; failures roll back the entire observation. Duplicate or earlier
-observations cannot refill a trade. Catch-up pages AST captures in causal timestamp order
-before making new network calls. Startup checks indexed journal head/observation and active
-projections, without scanning the journal. Full verification is a separate read-only,
-streaming command. No reset/repair/deletion command is supplied.
+The transaction streams bounded batches, preserves original clocks, exact futures identity and physical source SHA, and inserts zero option quotes. The JSON receipt gives dates, first/last timestamps and inserted/already-present counts. For the described complete archive on an empty target, expect 42,350 rows across 29 dates. A repeat should insert zero. Incompatible provenance or a changed source for the same bootstrap date fails the import.
 
-Indexed scalar reads load historical completed bars once per service/session/futures identity;
-subsequent cycles query only today's scalar prices. Only the current observation loads an
-option chain. The optimizer is pre-session, never on the 15-second decision path. There is
-no history truncation to a magic 1000-row window.
+Prior dates prefer native AST_PAPER for the whole date, even with partial coverage. Otherwise historical AST_BOOTSTRAP may supply bars. Current-session history is native only. Earlier native captures without the new producer marker also remain history-only. Bootstrap and pre-cutover native rows cannot generate journal events. The freeze records input counts, dates and bootstrap source hashes. The latest 15 sessions naturally displace imported history as native sessions accumulate.
 
-## Research, metrics and walk-forward
-
-Signal research reports **futures signal points**, never option rupees. Entry signal at a
-completed bar fills only at the next bar open. The explicit signal-research baseline exits
-on a directional flip at next bar open or a scheduled session-end signal mark. A separate
-`SESSION_END_ONLY` signal baseline is supported. Missing session-end evidence leaves a
-signal position unpriced/excluded, never backfilled. These are signal-quality statistics,
-not the paper spread safety-policy results.
+## Signal research and walk-forward
 
 Metrics include trade count, wins/losses, expectancy, PF (null plus reason when undefined),
 max drawdown, unannualized trade-return Sharpe-equivalent, win rate, mean win/loss, payoff,
@@ -172,86 +107,11 @@ use causal training prefixes for indicator warm-up, with only period entries cou
 Daily freeze reports `NOT_RUN` unless separate walk-forward research has been performed;
 no out-of-sample success is fabricated.
 
-Execution research optionally reads **actual** `ScalperMarketSnapshot` JSONL and runs the
-same paper service against an ephemeral, isolated SQLite database. It stores exact quote
-fills and hash-verifies the replay. It cannot write a source DB or production journal.
-Repeat with a different explicit safety policy to compare exits. If no option evidence is
-supplied, executable option P&L stays unavailable. No source CSV reconstructs missing quotes.
-
-## Commands (local/research only)
-
 ```sh
-PYTHONPATH=backend python -m pytest backend/tests/test_adaptive_supertrend*.py -ra
-
-# CSV columns: start,end,open,high,low,close,future_instrument_id,future_expiry
 PYTHONPATH=backend python -m app.adaptive_supertrend.research \
   --csv /research/futures-5m.csv --policy /research/ast-policy.json \
   --date 2026-11-20 --grid --walk-forward --top 20 --json /research/results.json
-
-# Same grid, measured single-process runtime and peak RSS (benchmark timing is nondeterministic).
-PYTHONPATH=backend python -m app.adaptive_supertrend.research \
-  --csv /research/futures-5m.csv --policy /research/ast-policy.json \
-  --date 2026-11-20 --grid --benchmark --json /research/benchmark.json
-
-# Optional actual option quote replay, in an automatically removed ephemeral DB:
-PYTHONPATH=backend python -m app.adaptive_supertrend.research \
-  --csv /research/futures-5m.csv --policy /research/ast-policy.json \
-  --date 2026-11-20 --grid --observations /research/snapshots.jsonl \
-  --json /research/execution-results.json
-
-# DATABASE_URL must point at an isolated migrated AST research database.
-python worker/adaptive_supertrend_worker.py --mode PAPER --status
-python worker/adaptive_supertrend_worker.py --mode PAPER --verify-journal
-# Requires explicit enabled flag and complete approved AST policy; not run by this commit:
-python worker/adaptive_supertrend_worker.py --mode PAPER
 ```
-
-No optimizer weights, thresholds, risk settings or exits in the synthetic tests constitute
-approved production policy. Real option-data availability, real worker latency, strategy
-research validation and a configured policy remain prerequisites for a future paper run.
-
-### Validation notes
-
-The optimizer requires at least one nonzero quality/risk/robustness weight in addition
-to the positive-profit/minimum-trades eligibility checks; a profit-only ranking policy
-is rejected. Known cooldown windows include previous-session exits rather than losing
-that evidence at midnight. The only active-policy safety exception is a **false→true
-kill switch with every other policy field identical**. It closes using the real book,
-retains the original frozen trade policy/hash, and appends explicit emergency-override
-hash/reason evidence. Any other active-policy change still refuses startup.
-
-A synthetic 20-session / 1,500-bar full-grid run completed all 1,886 configurations in
-76.939 seconds, with peak RSS 81.734 MiB, one process, two-CPU affinity and a 3 GiB
-address-space cap. This measures the local research grid, not production broker latency
-or strategy profitability. Results/evidence are in `/workspaces/ast-v1-validation`.
-
-The existing shared capture schema derives `source_market_timestamp` from the maximum
-option source timestamp; it does **not** expose an authoritative futures source timestamp.
-That option aggregate is never a futures signal-availability/freshness gate: missing, stale
-or future aggregate values alone do not invalidate a captured futures price. AST uses the
-recorded `captured_at` observation time, with request/response ordering checked against it,
-valid futures prices, exact instrument/expiry identity, existing coverage/gap checks and
-completed five-minute bars. It never substitutes receipt time for an exchange/source time.
-
-Decision, journal, trade-feature and status evidence explicitly expose:
-
-- `futures_source_timestamp = null`
-- `futures_source_timestamp_status = UNAVAILABLE_IN_SHARED_CAPTURE_SCHEMA`
-- `futures_observation_time = captured_at`
-- `futures_observation_time_basis = BROKER_RESPONSE_CAPTURE_TIME`
-- `snapshot_request_started_at` and `snapshot_response_received_at` from the recorded snapshot.
-
-Executable option fills/marks independently require **each exact option quote's own**
-source timestamp and the unchanged executable-book validation. Missing/stale individual
-option timestamps still reject a paper fill, even when futures signal evidence is valid.
-Authoritative futures exchange/source-time freshness remains unavailable; capture ordering
-and coverage are observation-time evidence, not a claim of exchange-quote freshness.
-The shared capture adapter/field semantics and all ACTS paths remain unchanged.
-
-The candidate builder's legacy `holding_horizon_minutes` is construction metadata only;
-AST never consumes it as an exit rule. The explicit AST safety policy alone determines
-whether a time stop exists. Subperiod consistency includes chronological sessions with
-zero trades rather than deleting inactive days from the ranking evidence.
 
 ## Historical CSV session boundaries
 
@@ -363,7 +223,7 @@ Summed drawdowns/counts across alternative AST configurations also are not a por
 max drawdown and trade count. Negative drawdown delta is improvement. The report also
 shows changes in worst/median OOS and qualified positive configurations, and flags trade
 reduction without points/drawdown or family-robustness gains. All the component deltas
-remain available to inspect trade-offs. No option fills, option P&L, costs or net cash
+remain available to inspect trade-offs. No paper fills, costs or net cash
 returns are inferred from futures bars.
 
 Input bars are grouped by session once, so rolling folds do not repeatedly scan the
@@ -390,7 +250,7 @@ AST now distinguishes an explicit **`{"mode":"NONE"}`** from a missing/null regi
 NONE is fully configured and produces an all-True quality mask. It imposes no ADX/ER
 threshold or ADX/ER warm-up requirement; diagnostic ADX/ER decision values remain null.
 It does **not** bypass AST warm-up, causal completed bars, session/contract boundaries,
-ORB, daily parameter selection, execution/risk checks or exact executable option books.
+ORB, daily parameter selection or futures execution checks.
 A null/absent regime still blocks entry as `AST_POLICY_UNCONFIGURED`. NONE accepts no
 ADX/ER parameters; it never guesses them.
 
@@ -412,7 +272,7 @@ experiment. It imports no paper service, broker, worker or database connection. 
 1,886 grid, existing `optimize()`/`rank()`, completed-bar SuperTrend and `signal_trades()`.
 Only an explicit `signal_research_only=True` call exempts missing **execution** policy
 from `optimize()`; normal runtime calls still require the full policy. Missing optimizer
-or regime is never exempted. No fake option execution policy or costs are constructed.
+or regime is never exempted. Signal research requires only the signal policy.
 
 Every candidate is an explicit tuple of lookback, chronological subperiod count, minimum
 closed training trades, named seven-field weight profile, validation sessions and OOS
@@ -482,7 +342,7 @@ OOS days with valid selections on both; missing days are not bridged. FAST occup
 ATR 5–7 / multiplier 1.0–1.3; SLOW is ATR 20–26 / multiplier 1.1–1.3, with selected-day
 denominators. Static 7/1.1, 7/1.2 and 26/1.2 are separately labelled benchmarks, evaluated
 with the same causal lookback prefix and OOS dates. Both whole-OOS and matched-selected-day
-benchmark metrics are shown; the point delta uses matched dates. No option P&L or net
+benchmark metrics are shown; the point delta uses matched dates. No cash P&L or net
 cash returns are inferred, and unpriced incomplete-session positions remain excluded by
 the existing signal engine. CSV provides deterministic per-candidate/day selections and
 metrics; JSON also contains validation rankings, folds and selected-policy OOS evidence.
@@ -497,247 +357,3 @@ Candidate/grid/fold progress goes to **STDERR**, never deterministic JSON/CSV. B
 CSVs and weight files have SHA-256 recorded and are checked unchanged before output;
 outputs cannot alias either input or each other. No wall-clock duration/randomness enters
 research output. This change neither changes nor launches a worker, ACTS or deployment.
-
-## Execution-policy research on actual option books
-
-`app.adaptive_supertrend.execution_policy_research` is an **offline research command**.
-It does not create a broker, collector, worker, database connection or production journal.
-It reads completed futures CSV bars and actual `ScalperMarketSnapshot` JSONL records.
-A `.jsonl.gz` is streamed directly. No manual decompression, quote regeneration, LTP
-fallback, interpolated prices or invented forced-close observation is permitted.
-
-Supply a frozen **signal-only** `AstPolicy` JSON with no execution section. For the
-completed signal research, the explicit input is:
-
-```json
-{
-  "optimizer": {
-    "lookback_sessions": 15,
-    "subperiods": 3,
-    "minimum_trades": 3,
-    "weights": {
-      "profitability": 0.75, "drawdown": 1.0, "profit_factor": 2.0,
-      "sharpe": 2.0, "frequency": 0.0, "consistency": 1.25, "neighbours": 1.25
-    },
-    "validation_sessions": 3,
-    "out_of_sample_sessions": 1
-  },
-  "regime": {"mode": "NONE"}
-}
-```
-
-This is the specified frozen **research** signal input, not an installed runtime default.
-No optimizer, signal, AST service, worker, ACTS or shared construction/book code changes
-are needed. `SignalOnlyPolicy` is a local pure-decision view that excludes missing
-execution from the configuration check; it serializes/hashes identically to that input.
-A normal runtime `AstPolicy` still blocks without execution policy. AST warm-up, completed
-bars, futures identity, causal timestamps, contract/session boundaries and ORB are intact.
-Current signal price is `nifty_future`. The shared option-derived timestamp is never
-represented as a futures exchange timestamp. Spread short-distance calculation remains
-exactly the existing builder's spot-based calculation; it is not replaced with a new rule.
-
-### Curated pass-one candidate file
-
-[`examples/ast-execution-research-candidates.json`](examples/ast-execution-research-candidates.json)
-contains exactly LOW_RISK, BALANCED, CREDIT_QUALITY, DISTANCE_200, WIDTH_100_ONLY and
-WIDTH_150_ONLY from the construction experiment. It is not loaded automatically and
-must never be treated as production configuration. Every candidate explicitly specifies
-widths, short distance, credit/width, leg spread percentage, quote age, minimum credit,
-liquidity profile and maximum defined risk. P10_LIKE means raw OI 180,000 / volume 100,000;
-PERMISSIVE means zero thresholds, **not** permission to invent missing OI/volume.
-Existing book validators still reject missing liquidity values and insufficient depth.
-
-All seven requested width sets are supported: [50], [100], [150], [200], [50,100],
-[100,150], [100,150,200]. Pass-one distance choices are 100/150/200; credit/width choices
-0.10/0.15/0.20; leg bid/ask percentage limits 0.35/0.70/2.0; maximum quote age 4 seconds;
-minimum credit 5; and maximum defined-risk choices INR7500/10000/12500. Widths of 250+
-are rejected in this first-pass harness. Named liquidity profiles are explicit; there is
-no automatic OI/volume grid or Cartesian expansion.
-
-The file prominently labels **RESEARCH CONTROL VALUES — NOT OPTIMIZED**. Its identical
-controls are entry end 15:19, forced exit 15:20, daily gross-loss ceiling INR1,250,000,
-100 trades/day, 100 consecutive losses, zero cooldowns, 30-second pending TTL, kill switch
-false and an empty configured event calendar. These deliberately permissive, bounded
-values isolate construction differences; they are **not approved trading risk settings**.
-One lot and the existing one-position maximum remain fixed. There are fewer completed
-five-minute signal bars per session than these trade/streak caps. Actual control blockers,
-including entry window/TTL/daily loss, are nevertheless reported separately. Supply other
-explicit bounded controls if required, held identical across candidates; do not confuse
-them with construction-policy optimization. No field may silently use a runtime default.
-
-Only `HARD_SAFETY_ONLY` is accepted. Every legacy target/credit-stop/trail/time-stop field
-must remain null; the existing safety schema rejects any non-null legacy parameter.
-Exact-book hard loss, daily loss, configured event/kill safeguards, forced exit and expiry
-behavior are delegated to the unchanged service. The shared builder's legacy
-`holding_horizon_minutes` diagnostic may still appear in candidate evidence; HARD_SAFETY_ONLY
-never consults it as an exit. No profit capture, trailing or time-stop is introduced.
-
-### Invocation and computation boundaries
-
-```sh
-PYTHONPATH=backend python -m app.adaptive_supertrend.execution_policy_research \
-  --futures-csv /research/futures-5m.csv \
-  --snapshots /research/scalper-market-snapshots.jsonl.gz \
-  --signal-policy /research/ast-frozen-signal-policy.json \
-  --candidates docs/examples/ast-execution-research-candidates.json \
-  --validation-sessions 3 --oos-sessions 1 \
-  --json /research/ast-execution-policies.json
-```
-
-Validation/OOS counts are mandatory CLI inputs; they do not retune the frozen signal
-optimizer. Eligible evaluation dates require the supplied lookback's prior CSV sessions.
-With the stated 29-session dataset and a 15-session lookback, 14 dates can receive daily
-selection, and a 3/1 construction evaluation provides 11 nonoverlapping OOS sessions.
-A day with no eligible optimizer configuration stays unavailable; no 7/1.1 fallback is
-allowed. Incomplete source sessions retain their non-price boundaries; unpriced futures
-research positions and option exposures receive no fabricated session-end price.
-
-There are two bounded streaming passes over raw snapshots: metadata/order/content-hash
-inventory, then execution for **all candidates together**, retaining one raw book at a
-time. Each daily 1,886-grid optimization runs once per supplied signal policy/day. All
-candidates share its selected ATR/multiplier, metrics and training-data identity. The
-harness then rebinds only the full combined policy metadata to obtain the exact
-hypothetical runtime optimizer-run hash, frozen parameter document and opportunity ID.
-It never reranks or repeats the grid per execution candidate. Outputs separately identify
-signal policy, named construction candidate and full hypothetical combined policy.
-
-`decide()` runs once per observation against the causal rolling lookback prefix and only
-CSV bars whose end is already captured. Futures contract mismatch invalidates that signal
-boundary. Independent in-memory candidate projections share those genuine futures
-opportunities while retaining their own consumed-opportunity sets, trades and risk state.
-They delegate `_risk()` and `_transition()` unchanged to `AstPaperService`; candidate
-construction and exact-book validation also use the existing functions. Entries remain
-short BID minus hedge ASK on a later observation. Marks/exits remain exact held short ASK
-minus hedge BID. Freshness, source timestamps, depth, identity, tick and defined-risk
-checks remain in force. No database-backed service initializer or broker adapter is run.
-
-The research execution seed is a plain namespace containing only declared, non-required
-`scalper_*` defaults from `Settings.model_fields`. It never constructs `Settings` or any
-`BaseSettings`, reads dotenv files or environment variables, or stores a broker key.
-`ExecutionPolicy.scalper()` then applies the explicit execution JSON exactly as before.
-Unrelated broker/scalper environment variables cannot alter research results. Runtime
-settings construction and execution-policy conversion remain unchanged.
-
-Limits are 32 named candidates, 8 named liquidity profiles, 100,000 raw observations,
-1,500,000 candidate-observations and 128 full-grid fits per invocation. Exceeding a guard
-fails explicitly before replay/optimization rather than truncating history, candidates or
-the grid. Grid/day/fold/candidate and periodic observation progress goes to STDERR;
-JSON contains no wall-clock duration or random values.
-
-### Chronology, selection and interpretation
-
-Each candidate is a **continuous independent shadow policy** for normal pending/open/closed
-positions and non-coverage unresolved exposure. The explicit historical coverage-censoring
-exception below retains original unresolved evidence while permitting a later independent
-intraday research session. Validation windows may overlap; OOS blocks never overlap and
-only complete blocks count. Before reading the
-first OOS observation, selection snapshots the preceding contiguous validation sessions.
-A candidate needs at least one fully observed closed validation entry-cohort trade and
-zero effective active research exposure (excluding only known prior-session coverage-censored
-rows, never normal pending/open or other unresolved exposure). Eligible candidates rank by higher positive-session
-consistency, higher expectancy, lower closed-trade drawdown, more closed trades and a
-stable candidate-ID tie break. This fixed research-only selection rule never uses OOS
-prices/results. A later OOS session may become later validation/training after it is past.
-
-Per-fold selected OOS is the chosen candidate's independent shadow result, **not** an
-executable portfolio that switches between historical shadow books. No hypothetical
-switch rewrites positions or circumvents runtime active-policy guards. Missing validation
-evidence selects nobody. Final OOS comparisons are descriptive; they do not approve a
-production execution policy. Earlier validation results/selections remain frozen after
-later books arrive. Statistics accept completed sessions only; future exits cannot enter
-an earlier cutoff. Costs can optionally be supplied in the signal JSON's existing `costs`
-field. Net P&L is null unless the supported schedule is explicitly complete, dated and
-valid for every included closed trade. No costs or margin values are inferred.
-
-Each candidate reports all-session and OOS opportunities, first-observation/ever static
-execution availability, opportunities removed by construction filters, actual pending/fill
-results, reason counts, controls, exits, width usage and filled-trade distributions
-(short distance, credit, ratio, defined risk, leg spreads, quote age, raw OI and volume).
-Static availability ignores portfolio/common-control blockers but keeps the candidate's
-construction, per-trade risk and executable-book requirements. Once an opportunity is
-shown statically available, repeated static checks may stop; this is an **opportunity**
-measure, not a quote-by-quote availability rate. Rejection counts are per attempted
-observation or examined leg/pair, not unique lost trades. Compare them with unique AST
-opportunities and opened trades, rather than treating every reason count as a trade.
-
-Closed gross option P&L and statistics are INR from actual exit books, ordered by exit.
-Cashflow statistics include all closes in the evaluated block; separate entry-cohort
-statistics include only entries from that block closed by cutoff. Carried positions,
-open/pending/unresolved counts and unclosed entry cohorts remain explicit. Missing
-session-end evidence leaves positions open or unresolved according to the unchanged
-service; it never assigns settlement, a later LTP or an assumed zero return. Final trade
-state and exact entry/exit/last mark evidence accompany each trade. A compact research
-trace records non-mark transitions and a digest/count over all transitions, including
-marks; it is reproducible from source files and is explicitly **not a runtime journal**.
-
-Plain and gzip files with identical uncompressed contents produce identical research
-results. The CLI additionally records physical input SHA-256s/path provenance (which
-naturally differs for compressed versus plain files), checks every source unchanged,
-and refuses input/output aliases. The uncompressed content hash also must match between
-inventory and replay. No input, historical journal or production row is modified.
-
-### Historical held-book coverage censoring (research output V2)
-
-Historical **ACTS_PAPER** capture did not know the hypothetical AST held legs and did
-not guarantee retention of those exact contracts. Loss of a hypothetical held leg is
-therefore an unpriced coverage limit in this offline construction experiment. It is
-not evidence of a zero return, an executable close or a profitable trade. Output schema
-`AST_EXECUTION_POLICY_RESEARCH_V2` identifies these research continuation semantics;
-input policies, the six candidates, combined runtime-policy hashes and the **15:20**
-forced-exit control are unchanged.
-
-The unchanged `AstPaperService._transition()` still produces `UNRESOLVED_EXPOSURE` with
-`unresolved_reason=MISSING_EXACT_CONTRACT`. The research shadow retains that exact state,
-reason and original document, including its entry/last-mark evidence. It adds a separate
-`research_trade_metadata[trade_id]` sidecar with classification
-`HISTORICAL_BOOK_COVERAGE_CENSORED`, actual classification time/source line/session,
-original document hash and `pnl_status=UNPRICED`, `pnl=null`. No exit timestamp, exit debit,
-gross/net P&L, LTP-based value or settlement approximation is added to that trade. The
-research trace records the classification alongside the original document hash.
-
-The censored row blocks all further entries for that candidate for the **remainder of
-the classification session**, even if another signal or exact quote arrives. Only in a
-later research session may that explicitly classified prior-session row be excluded
-from the shadow's active-risk input. It remains `UNRESOLVED_EXPOSURE` in audit output
-forever; this is neither recovery nor a close. Normal OPEN/PENDING rows and unresolved
-rows with **any other reason** retain continuous strict behavior across sessions. In
-particular, missing/stale prices, insufficient depth and expired-contract unresolved
-exposure are not automatically censored. Runtime AST, workers, ordinary replay,
-construction, exact bid/ask books and ACTS have no such exclusion and are unchanged.
-
-All-session, validation and OOS summaries expose:
-
-- `actual_trades_opened`, `fully_observed_closed_trades`,
-  `historical_coverage_censored_trades`, `other_unresolved_exposure` and `censor_reason_counts`;
-- `entry_cohort_fully_observed_closed`, `entry_cohort_coverage_censored`,
-  plus the matching cohort completion/censor rates;
-- `observed_path_completion_rate = fully_observed_closed / (fully_observed_closed + coverage_censored)`,
-  or null when there are no completed/censored paths;
-- legacy `unresolved_exposure` as the total retained unresolved audit rows,
-  `retained_historical_coverage_censored_exposure`, `prior_session_censored_excluded_from_risk`
-  and effective `active_exposure_at_cutoff`, keeping retained evidence distinct from portfolio eligibility.
-
-Window closed/censor counts use the actual exit/classification session date; entry-cohort
-counts use the entry date. All classifications and states are evaluated **as of the
-exclusive cutoff**: a later coverage loss or exit cannot reclassify an earlier validation
-snapshot or retroactively release its risk. Other unresolved exposure remains blocking
-regardless of whether it originated outside the current validation window.
-
-Every P&L/statistics object is labelled `population=FULLY_OBSERVED_PATHS_ONLY` and uses
-only actual CLOSED paths known by cutoff. Censored trades never enter the trade count,
-expectancy, PF, drawdown or win/loss samples as zeros. A session with only censored paths
-and no observed closes is also excluded from the session-consistency buckets, with those
-dates explicitly listed. Normal uncensored-session statistics are unchanged. An empty
-closed population reports null gross/net P&L, not a fabricated flat result. Net still
-requires an explicitly complete, supported, dated cost schedule for the actual closes.
-
-Validation rankings display `closed_sample_size`, `coverage_censored_sample_size`,
-`censor_rate` and `confidence=DESCRIPTIVE_ONLY_NO_CONFIDENCE_CLAIM`. There is no new tuned
-sample-size threshold or censor-based strategy gate: zero closed evidence still selects
-nobody, and the existing deterministic validation-only rank otherwise remains. A small
-observed sample or high censor rate cannot be interpreted as high-confidence performance.
-Previously censored research rows no longer make every later fold ineligible, while
-non-coverage unresolved rows still do. These are conditional observed-path comparisons,
-not a claim of uncensored profitability, a complete portfolio equity curve or executable
-switching between policies. No source snapshot, runtime journal or historical trade is
-rewritten to obtain later observations.

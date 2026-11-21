@@ -1,4 +1,4 @@
-"""Separate, disabled-by-default AST_V1 PAPER worker. No live mode or order adapter."""
+"""Separate, disabled-by-default AST_FUTURES_V1 PAPER worker. No live mode or order adapter."""
 
 from __future__ import annotations
 
@@ -19,16 +19,11 @@ from app.adaptive_supertrend.journal import verify  # noqa: E402
 from app.adaptive_supertrend.market import history  # noqa: E402
 from app.adaptive_supertrend.report import report  # noqa: E402
 from app.adaptive_supertrend.service import AstPaperService, freeze  # noqa: E402
-from app.collector.factory import make_live_snapshot_builder  # noqa: E402
+from app.adaptive_supertrend.capture import capture_once, make_reader  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.core.logging import get_logger  # noqa: E402
 from app.db.session import build_engine, build_session_factory  # noqa: E402
-from app.scalper.research_capture import (  # noqa: E402
-    AST_PAPER_MODE,
-    IST,
-    ResearchSnapshotCollector,
-    ResearchSnapshotRepository,
-)
+from app.scalper.repository import IST  # noqa: E402
 
 logger = get_logger(__name__)
 
@@ -68,16 +63,8 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(status, sort_keys=True, indent=2))
             return 0
         service = AstPaperService(sessions, settings)
-        market_settings = settings.model_copy(update={"kotak_strike_range": settings.scalper_strike_range})
-        builder = make_live_snapshot_builder(market_settings, required_contract_provider=service.required_contracts)
-        paper_only_builder(builder)
-        collector = ResearchSnapshotCollector(
-            ResearchSnapshotRepository(engine, mode=AST_PAPER_MODE),
-            builder,
-            start=time(9, 15),
-            end=policy.execution.safety.forced_exit_time if policy.execution else time(15, 30),
-            holidays=settings.configured_holidays,
-        )
+        reader = make_reader(settings)
+        paper_only_builder(reader)
 
         def select_daily() -> None:
             at = datetime.now(IST)
@@ -107,9 +94,9 @@ def main(argv: list[str] | None = None) -> int:
                     service.process_snapshot(snapshot_id)
                 if service.pending_snapshot_ids():
                     return
-                captured = collector.capture_once(datetime.now(IST))
+                captured = capture_once(sessions, reader, datetime.now(IST), settings.configured_holidays)
                 if captured:
-                    service.process_snapshot(captured.snapshot_id)
+                    service.process_snapshot(captured)
             except Exception as exc:
                 logger.error("AST_CYCLE_FAILED error_type=%s", type(exc).__name__)
 
