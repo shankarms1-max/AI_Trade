@@ -6,10 +6,14 @@ import gzip
 import hashlib
 import inspect
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource
 
 from app.adaptive_supertrend import execution_policy_research as research
 from app.adaptive_supertrend.config import AstPolicy
@@ -21,6 +25,7 @@ from app.adaptive_supertrend.models import AstCursor
 from app.adaptive_supertrend.optimizer import GRID, metrics
 from app.adaptive_supertrend.research import load_bars
 from app.adaptive_supertrend.service import AstPaperService, freeze
+from app.core.config import Settings
 from app.db.session import build_session_factory
 from app.research.manifest import digest
 from app.scalper.repository import IST
@@ -538,3 +543,90 @@ def test_research_shadow_differential_against_real_paper_service(engine):
     ):
         assert observed[key] == expected[key]
     verify(sessions, full=True)
+
+
+def test_shadow_needs_no_consumer_key_or_settings_environment_loading(monkeypatch):
+    for name in list(os.environ):
+        if name.casefold() == "kotak_consumer_key":
+            monkeypatch.delenv(name)
+    monkeypatch.setenv("SCALPER_ALLOWED_WIDTHS", "INVALID_ENVIRONMENT_MUST_NOT_BE_READ")
+    monkeypatch.setenv("SCALPER_INTERVAL_SECONDS", "INVALID_ENVIRONMENT_MUST_NOT_BE_READ")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Offline research must not construct/load BaseSettings")
+
+    monkeypatch.setattr(Settings, "__init__", forbidden)
+    monkeypatch.setattr(BaseSettings, "__init__", forbidden)
+    monkeypatch.setattr(BaseSettings, "_settings_build_values", forbidden)
+    monkeypatch.setattr(EnvSettingsSource, "__call__", forbidden)
+    monkeypatch.setattr(DotEnvSettingsSource, "__call__", forbidden)
+    definition = spec()
+    shadow = ExecutionShadow(signal_policy(), definition, definition.candidates[0])
+    assert shadow.config.interval_seconds == Settings.model_fields["scalper_interval_seconds"].default
+    assert shadow.config.allowed_widths == definition.candidates[0].allowed_widths
+    assert not hasattr(shadow, "settings")
+    assert not hasattr(shadow, "kotak_consumer_key")
+
+
+def test_execution_results_ignore_unrelated_credential_and_scalper_environment(tmp_path, monkeypatch):
+    values = load_bars(source_file(tmp_path, count=3))
+    source = tmp_path / "raw.jsonl"
+    snapshots(source, days=DAYS[:3])
+    monkeypatch.setattr(research, "optimize", fake_optimize)
+    for name in list(os.environ):
+        if name.casefold() == "kotak_consumer_key":
+            monkeypatch.delenv(name)
+    before = research.run_research(values, source, signal_policy(), spec(), 1, 1)
+    # A negative-control environment value, never passed to or used as a credential.
+    monkeypatch.setenv("KOTAK_CONSUMER_KEY", "UNRELATED_ENVIRONMENT_VALUE_MUST_NOT_BE_READ")
+    monkeypatch.setenv("SCALPER_ALLOWED_WIDTHS", "INVALID_ENVIRONMENT_MUST_NOT_BE_READ")
+    monkeypatch.setenv("SCALPER_SIGNAL_MIN_SCORE", "INVALID_ENVIRONMENT_MUST_NOT_BE_READ")
+    after = research.run_research(values, source, signal_policy(), spec(), 1, 1)
+    assert before == after
+
+
+def test_real_cli_without_consumer_key_and_with_poisoned_environment_and_dotenv(tmp_path):
+    futures = source_file(tmp_path, count=3)
+    source, policy_path, candidates_path, output = [
+        tmp_path / n for n in ("raw.jsonl.gz", "signal.json", "candidates.json", "out.json")
+    ]
+    plain = tmp_path / "raw.jsonl"
+    snapshots(plain, days=DAYS[:3])
+    source.write_bytes(gzip.compress(plain.read_bytes(), mtime=0))
+    policy_path.write_text(signal_policy().model_dump_json())
+    candidates_path.write_text(spec().model_dump_json())
+    (tmp_path / ".env").write_text("SCALPER_ALLOWED_WIDTHS=INVALID_DOTENV_MUST_NOT_BE_READ\n")
+    env = {name: value for name, value in os.environ.items() if name.casefold() != "kotak_consumer_key"}
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+    env["SCALPER_INTERVAL_SECONDS"] = "INVALID_ENVIRONMENT_MUST_NOT_BE_READ"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "app.adaptive_supertrend.execution_policy_research",
+            "--futures-csv",
+            str(futures),
+            "--snapshots",
+            str(source),
+            "--signal-policy",
+            str(policy_path),
+            "--candidates",
+            str(candidates_path),
+            "--validation-sessions",
+            "1",
+            "--oos-sessions",
+            "1",
+            "--json",
+            str(output),
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "" and "grid " in result.stderr
+    report = json.loads(output.read_text())
+    assert report["compute"]["grid_fits"] == 2
+    assert all(candidate["oos"]["actual_trades_opened"] > 0 for candidate in report["candidates"])

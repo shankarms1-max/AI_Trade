@@ -88,11 +88,17 @@ class ExecutionShadow(AstPaperService):
         # lifecycle methods _risk/_transition and the constructor/book validators
         # are used. _save writes research memory, never a runtime journal.
         self.policy = spec.combined(signal, candidate)
-        self.settings = Settings(  # type: ignore[call-arg]
-            _env_file=None, ast_config_json=self.policy.model_dump_json()
+        # Inspect declared defaults only: never construct BaseSettings or load
+        # runtime environment/dotenv sources (including broker credentials).
+        seed = SimpleNamespace(
+            **{
+                name: field.get_default(call_default_factory=True)
+                for name, field in Settings.model_fields.items()
+                if name.startswith("scalper_") and not field.is_required()
+            }
         )
         assert self.policy.execution is not None
-        self.config = self.policy.execution.scalper(self.settings)
+        self.config = self.policy.execution.scalper(seed)
         self.costs = self.policy.cost_schedule()
         self.events = ConfiguredMarketEventProvider.from_json(self.policy.execution.market_events_json)
         self.name, self.candidate_id = candidate.name, spec.candidate_id(candidate)

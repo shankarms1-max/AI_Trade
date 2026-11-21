@@ -611,6 +611,13 @@ short BID minus hedge ASK on a later observation. Marks/exits remain exact held 
 minus hedge BID. Freshness, source timestamps, depth, identity, tick and defined-risk
 checks remain in force. No database-backed service initializer or broker adapter is run.
 
+The research execution seed is a plain namespace containing only declared, non-required
+`scalper_*` defaults from `Settings.model_fields`. It never constructs `Settings` or any
+`BaseSettings`, reads dotenv files or environment variables, or stores a broker key.
+`ExecutionPolicy.scalper()` then applies the explicit execution JSON exactly as before.
+Unrelated broker/scalper environment variables cannot alter research results. Runtime
+settings construction and execution-policy conversion remain unchanged.
+
 Limits are 32 named candidates, 8 named liquidity profiles, 100,000 raw observations,
 1,500,000 candidate-observations and 128 full-grid fits per invocation. Exceeding a guard
 fails explicitly before replay/optimization rather than truncating history, candidates or
