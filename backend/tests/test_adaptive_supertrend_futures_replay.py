@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.adaptive_supertrend.config import AstPolicy
 from app.adaptive_supertrend import futures_replay as replay
-from app.adaptive_supertrend.futures_replay_report import summary, trade_result
+from app.adaptive_supertrend.futures_replay_report import comparison, signal_summary, summary, trade_result
 from app.adaptive_supertrend.journal import verify
 from app.adaptive_supertrend.models import AstCursor, AstTrade
 from app.adaptive_supertrend.research import load_bars
@@ -86,8 +86,16 @@ def test_cli_deterministic_no_broker_or_database_and_cutoff_override(inputs, tmp
     assert replay.main(args) == 0 and output.read_bytes() == content
     result = json.loads(content)
     assert result["policy"]["execution"]["session_exit_time"] == "10:19:30"
-    assert result["comparison"]["supplied_walk_forward_benchmark"]["gross_points"] == 395.6
     comp = result["comparison"]
+    assert comp["direct_comparison_basis"] == "SAME_SESSION_5M_SIGNAL_COUNTERPART"
+    scope = comp["date_scope"]
+    assert scope["direct_comparison_status"] == "IDENTICAL_DATE_SCOPE"
+    assert scope["replay_session_dates"] == scope["paper_replay_dates"] == scope["same_session_5m_dates"]
+    assert comp["paper_replay_summary"]["trades"] == result["summary"]["closed_trades"]
+    assert comp["paper_minus_same_session_5m"]["gross_points"] == pytest.approx(
+        result["summary"]["gross_points"] - comp["same_session_5m_summary"]["gross_points"]
+    )
+    assert comp["paper_minus_same_session_5m"]["trade_count"] == 0
     delta = comp["closed_trade_difference_attribution"]
     assert delta["both_closed"] == 1
     assert comp["same_session_5m_gross_points"] + delta["matched_entry_effect_points"] + delta[
@@ -248,3 +256,129 @@ def test_missing_session_exit_carries_unpriced_exposure_into_next_raw_day(inputs
     assert result["summary"]["closed_trades"] == 0
     assert result["trades"][0]["unresolved_reason"] == "MISSED_SESSION_EXIT"
     assert result["trades"][0]["gross_inr"] is None
+
+
+def synthetic(points, day="2026-11-16"):
+    return [
+        {
+            "trading_date": day,
+            "side": "LONG",
+            "ast_transition": f"T{i}",
+            "future_instrument_id": "FUT",
+            "future_expiry": "2026-11-24",
+            "entry_timestamp": f"{day}T09:{20 + i}:00+05:30",
+            "entry_price": 100.0,
+            "exit_timestamp": f"{day}T10:{10 + i}:00+05:30",
+            "gross_points": p,
+        }
+        for i, p in enumerate(points)
+    ]
+
+
+def paper(points, day="2026-11-16"):
+    return [
+        {
+            **{k: v for k, v in s.items() if k != "gross_points"},
+            "trade_id": f"P{i}",
+            "state": "CLOSED",
+            "entry_price": 101.0,
+            "gross_points": p,
+            "gross_inr": p * 65,
+            "exit_reason": "SESSION_END",
+        }
+        for i, (s, p) in enumerate(zip(synthetic(points, day), points))
+    ]
+
+
+def test_same_session_5m_summary_metrics_and_deltas_only_against_same_cohort():
+    signals = synthetic([10, -4, -2, 6])
+    five = signal_summary(signals)
+    assert five == {
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "gross_points": 10,
+        "expectancy_points": 2.5,
+        "profit_factor": 16 / 6,
+        "win_rate": 0.5,
+        "max_drawdown_points": 6,
+        "average_win_points": 8,
+        "average_loss_points": -3,
+    }
+    assert signal_summary([])["expectancy_points"] is None and signal_summary([])["trades"] == 0
+    trades = paper([8, -5, 3])
+    day = ["2026-11-16"]
+    comp = comparison(summary(trades, 3), signals, trades, day, day, day)
+    assert comp["same_session_5m_summary"] == five
+    assert comp["paper_replay_summary"]["trades"] == 3 and comp["paper_replay_summary"]["gross_points"] == 6
+    assert set(comp["paper_replay_summary"]) == set(five)
+    assert comp["paper_minus_same_session_5m_status"] == "IDENTICAL_DATE_SCOPE"
+    assert comp["paper_minus_same_session_5m"] == {
+        "trade_count": -1,
+        "gross_points": -4,
+        "expectancy_points": 2 - 2.5,
+        "max_drawdown_points": 5 - 6,
+    }
+    # Entry and exit attribution of matched trades is retained.
+    attribution = comp["closed_trade_difference_attribution"]
+    assert attribution["both_closed"] == 3 and attribution["closed_only_in_5m"] == 1
+    assert attribution["matched_entry_effect_points"] == pytest.approx(-3.0)
+    # The fourth 5m signal (+6) has no paper counterpart; matched 5m points are 10 - 6 = 4.
+    assert attribution["unmatched_5m_points"] == 6
+    assert (10 - 6) + attribution["matched_entry_effect_points"] + attribution["matched_exit_effect_points"] == (
+        pytest.approx(6)
+    )
+
+
+def test_delta_is_undefined_when_a_side_has_no_closed_trades():
+    day = ["2026-11-16"]
+    comp = comparison(summary([], 0), synthetic([5]), [], day, day, day)
+    delta = comp["paper_minus_same_session_5m"]
+    assert delta["trade_count"] == -1 and delta["gross_points"] == -5
+    assert delta["expectancy_points"] is None and delta["max_drawdown_points"] == 0
+
+
+def test_direct_aggregate_is_blocked_when_date_cohorts_differ():
+    signals, trades = synthetic([5], "2026-11-16"), paper([4], "2026-11-16")
+    days = ["2026-11-16", "2026-11-17"]
+    comp = comparison(summary(trades, 1), signals, trades, days, days, ["2026-11-16"])
+    scope = comp["date_scope"]
+    assert comp["paper_minus_same_session_5m"] is None
+    assert comp["paper_minus_same_session_5m_status"] == "BLOCKED_DATE_SCOPE_MISMATCH"
+    assert scope["paper_dates_without_5m_comparison"] == ["2026-11-17"]
+    assert scope["replay_session_dates"] == days and scope["same_session_5m_dates"] == ["2026-11-16"]
+    # Per-trade attribution is still reported.
+    assert comp["closed_trade_difference_attribution"]["both_closed"] == 1
+    # A trade outside the 5m cohort also blocks.
+    extra = paper([1], "2026-11-17")
+    blocked = comparison(summary(extra, 1), [], extra, days, days, ["2026-11-16", "2026-11-17"][:1])
+    assert blocked["paper_minus_same_session_5m"] is None
+    assert blocked["date_scope"]["paper_trade_dates_outside_5m_scope"] == ["2026-11-17"]
+    empty = comparison(summary([], 0), [], [], ["2026-11-16"], [], [])
+    assert empty["paper_minus_same_session_5m_status"] == "UNAVAILABLE_NO_COMPARABLE_SESSIONS"
+    assert empty["paper_minus_same_session_5m"] is None
+
+
+def test_historical_context_is_labelled_and_never_subtracted():
+    day = ["2026-11-16"]
+    comp = comparison(summary([], 0), [], [], day, day, day)
+    context = comp["historical_context"]
+    frozen, combined = context["frozen_quality_heavy_oos"], context["combined_policy_selection_path"]
+    assert {k: frozen[k] for k in frozen if k != "scope_status"} == {
+        "trades": 11,
+        "gross_points": 485.7,
+        "expectancy_points": 44.15,
+        "profit_factor": 4.51,
+        "max_drawdown_points": 92.9,
+        "sharpe_equivalent": 1.69,
+    }
+    assert combined["path"] == "COMBINED_POLICY_SELECTION_PATH"
+    assert (combined["trades"], combined["gross_points"], combined["profit_factor"]) == (14, 395.6, 2.56)
+    assert combined["max_drawdown_points"] == 119.4
+    for entry in (frozen, combined):
+        assert entry["scope_status"] == "DIFFERENT_COHORT_NOT_DIRECTLY_COMPARABLE"
+    # The old benchmark representation and its arithmetic are gone.
+    for stale in ("supplied_walk_forward_benchmark", "paper_minus_supplied_benchmark", "reference_scope"):
+        assert stale not in comp
+    assert not any("historical" in k and "minus" in k for k in comp)
+    assert not hasattr(__import__("app.adaptive_supertrend.futures_replay_report", fromlist=["x"]), "REFERENCE")

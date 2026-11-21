@@ -115,6 +115,7 @@ def run_replay(csv_path: Path, snapshots: Path, policy: AstPolicy, progress=None
         raise ValueError("AST_REPLAY_EMPTY_FUTURES_CSV")
     history = dict(csv_days)
     ledger, days, signals = [], [], []
+    compared_dates: list[str] = []
     state: dict = {}
     active = None
     all_opportunities: set[str] = set()
@@ -184,6 +185,7 @@ def run_replay(csv_path: Path, snapshots: Path, policy: AstPolicy, progress=None
         history[day] = build_bars([p for p in points if p.at <= close], close, policy.max_sequence_gap_seconds)
         if params and csv_session:
             # Post-session comparison only; these results never feed selection or paper state.
+            compared_dates.append(str(day))
             signals.extend(
                 signal_counterpart(
                     [b for d in [*previous_days, day] for b in csv_days.get(d, [])], day, params, policy
@@ -228,7 +230,14 @@ def run_replay(csv_path: Path, snapshots: Path, policy: AstPolicy, progress=None
         "sessions": days,
         "trades": trades,
         "summary": totals,
-        "comparison": comparison(totals, signals, trades),
+        "comparison": comparison(
+            totals,
+            signals,
+            trades,
+            replay_dates,
+            [r["date"] for r in days if r["freeze_status"] == "FROZEN"],
+            compared_dates,
+        ),
         "csv_dates_without_observations": sorted(str(d) for d in csv_days if str(d) not in replay_dates),
     }
 
