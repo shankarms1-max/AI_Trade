@@ -1,0 +1,114 @@
+{
+  "purpose": "RESEARCH_CANDIDATES_NOT_RUNTIME_DEFAULTS",
+  "controls_label": "RESEARCH_CONTROL_VALUES_NOT_OPTIMIZED",
+  "controls": {
+    "entry_end_time": "15:19:00",
+    "hard_daily_loss": 1250000,
+    "max_trades_per_day": 100,
+    "max_consecutive_losses": 100,
+    "cooldown_after_loss_seconds": 0,
+    "cooldown_after_exit_seconds": 0,
+    "entry_ttl_seconds": 30,
+    "kill_switch": false,
+    "market_events_json": "[]",
+    "safety": {
+      "label": "HARD_SAFETY_ONLY",
+      "forced_exit_time": "15:20:00"
+    }
+  },
+  "liquidity_profiles": {
+    "PERMISSIVE": {
+      "min_open_interest": 0,
+      "min_volume": 0
+    },
+    "P10_LIKE": {
+      "min_open_interest": 180000,
+      "min_volume": 100000
+    }
+  },
+  "candidates": [
+    {
+      "name": "LOW_RISK",
+      "allowed_widths": [
+        50,
+        100
+      ],
+      "min_short_distance_points": 150,
+      "min_credit_to_width": 0.15,
+      "max_bid_ask_spread_pct": 0.7,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "PERMISSIVE",
+      "max_loss_per_trade": 7500
+    },
+    {
+      "name": "BALANCED",
+      "allowed_widths": [
+        100,
+        150
+      ],
+      "min_short_distance_points": 150,
+      "min_credit_to_width": 0.15,
+      "max_bid_ask_spread_pct": 0.7,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "P10_LIKE",
+      "max_loss_per_trade": 10000
+    },
+    {
+      "name": "CREDIT_QUALITY",
+      "allowed_widths": [
+        100,
+        150,
+        200
+      ],
+      "min_short_distance_points": 150,
+      "min_credit_to_width": 0.2,
+      "max_bid_ask_spread_pct": 0.35,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "P10_LIKE",
+      "max_loss_per_trade": 12500
+    },
+    {
+      "name": "DISTANCE_200",
+      "allowed_widths": [
+        100,
+        150
+      ],
+      "min_short_distance_points": 200,
+      "min_credit_to_width": 0.15,
+      "max_bid_ask_spread_pct": 0.7,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "P10_LIKE",
+      "max_loss_per_trade": 10000
+    },
+    {
+      "name": "WIDTH_100_ONLY",
+      "allowed_widths": [
+        100
+      ],
+      "min_short_distance_points": 150,
+      "min_credit_to_width": 0.15,
+      "max_bid_ask_spread_pct": 0.7,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "P10_LIKE",
+      "max_loss_per_trade": 7500
+    },
+    {
+      "name": "WIDTH_150_ONLY",
+      "allowed_widths": [
+        150
+      ],
+      "min_short_distance_points": 150,
+      "min_credit_to_width": 0.15,
+      "max_bid_ask_spread_pct": 0.7,
+      "max_quote_age_seconds": 4,
+      "min_credit": 5,
+      "liquidity_profile": "P10_LIKE",
+      "max_loss_per_trade": 10000
+    }
+  ]
+}

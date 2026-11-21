@@ -497,3 +497,171 @@ Candidate/grid/fold progress goes to **STDERR**, never deterministic JSON/CSV. B
 CSVs and weight files have SHA-256 recorded and are checked unchanged before output;
 outputs cannot alias either input or each other. No wall-clock duration/randomness enters
 research output. This change neither changes nor launches a worker, ACTS or deployment.
+
+## Execution-policy research on actual option books
+
+`app.adaptive_supertrend.execution_policy_research` is an **offline research command**.
+It does not create a broker, collector, worker, database connection or production journal.
+It reads completed futures CSV bars and actual `ScalperMarketSnapshot` JSONL records.
+A `.jsonl.gz` is streamed directly. No manual decompression, quote regeneration, LTP
+fallback, interpolated prices or invented forced-close observation is permitted.
+
+Supply a frozen **signal-only** `AstPolicy` JSON with no execution section. For the
+completed signal research, the explicit input is:
+
+```json
+{
+  "optimizer": {
+    "lookback_sessions": 15,
+    "subperiods": 3,
+    "minimum_trades": 3,
+    "weights": {
+      "profitability": 0.75, "drawdown": 1.0, "profit_factor": 2.0,
+      "sharpe": 2.0, "frequency": 0.0, "consistency": 1.25, "neighbours": 1.25
+    },
+    "validation_sessions": 3,
+    "out_of_sample_sessions": 1
+  },
+  "regime": {"mode": "NONE"}
+}
+```
+
+This is the specified frozen **research** signal input, not an installed runtime default.
+No optimizer, signal, AST service, worker, ACTS or shared construction/book code changes
+are needed. `SignalOnlyPolicy` is a local pure-decision view that excludes missing
+execution from the configuration check; it serializes/hashes identically to that input.
+A normal runtime `AstPolicy` still blocks without execution policy. AST warm-up, completed
+bars, futures identity, causal timestamps, contract/session boundaries and ORB are intact.
+Current signal price is `nifty_future`. The shared option-derived timestamp is never
+represented as a futures exchange timestamp. Spread short-distance calculation remains
+exactly the existing builder's spot-based calculation; it is not replaced with a new rule.
+
+### Curated pass-one candidate file
+
+[`examples/ast-execution-research-candidates.json`](examples/ast-execution-research-candidates.json)
+contains exactly LOW_RISK, BALANCED, CREDIT_QUALITY, DISTANCE_200, WIDTH_100_ONLY and
+WIDTH_150_ONLY from the construction experiment. It is not loaded automatically and
+must never be treated as production configuration. Every candidate explicitly specifies
+widths, short distance, credit/width, leg spread percentage, quote age, minimum credit,
+liquidity profile and maximum defined risk. P10_LIKE means raw OI 180,000 / volume 100,000;
+PERMISSIVE means zero thresholds, **not** permission to invent missing OI/volume.
+Existing book validators still reject missing liquidity values and insufficient depth.
+
+All seven requested width sets are supported: [50], [100], [150], [200], [50,100],
+[100,150], [100,150,200]. Pass-one distance choices are 100/150/200; credit/width choices
+0.10/0.15/0.20; leg bid/ask percentage limits 0.35/0.70/2.0; maximum quote age 4 seconds;
+minimum credit 5; and maximum defined-risk choices INR7500/10000/12500. Widths of 250+
+are rejected in this first-pass harness. Named liquidity profiles are explicit; there is
+no automatic OI/volume grid or Cartesian expansion.
+
+The file prominently labels **RESEARCH CONTROL VALUES — NOT OPTIMIZED**. Its identical
+controls are entry end 15:19, forced exit 15:20, daily gross-loss ceiling INR1,250,000,
+100 trades/day, 100 consecutive losses, zero cooldowns, 30-second pending TTL, kill switch
+false and an empty configured event calendar. These deliberately permissive, bounded
+values isolate construction differences; they are **not approved trading risk settings**.
+One lot and the existing one-position maximum remain fixed. There are fewer completed
+five-minute signal bars per session than these trade/streak caps. Actual control blockers,
+including entry window/TTL/daily loss, are nevertheless reported separately. Supply other
+explicit bounded controls if required, held identical across candidates; do not confuse
+them with construction-policy optimization. No field may silently use a runtime default.
+
+Only `HARD_SAFETY_ONLY` is accepted. Every legacy target/credit-stop/trail/time-stop field
+must remain null; the existing safety schema rejects any non-null legacy parameter.
+Exact-book hard loss, daily loss, configured event/kill safeguards, forced exit and expiry
+behavior are delegated to the unchanged service. The shared builder's legacy
+`holding_horizon_minutes` diagnostic may still appear in candidate evidence; HARD_SAFETY_ONLY
+never consults it as an exit. No profit capture, trailing or time-stop is introduced.
+
+### Invocation and computation boundaries
+
+```sh
+PYTHONPATH=backend python -m app.adaptive_supertrend.execution_policy_research \
+  --futures-csv /research/futures-5m.csv \
+  --snapshots /research/scalper-market-snapshots.jsonl.gz \
+  --signal-policy /research/ast-frozen-signal-policy.json \
+  --candidates docs/examples/ast-execution-research-candidates.json \
+  --validation-sessions 3 --oos-sessions 1 \
+  --json /research/ast-execution-policies.json
+```
+
+Validation/OOS counts are mandatory CLI inputs; they do not retune the frozen signal
+optimizer. Eligible evaluation dates require the supplied lookback's prior CSV sessions.
+With the stated 29-session dataset and a 15-session lookback, 14 dates can receive daily
+selection, and a 3/1 construction evaluation provides 11 nonoverlapping OOS sessions.
+A day with no eligible optimizer configuration stays unavailable; no 7/1.1 fallback is
+allowed. Incomplete source sessions retain their non-price boundaries; unpriced futures
+research positions and option exposures receive no fabricated session-end price.
+
+There are two bounded streaming passes over raw snapshots: metadata/order/content-hash
+inventory, then execution for **all candidates together**, retaining one raw book at a
+time. Each daily 1,886-grid optimization runs once per supplied signal policy/day. All
+candidates share its selected ATR/multiplier, metrics and training-data identity. The
+harness then rebinds only the full combined policy metadata to obtain the exact
+hypothetical runtime optimizer-run hash, frozen parameter document and opportunity ID.
+It never reranks or repeats the grid per execution candidate. Outputs separately identify
+signal policy, named construction candidate and full hypothetical combined policy.
+
+`decide()` runs once per observation against the causal rolling lookback prefix and only
+CSV bars whose end is already captured. Futures contract mismatch invalidates that signal
+boundary. Independent in-memory candidate projections share those genuine futures
+opportunities while retaining their own consumed-opportunity sets, trades and risk state.
+They delegate `_risk()` and `_transition()` unchanged to `AstPaperService`; candidate
+construction and exact-book validation also use the existing functions. Entries remain
+short BID minus hedge ASK on a later observation. Marks/exits remain exact held short ASK
+minus hedge BID. Freshness, source timestamps, depth, identity, tick and defined-risk
+checks remain in force. No database-backed service initializer or broker adapter is run.
+
+Limits are 32 named candidates, 8 named liquidity profiles, 100,000 raw observations,
+1,500,000 candidate-observations and 128 full-grid fits per invocation. Exceeding a guard
+fails explicitly before replay/optimization rather than truncating history, candidates or
+the grid. Grid/day/fold/candidate and periodic observation progress goes to STDERR;
+JSON contains no wall-clock duration or random values.
+
+### Chronology, selection and interpretation
+
+Each candidate is a **continuous independent shadow policy** throughout validation and
+OOS. Unresolved exposures are never reset to make the next fold trade. Validation windows
+may overlap; OOS blocks never overlap and only complete blocks count. Before reading the
+first OOS observation, selection snapshots the preceding contiguous validation sessions.
+A candidate needs at least one closed validation entry-cohort trade and zero active
+pending/open/unresolved exposure. Eligible candidates rank by higher positive-session
+consistency, higher expectancy, lower closed-trade drawdown, more closed trades and a
+stable candidate-ID tie break. This fixed research-only selection rule never uses OOS
+prices/results. A later OOS session may become later validation/training after it is past.
+
+Per-fold selected OOS is the chosen candidate's independent shadow result, **not** an
+executable portfolio that switches between historical shadow books. No hypothetical
+switch rewrites positions or circumvents runtime active-policy guards. Missing validation
+evidence selects nobody. Final OOS comparisons are descriptive; they do not approve a
+production execution policy. Earlier validation results/selections remain frozen after
+later books arrive. Statistics accept completed sessions only; future exits cannot enter
+an earlier cutoff. Costs can optionally be supplied in the signal JSON's existing `costs`
+field. Net P&L is null unless the supported schedule is explicitly complete, dated and
+valid for every included closed trade. No costs or margin values are inferred.
+
+Each candidate reports all-session and OOS opportunities, first-observation/ever static
+execution availability, opportunities removed by construction filters, actual pending/fill
+results, reason counts, controls, exits, width usage and filled-trade distributions
+(short distance, credit, ratio, defined risk, leg spreads, quote age, raw OI and volume).
+Static availability ignores portfolio/common-control blockers but keeps the candidate's
+construction, per-trade risk and executable-book requirements. Once an opportunity is
+shown statically available, repeated static checks may stop; this is an **opportunity**
+measure, not a quote-by-quote availability rate. Rejection counts are per attempted
+observation or examined leg/pair, not unique lost trades. Compare them with unique AST
+opportunities and opened trades, rather than treating every reason count as a trade.
+
+Closed gross option P&L and statistics are INR from actual exit books, ordered by exit.
+Cashflow statistics include all closes in the evaluated block; separate entry-cohort
+statistics include only entries from that block closed by cutoff. Carried positions,
+open/pending/unresolved counts and unclosed entry cohorts remain explicit. Missing
+session-end evidence leaves positions open or unresolved according to the unchanged
+service; it never assigns settlement, a later LTP or an assumed zero return. Final trade
+state and exact entry/exit/last mark evidence accompany each trade. A compact research
+trace records non-mark transitions and a digest/count over all transitions, including
+marks; it is reproducible from source files and is explicitly **not a runtime journal**.
+
+Plain and gzip files with identical uncompressed contents produce identical research
+results. The CLI additionally records physical input SHA-256s/path provenance (which
+naturally differs for compressed versus plain files), checks every source unchanged,
+and refuses input/output aliases. The uncompressed content hash also must match between
+inventory and replay. No input, historical journal or production row is modified.
