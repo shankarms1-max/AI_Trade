@@ -1,0 +1,85 @@
+# Isolated AST_FUTURES_V1_DIRECT PAPER research stack. Its own database, network and volumes.
+# It never connects to the ACTS production database and has no order capability.
+#   docker compose -f docker-compose.ast-direct.yml --env-file .env.ast-direct up -d --build
+name: ast-direct-paper
+
+x-ast-direct: &ast-direct
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  image: ast-direct-paper:${AST_DIRECT_IMAGE_TAG:-local}
+  env_file:
+    - path: .env.ast-direct
+      required: true
+  environment:
+    APP_ENV: research
+    TZ: Asia/Kolkata
+    DATABASE_URL: postgresql+psycopg://${AST_DIRECT_POSTGRES_USER:?set}:${AST_DIRECT_POSTGRES_PASSWORD:?set}@ast-direct-postgres:5432/${AST_DIRECT_POSTGRES_DB:?set}
+    LOG_DIR: /app/logs
+    AST_DIRECT_HEARTBEAT_FILE: /app/logs/ast_direct_worker.heartbeat.json
+    AST_DIRECT_KILL_SWITCH_FILE: /app/control/KILL
+  networks:
+    - ast_direct
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  ast-direct-postgres:
+    image: postgres:16-alpine
+    container_name: ast-direct-paper-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AST_DIRECT_POSTGRES_DB:?set}
+      POSTGRES_USER: ${AST_DIRECT_POSTGRES_USER:?set}
+      POSTGRES_PASSWORD: ${AST_DIRECT_POSTGRES_PASSWORD:?set}
+      TZ: Asia/Kolkata
+    volumes:
+      - ast_direct_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - ast_direct
+
+  ast-direct-migrate:
+    <<: *ast-direct
+    container_name: ast-direct-paper-migrate
+    command: ["alembic", "-c", "/app/alembic.ini", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      ast-direct-postgres:
+        condition: service_healthy
+
+  ast-direct-worker:
+    <<: *ast-direct
+    container_name: ast-direct-paper-worker
+    restart: unless-stopped
+    init: true
+    command: ["python", "/app/worker/ast_direct_worker.py", "--mode", "PAPER"]
+    stop_grace_period: 30s
+    volumes:
+      - ast_direct_logs:/app/logs
+      - ./ast-direct-control:/app/control:ro
+    healthcheck:
+      test: ["CMD", "python", "/app/worker/ast_direct_worker.py", "--mode", "PAPER", "--health"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      ast-direct-postgres:
+        condition: service_healthy
+      ast-direct-migrate:
+        condition: service_completed_successfully
+
+volumes:
+  ast_direct_postgres_data:
+  ast_direct_logs:
+
+networks:
+  ast_direct:

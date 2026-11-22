@@ -273,6 +273,13 @@ class Settings(BaseSettings):
     adaptive_supertrend_enabled: bool = False
     ast_capture_offset_seconds: int = Field(default=10, ge=0, lt=15)
     ast_config_json: str = "{}"
+    # AST_FUTURES_V1_DIRECT fixed 22/3.9 PAPER worker. Disabled by default; it has its own journal.
+    ast_direct_enabled: bool = False
+    ast_direct_config_json: str = "{}"
+    ast_direct_capture_offset_seconds: int = Field(default=10, ge=0, lt=15)
+    ast_direct_kill_switch: bool = False
+    ast_direct_kill_switch_file: str = ""
+    ast_direct_heartbeat_file: str = ""
 
     parallel_paper_enabled: bool = False
     parallel_paper_capture_offset_seconds: int = Field(default=5, ge=0, lt=15)

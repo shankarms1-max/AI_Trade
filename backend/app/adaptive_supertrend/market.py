@@ -25,11 +25,16 @@ def paper_clause():
     return and_(mode_clause(), Snapshot.context_json.like(f'%"producer":"{VERSION}"%'))
 
 
-def history_clause(at: datetime):
+def _like(mode: str):
+    return Snapshot.context_json.like(f'%"mode":"{mode}"%')
+
+
+def history_clause(at: datetime, modes: tuple[str, ...] = (CAPTURE_MODE, BOOTSTRAP_MODE)):
+    # The first mode is the only stream allowed for the current session. Others seed earlier sessions.
     return or_(
-        mode_clause(),
+        _like(modes[0]),
         and_(
-            Snapshot.context_json.like(f'%"mode":"{BOOTSTRAP_MODE}"%'),
+            or_(*(_like(mode) for mode in modes[1:])),
             Snapshot.captured_at < datetime.combine(at.astimezone(IST).date(), time.min, IST),
         ),
     )
@@ -51,9 +56,12 @@ def history(
     future_identity: tuple | None = None,
     *,
     current_only: bool = False,
+    modes: tuple[str, ...] = (CAPTURE_MODE, BOOTSTRAP_MODE),
 ) -> list[Bar]:
     if at.tzinfo is None or at.utcoffset() is None or session_count < 1:
         raise ValueError("AST_AWARE_HISTORY_CLOCK_AND_POSITIVE_SESSION_COUNT_REQUIRED")
+    if len(modes) < 2 or len(set(modes)) != len(modes):
+        raise ValueError("AST_HISTORY_MODES_INVALID")
     at = at.astimezone(IST)
     result = HistoryBars()
     provenance: list[dict] = []
@@ -65,22 +73,24 @@ def history(
             if (session.bind.dialect.name == "postgresql")
             else func.date(Snapshot.captured_at)
         )
+        # Per date, the highest-priority available stream is used alone. Streams are never mixed.
+        priority = case(*((_like(mode), index) for index, mode in enumerate(modes)), else_=len(modes))
         dates = (
-            [(at.date(), 1)]
+            [(at.date(), 0)]
             if current_only
             else session.execute(
-                select(local_date, func.max(case((mode_clause(), 1), else_=0)))
-                .where(history_clause(at), Snapshot.captured_at <= at)
+                select(local_date, func.min(priority))
+                .where(history_clause(at, modes), Snapshot.captured_at <= at)
                 .group_by(local_date)
                 .order_by(local_date.desc())
                 .limit(session_count)
             ).all()
         )
         reference = future_identity
-        for day_value, native in sorted(dates, key=lambda row: str(row[0])):
+        for day_value, rank in sorted(dates, key=lambda row: str(row[0])):
             day = date.fromisoformat(str(day_value))
-            mode = CAPTURE_MODE if native else BOOTSTRAP_MODE
-            selected_mode = mode_clause() if native else Snapshot.context_json.like(f'%"mode":"{BOOTSTRAP_MODE}"%')
+            mode = modes[rank]
+            selected_mode = _like(mode)
             start = datetime.combine(day, time(9, 15), IST)
             end = min(at, start.replace(hour=15, minute=30))
             rows = session.execute(
@@ -145,12 +155,16 @@ def history(
     result.history_provenance = {
         "schema_version": "AST_HISTORY_PROVENANCE_V1",
         "as_of": at.isoformat(),
-        "preference": "NATIVE_AST_PAPER_PER_DATE_NO_STREAM_MIXING",
+        "preference": (
+            "NATIVE_AST_PAPER_PER_DATE_NO_STREAM_MIXING"
+            if modes == (CAPTURE_MODE, BOOTSTRAP_MODE)
+            else "PRIORITY_" + ">".join(modes) + "_PER_DATE_NO_STREAM_MIXING"
+        ),
         "current_session_native_only": True,
         "selected_sessions": provenance,
         "observation_counts": {
             mode: sum(p["observation_count"] for p in provenance if p["mode"] == mode)
-            for mode in (CAPTURE_MODE, BOOTSTRAP_MODE)
+            for mode in modes
         },
     }
     return result

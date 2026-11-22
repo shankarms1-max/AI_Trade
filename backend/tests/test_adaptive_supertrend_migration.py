@@ -88,7 +88,7 @@ def check(url):
                 for name in inspect(connection).get_table_names()
                 if name != "alembic_version"
             }
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0023_ast_futures_paper")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0023_ast_futures_paper"
             assert set(inspect(connection).get_table_names()) - set(previous) - {"alembic_version"} == {
@@ -121,6 +121,8 @@ def test_postgresql_ddl():
     sql = cfg.output_buffer.getvalue()
     assert "TRUNCATE ON ast_paper_events" in sql
     assert "TRUNCATE ON ast_futures_paper_events" in sql
+    assert "TRUNCATE ON ast_direct_paper_events" in sql
+    assert "CREATE TABLE ast_direct_paper_trades" in sql
     assert "CREATE TABLE ast_session_parameters" in sql
     assert "ALTER TABLE acts_" not in sql and "UPDATE acts_" not in sql
 
@@ -186,3 +188,52 @@ def test_real_postgresql_16_additive_and_fresh_upgrade(tmp_path):
         with admin.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
         admin.dispose()
+
+
+def test_direct_journal_migration_is_additive_immutable_and_guarded(tmp_path):
+    url = f'sqlite+pysqlite:///{tmp_path / "direct.db"}'
+    cfg = migration(url)
+    command.upgrade(cfg, "0023_ast_futures_paper")
+    engine = create_engine(url)
+    from app.scalper.research_capture import ResearchSnapshotRepository
+    from tests.test_scalper import snapshot
+
+    captured = ResearchSnapshotRepository(engine).save(snapshot(0))
+    try:
+        with engine.connect() as connection:
+            before = {
+                name: connection.execute(text(f'SELECT * FROM "{name}"')).all()
+                for name in inspect(connection).get_table_names()
+                if name != "alembic_version"
+            }
+        command.upgrade(cfg, "head")
+        with engine.connect() as connection:
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0024_ast_direct_paper"
+            assert set(inspect(connection).get_table_names()) - set(before) - {"alembic_version"} == {
+                "ast_direct_paper_cursor",
+                "ast_direct_paper_trades",
+                "ast_direct_paper_events",
+            }
+            for name, rows in before.items():
+                assert connection.execute(text(f'SELECT * FROM "{name}"')).all() == rows
+            assert connection.execute(text("SELECT sequence, head_hash FROM ast_direct_paper_cursor")).one() == (
+                0,
+                "GENESIS",
+            )
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ast_direct_paper_events (sequence,event_key,event_type,snapshot_id,"
+                    "previous_hash,event_hash,payload) VALUES (1,'fixture','OBSERVATION',:snapshot,"
+                    "'GENESIS','fixture','{}')"
+                ),
+                {"snapshot": captured.snapshot_id},
+            )
+        for stmt in ("UPDATE ast_direct_paper_events SET payload='{}'", "DELETE FROM ast_direct_paper_events"):
+            with pytest.raises(Exception, match="AST_EVIDENCE_IS_IMMUTABLE"):
+                with engine.begin() as connection:
+                    connection.execute(text(stmt))
+        with pytest.raises(RuntimeError, match="AST_DIRECT_DOWNGRADE_REQUIRES_EMPTY_JOURNAL"):
+            command.downgrade(cfg, "0023_ast_futures_paper")
+    finally:
+        engine.dispose()

@@ -676,3 +676,6 @@ from app.commodity_acts.paper_models import (  # noqa: F401, E402
 from app.adaptive_supertrend.models import (  # noqa: F401, E402
     AstCursor, AstEvent, AstTrade, OptimizerRun, SessionParameters,
 )
+from app.adaptive_supertrend.direct.models import (  # noqa: F401, E402
+    DirectCursor, DirectEvent, DirectTrade,
+)

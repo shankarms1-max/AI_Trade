@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 !.env.production.example
+!.env.ast-direct.example
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -18,3 +19,4 @@ backups/*.dump
 backups/*.tmp
 research-output/
 
+ast-direct-control/

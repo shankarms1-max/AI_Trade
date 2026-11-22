@@ -75,9 +75,9 @@ def make_reader(settings):
     return read
 
 
-def save_capture(sessions, fields: dict) -> int:
+def save_capture(sessions, fields: dict, *, mode: str = CAPTURE_MODE, producer: str = VERSION) -> int:
     bucket = capture_bucket(fields["captured_at"]).isoformat()
-    key = digest({"mode": CAPTURE_MODE, "bucket": bucket})
+    key = digest({"mode": mode, "bucket": bucket})
     try:
         with sessions.begin() as session:
             row = Snapshot(
@@ -86,7 +86,7 @@ def save_capture(sessions, fields: dict) -> int:
                 feature_json="{}",
                 signal_json="{}",
                 context_json=canonical(
-                    {"mode": CAPTURE_MODE, "producer": VERSION, "bucket": bucket, "status": "CAPTURED"}
+                    {"mode": mode, "producer": producer, "bucket": bucket, "status": "CAPTURED"}
                 )
             )
             session.add(row)
@@ -100,7 +100,7 @@ def save_capture(sessions, fields: dict) -> int:
             return existing
 
 
-def capture_once(sessions, reader, now, holidays):
+def capture_once(sessions, reader, now, holidays, *, mode: str = CAPTURE_MODE, producer: str = VERSION):
     if capture_allowed(now, time(9, 15), time(15, 30), holidays):
-        return save_capture(sessions, reader())
+        return save_capture(sessions, reader(), mode=mode, producer=producer)
     return None
