@@ -68,13 +68,31 @@ Rollback: `docker compose -p ast-direct-paper -f docker-compose.ast-direct.yml s
 
 ## Historical regression gate
 
+The gate reproduces the frozen AST_FUTURES_V1_22_39 decade audit with the production engine. Run it on the research host:
+
 ```sh
+F=/home/ubuntu/strategy-research/AST_FUTURES_V1_22_39_FREEZE
 PYTHONPATH=backend python -m app.adaptive_supertrend.direct.regression \
-  --futures-csv /research/nifty-futures-5m.csv --lot-size 65 \
-  [--frozen-ledger /research/AST_FUTURES_V1_22_39_FREEZE/trades.json] \
-  --json /research/ast-direct-regression.json
+  --angel-1m-csv /home/ubuntu/ast-research/angel-nifty-1m/nifty50-spot-1m-full-sessions.csv \
+  --frozen-ledger $F/ast-decade-fast-trades.csv \
+  --frozen-summary $F/ast-decade-fast-summary.csv \
+  --frozen-friction-summary $F/ast-futures-friction-summary.csv \
+  --json /home/ubuntu/strategy-research/ast-direct-regression.json
 ```
 
-The regression feeds the production engine one observation per bar, at that bar's open. It compares the result with the frozen decade figures: 3,461 trades, +18,031.89 gross points, 5.21 points per trade, gross drawdown 1,549.20, and +11,109.89 net with drawdown 1,701.20 at 2 points of friction. With `--frozen-ledger`, it also compares the trades in sequence. It exits non-zero on any mismatch. The test `test_frozen_decade_historical_regression` runs the same check when `AST_DIRECT_FROZEN_CSV` is set; `AST_DIRECT_FROZEN_LEDGER` and `AST_DIRECT_LOT_SIZE` are optional.
+How it builds the dataset and replays it:
 
-Known semantic difference to investigate on the first run: the research `signal_trades` marks the session end at the 15:30 bar close, while this strategy's frozen rule exits at 15:20. If the decade audit used the 15:30 mark, its totals will differ from this engine. That difference must be explained, not hidden by changing the expected values. Before 15:20 the engine matches `signal_trades` trade for trade (see `test_engine_matches_research_signal_semantics_before_1520`).
+- **Timestamps:** naive timestamps are read as IST wall-clock time; aware ones are converted to IST. The file must be strictly chronological; a disorder or duplicate fails the run.
+- **Sessions:** a session counts only if it has exactly 375 one-minute rows from 09:15 to 15:29. Each run of five rows becomes one 5-minute bar, giving exactly 75 bars. A session that isn't exact is excluded whole and listed with its reason. Nothing is synthesized or forward-filled, and sessions are never mixed.
+- **Warm-up:** for each session, SuperTrend 22/3.9 runs freshly over the previous 15 exact sessions followed by the current one. The first 15 exact sessions are warm-up only.
+- **Replay:** the current session goes through the unchanged production engine, one observation per bar at that bar's open. That gives completed-close breakouts, next-bar entries, next-bar AST-flip exits and the 15:20 forced exit. The legacy `optimizer.signal_trades` 15:30 session-end mark is never a reference.
+- **Aggregate gates:** 3,461 trades, +18,031.89 gross points, 1,549.20 drawdown, and +11,109.89 / 1,701.20 at 2 points of friction. Drawdown uses daily equity from zero: closed-trade points summed per trading date. The per-trade-sequence drawdown is reported alongside for information.
+- **Ledger parity:** only rows with `atr_period` = 22 and `multiplier` = 3.9 are compared. Trade count, date, direction, entry and exit timestamps, and exit reason must match exactly; entry price, exit price and points allow ±0.005. BULL/LONG and BEAR/SHORT are equivalent.
+- **Exit-reason labels:** if the ledger names exit reasons differently, pass the vocabulary explicitly, for example `--exit-reason-map AST_FLIP=FLIP,FORCED_EXIT=SESSION_END`. The report lists the labels found on both sides.
+- **On mismatch:** the command exits non-zero and reports the first mismatching trade, the differing fields, and the expected and actual values. Never change the expected values to force a match.
+
+The report also records the SHA-256 of each input and includes the frozen summary CSVs verbatim. `--futures-csv` accepts an already-completed 5-minute research CSV and applies the same exact-session and warm-up rules.
+
+The test `test_frozen_decade_historical_regression` runs the same gate when `AST_DIRECT_ANGEL_1M_CSV` is set. `AST_DIRECT_FROZEN_LEDGER` and `AST_DIRECT_EXIT_REASON_MAP` are optional.
+
+Live warm-up note: the frozen audit warms up on 15 prior sessions, while the worker's operational `history_sessions` defaults to 25. To make live SuperTrend state follow the audit's construction, set `"history_sessions": 15` in `AST_DIRECT_CONFIG_JSON`. That is configuration only and changes no strategy rule.

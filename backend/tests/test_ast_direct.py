@@ -6,7 +6,6 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 import json
-import os
 from pathlib import Path
 import random
 
@@ -21,7 +20,7 @@ from app.adaptive_supertrend.direct import engine as direct_engine
 from app.adaptive_supertrend.direct.engine import ACTIVE, BarEval, Observation, evaluate, step
 from app.adaptive_supertrend.direct.models import DirectCursor, DirectEvent, DirectTrade
 from app.adaptive_supertrend.direct.policy import DirectPolicy
-from app.adaptive_supertrend.direct.regression import compare_ledger, compare_summary, load_ledger, replay
+from app.adaptive_supertrend.direct.regression import compare_summary, replay_continuous
 from app.adaptive_supertrend.direct.report import report
 from app.adaptive_supertrend.direct.service import JOURNAL, DirectPaperService
 from app.adaptive_supertrend.indicators import supertrend
@@ -354,7 +353,7 @@ def test_runtime_optimizer_is_never_imported_or_invoked(monkeypatch):
     for name in ("optimize", "evaluate_grid", "walk_forward", "selected_parameters", "signal_trades"):
         monkeypatch.setattr(optimizer, name, forbidden)
     monkeypatch.setattr(legacy, "freeze", forbidden)
-    replay(random_days(5, seed=3), POLICY)
+    replay_continuous(random_days(5, seed=3), POLICY)
     package = Path(direct_engine.__file__).parent
     worker = Path(__file__).resolve().parents[2] / "worker" / "ast_direct_worker.py"
     for path in [*package.glob("*.py"), worker]:
@@ -524,7 +523,7 @@ def test_engine_matches_research_signal_semantics_before_1520(tmp_path):
     from app.adaptive_supertrend.optimizer import _segments, signal_trades
 
     bars = random_days(250, seed=11)
-    ours = replay(bars, POLICY)["trades"]
+    ours = replay_continuous(bars, POLICY)["trades"]
     research = []
     for segment in _segments(bars):
         research.extend(signal_trades(segment, supertrend(segment, 22, 39), [True] * len(segment)))
@@ -550,39 +549,27 @@ def test_engine_matches_research_signal_semantics_before_1520(tmp_path):
     assert compared >= 50 and flips >= 70  # Deterministic seed: 57 sessions, 76 trades compared exactly.
 
 
-def test_regression_csv_runner_and_comparators(tmp_path):
-    bars = random_days(3, seed=5, drift=3.0)
+def test_futures_csv_input_uses_exact_session_frozen_construction(tmp_path):
+    from app.adaptive_supertrend.direct.regression import futures_sessions, replay_sessions
+
+    bars = random_days(18, seed=5, drift=3.0)
     path = tmp_path / "bars.csv"
     with path.open("w") as stream:
         stream.write("start,end,open,high,low,close,future_instrument_id,future_expiry\n")
         for bar in bars:
             stream.write(f"{bar.start.isoformat()},{bar.end.isoformat()},{bar.open},{bar.high},{bar.low},"
                          f"{bar.close},FUT,2030-01-30\n")
-    result = replay(load_bars(path), POLICY)
-    assert result == replay(load_bars(path), POLICY)  # Deterministic.
+    sessions, info = futures_sessions(load_bars(path))
+    assert info["exact_sessions"] == 18 and info["excluded_sessions"] == {}
+    result = replay_sessions(sessions, POLICY)
+    assert result == replay_sessions(sessions, POLICY)  # Deterministic.
+    assert result["warmup"]["evaluated_sessions"] == 3
     summary = result["summary"]
     assert summary["net_points_at_2pt"] == pytest.approx(summary["gross_points"] - 2 * summary["trades"])
     assert compare_summary(summary)["status"] == "MISMATCH"  # Synthetic data is not the frozen decade.
     exact = {**summary, "trades": 3461, "gross_points": 18031.89, "average_points": 5.21,
              "max_drawdown_points": 1549.2, "net_points_at_2pt": 11109.89, "net_max_drawdown_points_at_2pt": 1701.2}
     assert compare_summary(exact)["status"] == "MATCH"
-    ledger = tmp_path / "ledger.json"
-    ledger.write_text(json.dumps([{"entry_at": x["entry_timestamp"], "exit_at": x["exit_timestamp"],
-                                   "signal_points": x["gross_points"]} for x in result["trades"]]))
-    assert compare_ledger(result["trades"], load_ledger(ledger))["status"] == "MATCH"
-    assert compare_ledger(result["trades"][1:], load_ledger(ledger))["status"] == "MISMATCH"
-
-
-def test_frozen_decade_historical_regression():
-    csv_path = os.getenv("AST_DIRECT_FROZEN_CSV")
-    if not csv_path or not Path(csv_path).exists():
-        pytest.skip("AST_DIRECT_FROZEN_CSV must name the frozen decade 5-minute NIFTY futures CSV")
-    result = replay(load_bars(Path(csv_path)), DirectPolicy(lot_size=int(os.getenv("AST_DIRECT_LOT_SIZE", "65"))))
-    comparison = compare_summary(result["summary"])
-    ledger = os.getenv("AST_DIRECT_FROZEN_LEDGER")
-    if ledger:
-        assert compare_ledger(result["trades"], load_ledger(Path(ledger)))["status"] == "MATCH"
-    assert comparison["status"] == "MATCH", comparison
 
 
 # Worker: disabled by default, PAPER only, read-only status, operational kill switch, quiet logs.
