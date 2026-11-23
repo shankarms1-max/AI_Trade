@@ -20,3 +20,4 @@ backups/*.tmp
 research-output/
 
 ast-direct-control/
+ast-direct-secrets/

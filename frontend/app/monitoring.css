@@ -246,3 +246,23 @@ button { min-width:44px; }
 @media(max-width:900px) { .mobile-table-sort { display:flex; align-items:center; gap:8px; font-size:12px; } }
 .strategy-pulse:empty { min-height:60px; }
 @media(max-width:900px) { .strategy-pulse:empty { min-height:108px; } }
+
+/* AST Futures paper monitor: reuses the workspace system; only layout and alert accents are added. */
+.ast-futures .ast-status-strip { grid-template-columns:repeat(6,minmax(0,1fr)); margin-bottom:18px; }
+.ast-futures .ast-paper-banner { color:var(--warning); flex-wrap:wrap; }
+.ast-futures .ast-paper-banner strong { letter-spacing:.04em; }
+.ast-futures .ast-alerts { display:grid; gap:10px; margin-bottom:18px; }
+.ast-futures .ast-alerts .section-error { margin:0; font-weight:600; }
+.ast-futures .ast-position.is-active { border-color:color-mix(in srgb,var(--accent) 45%,var(--border)); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 25%,transparent),var(--shadow); }
+.ast-futures .ast-position.is-critical { border-color:var(--negative); box-shadow:0 0 0 2px color-mix(in srgb,var(--negative) 35%,transparent); }
+.ast-futures .ast-badges { display:flex; gap:6px; flex-wrap:wrap; }
+.ast-futures .ast-instrument .commodity-fields { margin-top:18px; }
+.ast-futures .ast-grid { display:grid; margin-bottom:0; }
+.ast-futures .ast-blockers { list-style:none; padding:0; margin:0 0 12px; display:flex; flex-wrap:wrap; gap:8px; }
+.ast-futures .ast-blockers li { border:1px solid color-mix(in srgb,var(--warning) 30%,var(--border)); border-radius:7px; padding:7px 10px; background:var(--panel2); }
+.ast-futures .ast-blockers span { display:block; font-size:12px; color:var(--text); }
+.ast-futures .ast-blockers code, .ast-futures .ast-hash code { font-size:10px; color:var(--muted); overflow-wrap:anywhere; }
+.ast-futures .chart-sm { height:240px; }
+@media(max-width:1250px){ .ast-futures .ast-status-strip { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:900px){ .ast-futures .instrument-hero, .ast-futures .ast-grid { grid-template-columns:1fr; } }
+@media(max-width:420px){ .ast-futures .ast-status-strip { grid-template-columns:1fr 1fr; } }

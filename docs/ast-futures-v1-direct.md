@@ -66,6 +66,40 @@ Status shows: worker running/stopped (from the heartbeat), strategy version, tra
 
 Rollback: `docker compose -p ast-direct-paper -f docker-compose.ast-direct.yml stop ast-direct-worker`. The journal and database volume are preserved.
 
+## Read-only monitoring dashboard
+
+`/ast-futures` is a monitoring page in the AI Trade workspace. It is read-only: it has no order, acknowledgement or kill-switch control. Every read follows this path:
+
+browser → Caddy Basic-auth ingress → Next.js server-side bridge (`/monitor-data/ast-direct/...`) → `ast-direct-api` → isolated AST Direct PostgreSQL
+
+- **Bridge.** Only `GET` is accepted, for `api/ast-direct/{status,trades,events,performance}`, with bounded query keys (`limit`, `offset`, `date`, `state`, `side`, `scope`), no redirects and a 2 MB response limit. It checks the viewer's Basic credential against a server-only SHA-256 digest and never calls the ACTS/NIFTY gateway. It reaches the API with a server-only bearer token that never reaches the browser.
+- **API.** `app.adaptive_supertrend.direct.api` exposes `GET /health` and the four `GET /api/ast-direct/*` routes. Data routes need the bearer token. OpenAPI and docs are disabled. PostgreSQL sessions use `default_transaction_read_only=on`. The container gets no broker credentials, publishes no port and runs on a read-only filesystem.
+- **Data.** Status reuses `report()`, adds a bounded journal verification and the configured `history_sessions`. "Forward paper performance" covers closed paper trades only, with drawdown measured on closed-trade equity. Historical regression figures are never shown on this page.
+
+One-time host setup (research host only; the running worker is not rebuilt or restarted):
+
+```sh
+mkdir -p ast-direct-secrets/api ast-direct-secrets/frontend
+TOKEN=$(openssl rand -base64 48 | tr -d '/+=\n' | cut -c1-48)
+printf '%s' "$TOKEN" > ast-direct-secrets/api/api-token
+printf '%s' "$TOKEN" > ast-direct-secrets/frontend/api-token
+# The digest covers the exact header the browser sends after the Caddy prompt.
+printf 'Basic %s' "$(printf '%s' 'VIEWER_USER:VIEWER_PASSWORD' | base64 -w0)" | sha256sum | cut -d' ' -f1 | tr -d '\n' > ast-direct-secrets/frontend/viewer-sha256
+sudo chown -R 999:999 ast-direct-secrets/api && sudo chown -R 1001:1001 ast-direct-secrets/frontend
+sudo chmod 600 ast-direct-secrets/api/* ast-direct-secrets/frontend/*
+# Ingress credentials in .env.ast-direct (bcrypt via: docker run --rm caddy:2.8-alpine caddy hash-password):
+#   AST_DIRECT_VIEWER_USER=VIEWER_USER
+#   AST_DIRECT_VIEWER_BCRYPT_HASH=<bcrypt hash>
+#   AST_DIRECT_SITE_ADDRESS=:80   AST_DIRECT_INGRESS_HTTP_BIND=127.0.0.1:8088   (SSH-tunnel default)
+C="docker compose -f docker-compose.ast-direct.yml --env-file .env.ast-direct"
+$C build ast-direct-api ast-direct-frontend
+$C up -d --no-deps ast-direct-api ast-direct-frontend
+$C --profile ingress up -d --no-deps ast-direct-ingress
+# View via: ssh -L 8088:127.0.0.1:8088 <research-host>  then  http://127.0.0.1:8088/ast-futures
+```
+
+For a public HTTPS name instead, set `AST_DIRECT_SITE_ADDRESS` to the domain, publish 80 and 443 through firewall and compose, and keep Basic auth. PostgreSQL is never published. The rest of the workspace pages expect the ACTS backend and show "unavailable" on this isolated host.
+
 ## Historical regression gate
 
 The gate reproduces the frozen AST_FUTURES_V1_22_39 decade audit with the production engine. Run it on the research host:

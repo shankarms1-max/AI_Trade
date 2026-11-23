@@ -1,0 +1,21 @@
+# Isolated AST Direct monitoring ingress. Basic auth for every request; only the Next.js frontend is exposed.
+# The read API and PostgreSQL stay on the internal ast_direct network.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	basic_auth {
+		{env.APP_AUTH_USER} {env.APP_AUTH_HASH}
+	}
+
+	handle {
+		reverse_proxy ast-direct-frontend:3000
+	}
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		X-Robots-Tag "noindex, nofollow"
+		-Server
+	}
+}
