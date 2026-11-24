@@ -206,7 +206,7 @@ def test_direct_journal_migration_is_additive_immutable_and_guarded(tmp_path):
                 for name in inspect(connection).get_table_names()
                 if name != "alembic_version"
             }
-        command.upgrade(cfg, "head")
+        command.upgrade(cfg, "0024_ast_direct_paper")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0024_ast_direct_paper"
             assert set(inspect(connection).get_table_names()) - set(before) - {"alembic_version"} == {

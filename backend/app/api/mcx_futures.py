@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.session import get_session_factory
 from app.mcx_futures.models import INSTRUMENTS, McxFuturesCursor, McxFuturesEvent, McxFuturesTrade
+from app.mcx_futures.runtime import split_components
 from app.mcx_futures.settings import McxFuturesSettings
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -148,18 +149,29 @@ def decisions(instrument: str | None = Query(None), limit: int = Query(100, ge=1
               sessions: sessionmaker[Session] = Depends(get_session_factory)) -> dict[str, Any]:
     _instrument(instrument)
     with sessions() as session:
-        q = select(McxFuturesEvent).where(McxFuturesEvent.event_type.in_(("DECISION", "CYCLE", "RISK_BLOCK")))
+        q = select(McxFuturesEvent).where(McxFuturesEvent.event_type.in_(("DECISION", "CYCLE", "RISK_BLOCK",
+                                                                       "ENTRY_REJECTED")))
         if instrument:
             q = q.where(McxFuturesEvent.instrument == instrument)
         rows = session.scalars(q.order_by(McxFuturesEvent.id.desc()).limit(limit)).all()
     items = []
     for r in rows:
-        p = json.loads(r.payload)
-        items.append({"at": r.at, "instrument": r.instrument, "type": r.event_type, "status": p.get("status"),
-                      "direction": p.get("direction"), "score": p.get("score"), "components": p.get("components") or {},
-                      "vetoes": p.get("vetoes") or [], "cycle_id": p.get("cycle_id"), "cycle_state": p.get("cycle_state"),
-                      "transition": p.get("transition"), "evidence_at": p.get("evidence_at"),
-                      "journal_sequence": r.sequence})
+        p = json.loads(r.payload).get("payload") or {}  # stored row = full engine event; fields live in payload
+        cyc = p.get("cycle") or {}
+        points, maxima, missing = split_components(p.get("components"))
+        status = p.get("status") or (p.get("event") if r.event_type == "CYCLE" else
+                                     "RISK_BLOCK" if r.event_type == "RISK_BLOCK" else
+                                     "ENTRY_REJECTED" if r.event_type == "ENTRY_REJECTED" else None)
+        vetoes = list(p.get("vetoes") or []) + list(p.get("risk_blockers") or p.get("blockers") or [])
+        if r.event_type == "ENTRY_REJECTED" and p.get("reason"):
+            vetoes.append(p["reason"])
+        items.append({"at": r.at, "instrument": r.instrument, "type": r.event_type, "status": status,
+                      "direction": p.get("direction"), "score": p.get("score"), "components": points,
+                      "component_max": maxima, "unavailable_inputs": missing, "vetoes": vetoes,
+                      "cycle_id": cyc.get("cycle_id") or p.get("cycle_id"),
+                      "cycle_state": cyc.get("cycle_state") or cyc.get("state"),
+                      "transition": p.get("event") if r.event_type == "CYCLE" else None,
+                      "evidence_at": p.get("bar_start") or r.at, "journal_sequence": r.sequence})
     return {"items": items}
 
 

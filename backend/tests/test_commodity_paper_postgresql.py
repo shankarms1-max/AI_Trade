@@ -226,7 +226,7 @@ def test_pg_fresh_database_upgrades_to_latest_revision(pg_admin):
         command.upgrade(migration_config(url.render_as_string(hide_password=False)), "head")
         assert PAPER_TABLES <= set(inspect(engine).get_table_names())
         with engine.connect() as connection:
-            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0024_ast_direct_paper"
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0025_mcx_futures_paper"
             assert connection.scalar(text("SELECT count(*) FROM commodity_acts_cursors")) == 2
             assert connection.scalar(text("SELECT count(*) FROM commodity_paper_cursors")) == 2
             assert connection.scalar(text("SELECT policy_json FROM commodity_paper_controls")) == "{}"

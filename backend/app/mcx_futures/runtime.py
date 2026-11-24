@@ -24,6 +24,20 @@ from app.research.manifest import digest
 DECISION_STATUSES = {"ENTER", "NO_ENTRY", "EXIT_SIGNAL"}
 
 
+def split_components(raw: Any) -> tuple[dict[str, float], dict[str, float], dict[str, list[str]]]:
+    """Engine components are {name: {points, max, unavailable}}; the API contract exposes points as numbers and the
+    maxima / unavailable inputs as separate maps (unavailable inputs score zero, no rescaling)."""
+    points, maxima, missing = {}, {}, {}
+    for name, value in (raw or {}).items():
+        if isinstance(value, dict):
+            points[name] = float(value.get("points") or 0.0)
+            maxima[name] = float(value.get("max") or 0.0)
+            missing[name] = list(value.get("unavailable") or [])
+        elif isinstance(value, (int, float)):
+            points[name] = float(value)
+    return points, maxima, missing
+
+
 def trade_id(instrument: str, decided_at: str) -> str:
     return digest([STRATEGY_ID, instrument, decided_at])[:32]
 
@@ -96,8 +110,10 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
         p = e.get("payload") or {}
         if e["type"] == "DECISION" and p.get("status") in DECISION_STATUSES:
             c = p.get("cycle") or {}
+            points, maxima, missing = split_components(p.get("components"))
             decision = {"at": e["at"], "status": p["status"], "direction": p.get("direction"),
-                        "score": p.get("score"), "components": p.get("components") or {},
+                        "score": p.get("score"), "components": points, "component_max": maxima,
+                        "unavailable_inputs": missing,
                         "vetoes": list(p.get("vetoes") or []) + list(p.get("risk_blockers") or [])
                         + list(p.get("blockers") or []),
                         "market_state": p.get("market_state"), "cycle_id": c.get("cycle_id"),

@@ -114,6 +114,7 @@ def test_status_and_engines_api_reflect_journal(crude_run):
     assert crude["last_decision"]["status"] in ("ENTER", "NO_ENTRY", "EXIT_SIGNAL")
     assert set(crude["last_decision"]["components"]) == {"trend", "momentum", "structure", "strength", "regime",
                                                          "execution"}
+    assert all(isinstance(v, float) for v in crude["last_decision"]["components"].values())
     assert natgas["state"] == "IDLE"  # enabled, never observed: not dressed up as running
     later = mcx_api.build_status(sessions, now=now + timedelta(minutes=5), settings=ENABLED)
     assert next(r for r in later["instruments"] if r["instrument"] == "CRUDEOILM")["state"] == "DATA_STALE"
@@ -125,6 +126,11 @@ def test_status_and_engines_api_reflect_journal(crude_run):
     assert len(page["items"]) <= 2 and all(i["mode"] == "PAPER" for i in page["items"])
     dec = mcx_api.decisions(instrument="CRUDEOILM", limit=20, sessions=sessions)
     assert dec["items"] and all(i["instrument"] == "CRUDEOILM" for i in dec["items"])
+    scored = [i for i in dec["items"] if i["type"] == "DECISION" and i["status"] in ("ENTER", "NO_ENTRY", "EXIT_SIGNAL")]
+    assert scored and all(isinstance(i["score"], (int, float)) for i in scored)
+    assert all(set(i["components"]) == set(i["component_max"]) == {"trend", "momentum", "structure", "strength",
+                                                                    "regime", "execution"} for i in scored)
+    assert all(isinstance(v, float) for i in scored for v in i["components"].values())
     eng = engines_api.build(sessions, now=now.astimezone(timezone.utc), mcx_settings=ENABLED)
     ids = {e["id"]: e for e in eng["engines"]}
     assert ids["mcx-crudeoilm"]["state"] == "RUNNING" and ids["mcx-natgasmini"]["state"] == "IDLE"

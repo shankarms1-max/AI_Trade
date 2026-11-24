@@ -72,7 +72,8 @@ def test_additive_migration_preserves_nifty_and_raw_immutability(tmp_path, marke
 
 def test_additive_ast_head_preserves_commodity_migration_parents():
     scripts = ScriptDirectory.from_config(migration_config("sqlite://"))
-    assert scripts.get_heads() == ["0024_ast_direct_paper"]
+    assert scripts.get_heads() == ["0025_mcx_futures_paper"]
+    assert scripts.get_revision("0025_mcx_futures_paper").down_revision == "0024_ast_direct_paper"
     assert scripts.get_revision("0024_ast_direct_paper").down_revision == "0023_ast_futures_paper"
     assert scripts.get_revision("0023_ast_futures_paper").down_revision == "0022_adaptive_supertrend"
     assert scripts.get_revision("0022_adaptive_supertrend").down_revision == "0021_commodity_paper_trades"

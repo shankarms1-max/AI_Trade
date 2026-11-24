@@ -26,7 +26,8 @@ def test_commodity_extends_nifty_with_one_additive_head():
     config = Config(str(ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(ROOT / "alembic"))
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == ["0024_ast_direct_paper"]
+    assert scripts.get_heads() == ["0025_mcx_futures_paper"]
+    assert scripts.get_revision("0025_mcx_futures_paper").down_revision == "0024_ast_direct_paper"
     assert scripts.get_revision("0024_ast_direct_paper").down_revision == "0023_ast_futures_paper"
     assert scripts.get_revision("0023_ast_futures_paper").down_revision == "0022_adaptive_supertrend"
     assert scripts.get_revision("0022_adaptive_supertrend").down_revision == "0021_commodity_paper_trades"
