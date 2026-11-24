@@ -679,3 +679,6 @@ from app.adaptive_supertrend.models import (  # noqa: F401, E402
 from app.adaptive_supertrend.direct.models import (  # noqa: F401, E402
     DirectCursor, DirectEvent, DirectTrade,
 )
+from app.mcx_futures.models import (  # noqa: F401, E402
+    McxFuturesCursor, McxFuturesEvent, McxFuturesTrade,
+)
