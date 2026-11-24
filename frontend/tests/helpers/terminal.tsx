@@ -14,8 +14,9 @@ type Route = (url: URL) => unknown | Response | Promise<unknown | Response>;
  * Stub global fetch with fixture payloads by pathname (suffix after /api/portfolio/ or /api/...).
  * Anything not routed returns 404. Records every requested URL.
  */
-export function stubApi(routes: Record<string, Route | unknown>, calls: string[] = []) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+export function stubApi(routes: Record<string, Route | unknown>, calls: string[] = [], methods: string[] = []) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    methods.push((init?.method ?? "GET").toUpperCase());
     const url = new URL(String(input), "http://localhost");
     calls.push(url.pathname + url.search);
     const key = decodeURIComponent(url.pathname).replace(/^\/api\/portfolio\//, "").replace(/^\/api\//, "api/");
@@ -26,7 +27,7 @@ export function stubApi(routes: Record<string, Route | unknown>, calls: string[]
     return new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } });
   });
   vi.stubGlobal("fetch", fetchMock);
-  return { fetchMock, calls };
+  return { fetchMock, calls, methods };
 }
 /** Default fixture routes for every portfolio endpoint. */
 export const fixtureRoutes = (): Record<string, unknown> => ({

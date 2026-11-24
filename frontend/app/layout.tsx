@@ -11,13 +11,13 @@ import { DrawerHost } from "@/components/pages/drawers";
 import { LoadingState } from "@/components/terminal/states";
 
 export const metadata: Metadata = {
-  title: "AI Trade — Paper Trading Terminal",
-  description: "Private, read-only paper-trading monitor for NIFTY and MCX strategies",
+  title: "AI Trade — Research Intelligence",
+  description: "Private, read-only NIFTY and Commodity trading research analytics",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/favicon.svg", apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
-  appleWebApp: { capable: true, title: "AI Trade", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "NIFTY Research", statusBarStyle: "black-translucent" },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#0a0d12" }, { media: "(prefers-color-scheme: light)", color: "#eef1f5" }], colorScheme: "dark light" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: [{ media: "(prefers-color-scheme: dark)", color: "#0c0c13" }, { media: "(prefers-color-scheme: light)", color: "#f5f6fa" }], colorScheme: "dark light" };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <html lang="en" data-theme="dark" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: "try{document.documentElement.dataset.theme=localStorage.getItem('ai-trade-theme')==='light'?'light':'dark'}catch{}" }}/></head>
     <body><Suspense fallback={<div style={{ padding: 16 }}><LoadingState label="Loading terminal"/></div>}>

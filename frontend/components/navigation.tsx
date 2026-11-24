@@ -56,6 +56,7 @@ export function Navigation() {
       </details>
       <p className="tm-sidebar-note">Read-only · NSE + MCX<br/>No broker execution controls</p>
     </aside>
+    <div className="tm-mobilebar"><Icon name="chart" size={16}/><span className="tm-muted">AI Trade /</span><strong>{pageLabel(pathname)}</strong></div>
     <nav className="tm-bottomnav" aria-label="Mobile primary">
       {links(primary.slice(0, 4))}
       <button type="button" className={`tm-navlink${active && !primary.slice(0, 4).some(([h]) => h === active) ? " is-active" : ""}`} aria-label="More navigation" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}><Icon name="menu" size={16}/><span>More</span></button>

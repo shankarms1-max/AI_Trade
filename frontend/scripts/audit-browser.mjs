@@ -8,7 +8,9 @@ const BASE = process.env.BASE ?? "http://127.0.0.1:8080";
 const OUT = process.env.OUT ?? "./audit-out";
 const LABEL = process.argv[2] ?? "before";
 const ROUTES = (process.env.ROUTES ?? "").split(",").filter(Boolean);
-const DEFAULT_ROUTES = ["/", "/positions", "/trades", "/nifty", "/phase15", "/nifty/research", "/engines", "/mcx-futures",
+const DEFAULT_ROUTES = ["/", "/positions", "/positions?tab=closed", "/positions?tab=unresolved", "/orders", "/tradebook", "/trades", "/strategies",
+  "/strategies/nifty-acts_v3", "/strategies/mcx-natgasmini?view=signals", "/strategies/nifty-acts_v3?view=configuration", "/strategies/does-not-exist",
+  "/analytics", "/risk", "/research", "/settings", "/nifty", "/phase15", "/nifty/research", "/engines", "/mcx-futures",
   "/mcx-futures/CRUDEOILM", "/mcx-futures/NATGASMINI", "/mcx-futures/NIFTY", "/ast-futures", "/commodity-acts",
   "/commodity-acts/CRUDEOILM", "/commodity-acts/NATGASMINI", "/history", "/history/1", "/shadow", "/shadow/1", "/system",
   "/does-not-exist"];
@@ -59,7 +61,7 @@ const page = await ctx.newPage();
 const errs = [];
 page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 200)); });
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 200)));
-for (const route of ["/", "/positions", "/trades", "/nifty", "/engines", "/mcx-futures", "/mcx-futures/CRUDEOILM", "/commodity-acts", "/system"]) {
+for (const route of ["/", "/positions", "/orders", "/tradebook", "/strategies", "/analytics", "/risk", "/nifty", "/engines", "/mcx-futures", "/mcx-futures/CRUDEOILM", "/commodity-acts", "/system"]) {
   await page.goto(`${BASE}${route}`, { waitUntil: "networkidle" }).catch(() => {});
   const sel = "#workspace-content button, #workspace-content [role=tab]";
   const n = await page.locator(sel).count();
@@ -81,6 +83,7 @@ const navTargets = await page.locator("aside nav a").evaluateAll((as) => as.map(
 const navResults = [];
 for (const t of navTargets) {
   await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelector("details.tm-more")?.setAttribute("open", "")); // legacy group is collapsed by default
   await page.locator(`aside nav a[href="${t.href}"]`).click();
   await page.waitForURL((u) => u.pathname === t.href, { timeout: 8000 }).catch(() => {});
   await page.waitForLoadState("networkidle").catch(() => {});

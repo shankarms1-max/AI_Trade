@@ -7,8 +7,11 @@ if(!['127.0.0.1','localhost'].includes(new URL(base).hostname))throw Error('Resp
 const output=process.env.RESPONSIVE_ARTIFACT_DIR??'/tmp/ai-trade-responsive';fs.mkdirSync(path.join(output,'screenshots'),{recursive:true});
 const fixture={...JSON.parse(fs.readFileSync(new URL('../tests/fixtures/monitoring.json',import.meta.url))).fixtures,
  ...JSON.parse(fs.readFileSync(new URL('../tests/fixtures/engines-mcx.json',import.meta.url))).fixtures};
+// Terminal pages read /api/portfolio/*: serve the SYNTHETIC contract fixture (query strings are ignored by the key match).
+const portfolio=JSON.parse(fs.readFileSync(new URL('../tests/fixtures/portfolio-synthetic.json',import.meta.url)));
+for(const [key,name] of [['header','header'],['alerts','alerts'],['sources','sources'],['summary','summary'],['risk','risk'],['equity','equity'],['strategies','strategies'],['performance','performance'],['orders','orders'],['fills','fills'],['trades','trades'],['positions','positions_open'],['strategies/nifty-acts_v3','strategy_nifty_v3'],['strategies/mcx-crudeoilm','strategy_crude']])fixture['/api/portfolio/'+key]=portfolio[name];
 const widths=[[1440,900],[1280,800],[1024,768],[768,1024],[430,932],[390,844],[360,800]];
-const routes=[['overview','/'],['phase15','/phase15'],['strategies','/nifty'],['positions','/positions'],['trades','/trades'],['research','/nifty/research'],['history','/history'],['snapshot','/history/1'],['shadow','/shadow'],['shadow-detail','/shadow/7'],['system','/system'],['commodity','/commodity-acts'],['crude','/commodity-acts/CRUDEOILM'],['gas','/commodity-acts/NATGASMINI'],['engines','/engines'],['mcx-futures','/mcx-futures'],['mcx-crude','/mcx-futures/CRUDEOILM'],['mcx-gas','/mcx-futures/NATGASMINI'],['ast-futures','/ast-futures']];
+const routes=[['overview','/'],['phase15','/phase15'],['strategies','/nifty'],['positions','/positions'],['trades','/trades'],['orders','/orders'],['tradebook','/tradebook'],['strategies-list','/strategies'],['strategy-detail','/strategies/nifty-acts_v3'],['analytics','/analytics'],['risk','/risk'],['research-evidence','/research'],['settings','/settings'],['research','/nifty/research'],['history','/history'],['snapshot','/history/1'],['shadow','/shadow'],['shadow-detail','/shadow/7'],['system','/system'],['commodity','/commodity-acts'],['crude','/commodity-acts/CRUDEOILM'],['gas','/commodity-acts/NATGASMINI'],['engines','/engines'],['mcx-futures','/mcx-futures'],['mcx-crude','/mcx-futures/CRUDEOILM'],['mcx-gas','/mcx-futures/NATGASMINI'],['ast-futures','/ast-futures']];
 const results={notice:'SYNTHETIC UI FIXTURES ONLY; no production, broker, database or actual fill evidence',renders:[],states:[],navigation:[]};
 const save=()=>fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(results,null,2));
 async function prepare(context,theme='dark',state='normal'){
@@ -32,16 +35,16 @@ async function prepare(context,theme='dark',state='normal'){
 }
 async function measure(page){return page.evaluate(()=>{
  const visible=e=>{if(e.closest('details:not([open])')&&!e.closest('summary'))return false;return !!(e.getBoundingClientRect().width&&e.getBoundingClientRect().height)&&getComputedStyle(e).visibility!=='hidden';};
- const heading=[...document.querySelectorAll('h2')].find(e=>e.textContent==='OPEN POSITIONS');
- return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,height:innerHeight,documentHeight:document.documentElement.scrollHeight,positionsTop:heading?Math.round(heading.getBoundingClientRect().top+scrollY):null,theme:document.documentElement.dataset.theme,
-   clippedNumbers:[...document.querySelectorAll('.trading-summary .metric-value,.position-prices dd')].filter(e=>visible(e)&&e.scrollWidth>e.clientWidth+2).map(e=>e.textContent),
+ const heading=[...document.querySelectorAll('h2')].find(e=>/^open positions$/i.test(e.textContent));
+ return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,height:innerHeight,documentHeight:document.documentElement.scrollHeight,tileTop:(()=>{const t=document.querySelector('.tm-tile.primary');return t?Math.round(t.getBoundingClientRect().top+scrollY):null;})(),positionsTop:heading?Math.round(heading.getBoundingClientRect().top+scrollY):null,theme:document.documentElement.dataset.theme,
+   clippedNumbers:[...document.querySelectorAll('.trading-summary .metric-value,.position-prices dd,.tm-tile-value')].filter(e=>visible(e)&&e.scrollWidth>e.clientWidth+2).map(e=>e.textContent),
    scrollAreas:[...document.querySelectorAll('.table-wrap')].filter(e=>visible(e)&&e.scrollWidth>e.clientWidth+2).map(e=>({width:e.clientWidth,scrollWidth:e.scrollWidth})),
    strategyStates:document.querySelectorAll('.strategy-pulse a').length};
  });}
 const quick=process.env.RESPONSIVE_QUICK==='1';
 for(const theme of ['dark','light'])for(const [width,height]of (quick?widths.filter(([w])=>[1440,390].includes(w)):widths)){
  const browser=await chromium.launch({headless:true});
- try{for(const [name,route]of (quick?routes.filter(([n])=>['overview','phase15','strategies','trades','research','system'].includes(n)):routes)){
+ try{for(const [name,route]of (quick?routes.filter(([n])=>['overview','phase15','strategies','trades','research','system','positions','analytics'].includes(n)):routes)){
   const context=await browser.newContext({viewport:{width,height},colorScheme:theme,reducedMotion:'reduce'});const audit=await prepare(context,theme);const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base+route,{waitUntil:'networkidle'});await page.waitForTimeout(100);
   const row={name,route,...await measure(page),errors,unexpected:audit.unexpected};results.renders.push(row);
@@ -70,17 +73,18 @@ for(const state of ['normal','inside','below','stale','unavailable','commodity-u
  const body=await page.locator('body').innerText();
  results.states.push({state,...await measure(page),errors,unexpected:audit.unexpected,hasUnresolved:body.includes('unresolved exposure'),hasUnavailable:body.includes('UNAVAILABLE'),hasLosingMark:body.includes('520.00'),hasProfitableMark:body.includes('52.00')});
  if(state==='normal'){
-  await page.getByRole('button',{name:'More navigation'}).click();const dialog=page.getByRole('dialog',{name:'More'});await dialog.waitFor({state:'visible'});await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'More navigation'}).click();const dialog=page.getByRole('dialog',{name:'Navigation'});await dialog.waitFor({state:'visible'});await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
   results.navigation.push({moreClosesWithEscape:true,focusReturned:await page.getByRole('button',{name:'More navigation'}).evaluate(e=>e===document.activeElement)});
   await page.getByRole('button',{name:'Switch to light theme'}).click();if(await page.locator('html').getAttribute('data-theme')!=='light')throw Error('Theme switch failed');
-  await page.goto(base+'/trades',{waitUntil:'networkidle'});await page.getByText('Filters · Today',{exact:true}).click();await page.getByLabel('Strategy',{exact:true}).selectOption('ACTS_V3');
+  await page.goto(base+'/tradebook',{waitUntil:'networkidle'});await page.getByRole('link',{name:'Export CSV'}).waitFor();await page.screenshot({path:path.join(output,'screenshots/mobile-tradebook-light.png')});
   await page.screenshot({path:path.join(output,'screenshots/mobile-filters-light.png')});
-  const expired=page.getByRole('row').filter({hasText:'CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE'}).first();if(!await expired.count())throw Error('Unpriced expiry evidence lost');const expiredText=await expired.innerText();if(!expiredText.includes('N/A')||expiredText.includes('₹0.00'))throw Error('Unpriced expiry fabricated a value');
+  await page.goto(base+'/positions',{waitUntil:'networkidle'});const expired=page.getByRole('row').filter({hasText:'EXPIRED NOT SETTLED'}).first();await expired.waitFor();if(!await expired.count())throw Error('Expired open position evidence lost');const expiredText=await expired.innerText();if(expiredText.includes('₹0.00'))throw Error('Unpriced expiry fabricated a value');
  }
  save();await browser.close();
 }
 const failures=results.renders.filter(r=>r.documentWidth>r.width+1||r.errors.length||r.unexpected.length||r.clippedNumbers.length);
 if(failures.length){console.error(JSON.stringify(failures,null,2));throw Error(`${failures.length} responsive failures`);}
-for(const r of results.renders.filter(r=>['/','/phase15'].includes(r.route)&&r.width===390))if(r.positionsTop==null||r.positionsTop>900)throw Error('Exposure not within initial monitoring budget');
+for(const r of results.renders.filter(r=>['/phase15'].includes(r.route)&&r.width===390))if(r.positionsTop==null||r.positionsTop>900)throw Error('Exposure not within initial monitoring budget');
+for(const r of results.renders.filter(r=>r.route==='/'&&r.width===390))if(r.tileTop==null||r.tileTop>900)throw Error('Primary P&L tile not within the first screen');
 if(results.states.some(r=>r.errors.length||r.unexpected.length))throw Error('State regression');
 console.log(`PASS: ${results.renders.length} route/viewport/theme combinations, representative states, navigation and themes.`);

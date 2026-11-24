@@ -85,15 +85,15 @@ function RecentActivity() {
 export function Overview() {
   const { filters } = useUrlState();
   const win = windowOf(filters, "today");
-  const summary = useResource(urls.summary(filterParams(filters, "today")), parse.summary);
+  const live = filters.mode === "LIVE";
+  const summary = useResource(live ? null : urls.summary(filterParams(filters, "today")), parse.summary);
   const alerts = useResource(urls.alerts(), parse.alerts);
-  const risk = useResource(urls.risk(entityParams(filters)), parse.risk);
+  const risk = useResource(live ? null : urls.risk(entityParams(filters)), parse.risk);
   const strategies = useResource(urls.strategies(), parse.strategies);
-  const equity = useResource(urls.equity({ ...entityParams(filters), date: win.to ?? istToday() }), parse.equity);
+  const equity = useResource(live ? null : urls.equity({ ...entityParams(filters), date: win.to ?? istToday() }), parse.equity);
   const cards = (strategies.data?.items ?? []).filter(c => (!filters.engine || c.engine_id === filters.engine) && (!filters.instrument || c.instrument === filters.instrument) && (!filters.version || c.version === filters.version));
   const critical = (alerts.data?.items ?? []).filter(a => a.severity === "CRITICAL");
   const attention = summary.data?.attention ?? [];
-  const live = filters.mode === "LIVE";
   return <div>
     <PageTitle title="Overview" note={<>{win.from ? (win.from === win.to ? `Session ${win.from}` : `${win.from} → ${win.to ?? "now"}`) : "All dates"} · {filters.mode} · Asia/Kolkata</>}/>
     {live ? <EmptyState hint="No live execution path exists in this deployment. LIVE totals are never mixed with PAPER.">LIVE: no live engines</EmptyState> : <>

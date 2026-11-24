@@ -113,8 +113,8 @@ function PositionDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   </DetailDrawer>;
 }
 
-/** Order id = "<position id>:<intent>" (backend convention); used only when a deep link carries no ?position=. */
-export const positionIdOf = (orderId: string) => orderId.replace(/:(ENTRY|EXIT)$/, "");
+/** Order id = "<position id>:<ENTRY|EXIT>[:<leg role>]" (backend convention); used only when a deep link carries no ?position=. */
+export const positionIdOf = (orderId: string) => orderId.replace(/:(ENTRY|EXIT)(:[A-Z]+)?$/, "");
 
 function OrderDrawer({ orderId, positionId, onClose, onPosition }: { orderId: string; positionId: string; onClose: () => void; onPosition: () => void }) {
   const detail = useResource(urls.position(positionId), parse.position, LIVE_INTERVAL);
