@@ -38,7 +38,7 @@ button { font:inherit; }
 .metric-value { margin-top:7px; font-weight:680; font-size:18px; white-space:nowrap; }
 .metric-detail { color:var(--secondary); font-size:12px; margin-top:2px; }
 .positive { color:var(--positive)!important; }.negative { color:var(--negative)!important; }.warning { color:var(--warning)!important; }.accent { color:var(--accent)!important; }.muted { color:var(--muted)!important; }
-.badge { display:inline-flex; align-items:center; padding:3px 7px; border:1px solid currentColor; border-radius:2px; font-size:11px; font-weight:750; letter-spacing:.06em; white-space:nowrap; overflow-wrap:normal; word-break:keep-all; flex:none; }
+.badge { display:inline-flex; align-items:center; padding:3px 7px; border:1px solid currentColor; border-radius:2px; font-size:11px; font-weight:750; letter-spacing:.06em; white-space:nowrap; }
 .badge.SUCCESS,.badge.APPROVED,.badge.PASS,.badge.BULLISH,.badge.OPEN,.badge.HEALTHY { color:var(--positive); }
 .badge.FAILED,.badge.REJECTED,.badge.FAIL,.badge.BEARISH,.badge.UNHEALTHY,.badge.ERROR,.badge.CRITICAL { color:var(--negative); }
 .badge.PARTIAL,.badge.WARN,.badge.LTP_ESTIMATE,.badge.DEGRADED { color:var(--warning); }

@@ -97,7 +97,7 @@ export function EnginesTable() {
         {status.engines.map(engine => <tr key={engine.id} data-state={engine.state}>
           <th scope="row">{engine.detail_href ? <Link href={engine.detail_href}>{engine.label}</Link> : engine.label}<small>{pretty(engine.family)}{engine.version ? ` · ${engine.version}` : ""}</small></th>
           <td><EngineStateBadge state={engine.state}/>{engine.state_reason && <small>{engine.state_reason}</small>}</td>
-          <td><ModeBadge mode={engine.mode}/></td>
+          <td className="mode-cell"><ModeBadge mode={engine.mode}/></td>
           <td>{engine.instrument ?? DASH}</td>
           <td>{age(engine.last_update, now)}<small>{stampIST(engine.last_update)}</small></td>
           <td>{positionText(engine)}{engine.active_position && <small>Mark {dash(engine.active_position.mark_price, v => number(v))} · {engine.active_position.mark_at ? timeIST(engine.active_position.mark_at) : DASH}</small>}</td>

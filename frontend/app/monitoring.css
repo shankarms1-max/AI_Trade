@@ -353,3 +353,6 @@ button { min-width:44px; }
   .mcx-timeline>li { grid-template-columns:1fr; }
   .poll-retry { margin-left:0; }
 }
+/* Single-word mode badges (PAPER / RESEARCH / LIVE) must never break per letter in narrow table columns. */
+td.mode-cell .badge, .engine-badges .badge { white-space:nowrap; overflow-wrap:normal; word-break:keep-all; }
+td.mode-cell { min-width:96px; }
