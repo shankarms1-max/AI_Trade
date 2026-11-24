@@ -98,6 +98,18 @@ $C --profile ingress up -d --no-deps ast-direct-ingress
 # View via: ssh -L 8088:127.0.0.1:8088 <research-host>  then  http://127.0.0.1:8088/ast-futures
 ```
 
+The ingress forces `Cache-Control: private, no-store` on every page, data and error response, including its own 401 challenge, so no authenticated response is reusable by a shared cache. Only the content-hashed `/_next/static/*` build assets, which contain no data or secrets, stay `public, immutable`.
+
+Validation against disposable local servers (never production):
+
+```sh
+AST_VALIDATION_BASE_URL=http://127.0.0.1:3108 AST_VALIDATION_API_ORIGIN=http://127.0.0.1:8010 \
+AST_VALIDATION_VIEWER="Basic <base64 viewer:password>" AST_VALIDATION_SECRET_FILES=<api-token>,<viewer-sha256> \
+  node frontend/scripts/validate-ast-futures.mjs
+```
+
+It renders the empty-journal, live-position, stale-worker and journal-failure states at 1440/390/360 px. It also checks authentication bypasses, GET-only and path/filter allowlists, response caching, secret exposure in every browser response, and the API's token, method and docs restrictions.
+
 For a public HTTPS name instead, set `AST_DIRECT_SITE_ADDRESS` to the domain, publish 80 and 443 through firewall and compose, and keep Basic auth. PostgreSQL is never published. The rest of the workspace pages expect the ACTS backend and show "unavailable" on this isolated host.
 
 ## Historical regression gate

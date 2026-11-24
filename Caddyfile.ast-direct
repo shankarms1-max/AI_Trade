@@ -8,7 +8,21 @@
 	}
 
 	handle {
-		reverse_proxy ast-direct-frontend:3000
+		reverse_proxy {$AST_DIRECT_FRONTEND_UPSTREAM:ast-direct-frontend:3000}
+	}
+
+	# Every page and data response sits behind authentication: never reusable by a shared cache.
+	# Content-hashed build assets (no data or secrets) keep their immutable caching.
+	# Deferred so it overrides upstream values (for example the prerendered page's s-maxage).
+	@authenticated not path /_next/static/*
+	header @authenticated {
+		defer
+		Cache-Control "private, no-store"
+	}
+
+	# Ingress-generated errors (including the Basic-auth 401 challenge) are never cacheable either.
+	handle_errors {
+		header Cache-Control "private, no-store"
 	}
 
 	header {
