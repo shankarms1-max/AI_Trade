@@ -7,6 +7,8 @@ import type { Position } from "@/types/portfolio";
 
 export const isAttention = (p: Position) => p.flags.length > 0 || p.status === "UNRESOLVED" || p.status === "EXPIRED_UNPRICED";
 export const rowClass = (p: Position) => isAttention(p) && (p.status === "OPEN" || p.status === "UNRESOLVED") ? "is-critical" : p.status === "OPEN" && p.mark.basis !== "EXECUTABLE_BID_ASK" ? "is-warn" : undefined;
+/** The expiry has its own column: drop the redundant " · exp YYYY-MM-DD" suffix from the label (full text stays in the tooltip). */
+export const shortContract = (contract: string) => contract.replace(/ · exp \d{4}-\d{2}-\d{2}$/, "");
 export const legsExpander = (p: Position) => p.legs.length > 1 || p.structure === "CREDIT_SPREAD" ? <ExpandableLegs position={p}/> : null;
 
 const level = (l: Position["stop"]) => l?.level == null ? null : <span title={l.rule ?? l.basis ?? undefined}>{num(l.level)}</span>;
@@ -22,7 +24,7 @@ export function MarkCell({ p }: { p: Position }) {
 
 type Opts = { onOpen: (p: Position) => void; compact?: boolean; showVersion?: boolean };
 const strategyCol = (o: Opts): Column<Position> => ({ key: "strategy", header: "Strategy", sticky: true, render: p => <StrategyChip label={p.strategy_label} family={p.family} version={o.compact ? null : undefined}/> });
-const contractCol = (o: Opts): Column<Position> => ({ key: "contract", header: "Contract", wrap: true, render: p => <button type="button" className="tm-link" onClick={() => o.onOpen(p)} aria-label={`Open position ${p.contract}`}>{p.contract}</button> });
+const contractCol = (o: Opts): Column<Position> => ({ key: "contract", header: "Contract", render: p => <button type="button" className="tm-link" title={p.contract} onClick={() => o.onOpen(p)} aria-label={`Open position ${p.contract}`}>{shortContract(p.contract)}</button> });
 const statusCol: Column<Position> = { key: "status", header: "Status", render: p => <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}><StatusBadge dimension="position" value={p.status} label="Position"/><FlagBadges flags={p.flags}/></span> };
 
 /** Open / unresolved positions: current executable mark + basis, stops, unrealized and estimated net liquidation. */

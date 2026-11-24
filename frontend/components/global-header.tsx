@@ -1,12 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { useUrlState } from "@/components/filters-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AlertsPopover } from "@/components/terminal/alerts";
 import { GlobalFilterBar } from "@/components/terminal/filters";
 import { StatusBadge, type Tone } from "@/components/terminal/primitives";
-import { pageLabel } from "@/components/navigation";
 import { ANALYTICS_INTERVAL, LIVE_INTERVAL, useResource } from "@/hooks/use-resource";
 import { parse, urls } from "@/lib/portfolio-api";
 import { istClock, title } from "@/lib/terminal-format";
@@ -15,7 +13,7 @@ import type { Header } from "@/types/portfolio";
 const CONNECTIVITY: Record<string, { text: string; tone: Tone }> = {
   CONNECTED_INFERRED: { text: "Connected", tone: "pos" },
   DISCONNECTED_INFERRED: { text: "Disconnected", tone: "neg" },
-  NOT_APPLICABLE_MARKETS_CLOSED: { text: "N/A · markets closed", tone: "na" },
+  NOT_APPLICABLE_MARKETS_CLOSED: { text: "N/A · closed", tone: "na" },
   UNKNOWN: { text: "Unknown", tone: "na" },
 };
 
@@ -41,7 +39,6 @@ function Freshness({ header }: { header: Header }) {
 }
 
 export function GlobalHeader() {
-  const pathname = usePathname();
   const { filters, set, search } = useUrlState();
   const header = useResource(urls.header(), parse.header, LIVE_INTERVAL);
   const alerts = useResource(urls.alerts(), parse.alerts, LIVE_INTERVAL);
@@ -52,7 +49,6 @@ export function GlobalHeader() {
   const warning = alerts.data?.warning ?? h?.warning_alerts ?? 0;
   return <header className="tm-header" aria-label="Terminal status">
     <div className="tm-status-row">
-      <strong style={{ fontSize: 13 }} aria-label="Current page">{pageLabel(pathname)}</strong>
       <Clock/>
       {h ? <>
         <span className="tm-hitem">

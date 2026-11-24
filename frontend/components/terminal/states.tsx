@@ -30,6 +30,12 @@ export function StaleBar({ resource, label }: { resource: Pick<Resource<unknown>
   </div>;
 }
 
+/** PAPER is the default; there is no live execution, so LIVE is an explicit empty state and never mixes PAPER numbers in. */
+export function LiveGate({ live, children }: { live: boolean; children: ReactNode }) {
+  if (!live) return <>{children}</>;
+  return <EmptyState hint="No live execution path exists in this deployment. LIVE totals are never mixed with PAPER.">LIVE: no live engines</EmptyState>;
+}
+
 /**
  * Standard data gate: Loading -> Error/Disconnected (with Retry) -> [stale bar +] content. Previous data is never discarded
  * on a failed refresh, so tables keep their scroll position, filters and selection.

@@ -8,6 +8,8 @@ export type Column<T> = {
 };
 export type SortState = { key: string; desc: boolean };
 
+/** Full-page tables scroll inside their own wrapper so the sticky header and first column stay visible. */
+export const TABLE_MAX = "calc(100dvh - 230px)";
 const INTERACTIVE = "a,button,input,select,summary,label,[role=button]";
 
 /**
