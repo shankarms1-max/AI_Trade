@@ -5,9 +5,10 @@ import path from 'node:path';
 const base=process.env.RESPONSIVE_BASE_URL??'http://127.0.0.1:3108';
 if(!['127.0.0.1','localhost'].includes(new URL(base).hostname))throw Error('Responsive fixtures require a local frontend');
 const output=process.env.RESPONSIVE_ARTIFACT_DIR??'/tmp/ai-trade-responsive';fs.mkdirSync(path.join(output,'screenshots'),{recursive:true});
-const fixture=JSON.parse(fs.readFileSync(new URL('../tests/fixtures/monitoring.json',import.meta.url))).fixtures;
+const fixture={...JSON.parse(fs.readFileSync(new URL('../tests/fixtures/monitoring.json',import.meta.url))).fixtures,
+ ...JSON.parse(fs.readFileSync(new URL('../tests/fixtures/engines-mcx.json',import.meta.url))).fixtures};
 const widths=[[1440,900],[1280,800],[1024,768],[768,1024],[430,932],[390,844],[360,800]];
-const routes=[['overview','/'],['phase15','/phase15'],['strategies','/nifty'],['positions','/positions'],['trades','/trades'],['research','/nifty/research'],['history','/history'],['snapshot','/history/1'],['shadow','/shadow'],['shadow-detail','/shadow/7'],['system','/system'],['commodity','/commodity-acts'],['crude','/commodity-acts/CRUDEOILM'],['gas','/commodity-acts/NATGASMINI']];
+const routes=[['overview','/'],['phase15','/phase15'],['strategies','/nifty'],['positions','/positions'],['trades','/trades'],['research','/nifty/research'],['history','/history'],['snapshot','/history/1'],['shadow','/shadow'],['shadow-detail','/shadow/7'],['system','/system'],['commodity','/commodity-acts'],['crude','/commodity-acts/CRUDEOILM'],['gas','/commodity-acts/NATGASMINI'],['engines','/engines'],['mcx-futures','/mcx-futures'],['mcx-crude','/mcx-futures/CRUDEOILM'],['mcx-gas','/mcx-futures/NATGASMINI'],['ast-futures','/ast-futures']];
 const results={notice:'SYNTHETIC UI FIXTURES ONLY; no production, broker, database or actual fill evidence',renders:[],states:[],navigation:[]};
 const save=()=>fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(results,null,2));
 async function prepare(context,theme='dark',state='normal'){
@@ -18,6 +19,8 @@ async function prepare(context,theme='dark',state='normal'){
  await context.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url());const api=url.pathname.indexOf('/api/');
   if(api>=0){const key=url.pathname.slice(api);requests.push({path:key,method:req.method()});
+   // AST Direct runs in its isolated stack: this deployment's bridge answers 503 not-configured.
+   if(req.method()==='GET'&&key.startsWith('/api/ast-direct/'))return route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({status:'UNAVAILABLE',code:'SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED'})});
    if(req.method()!=='GET'||!Object.hasOwn(data,key)){unexpected.push({path:key,method:req.method()});return route.abort();}
    if(state==='commodity-unavailable'&&key.startsWith('/api/commodity-acts/'))return route.fulfill({status:404,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:'{}'});
    if(state==='unavailable'&&key.startsWith('/api/phase15'))return route.fulfill({status:503,headers:{'access-control-allow-origin':'*'},contentType:'application/json',body:'{}'});
@@ -70,7 +73,7 @@ for(const state of ['normal','inside','below','stale','unavailable','commodity-u
   await page.getByRole('button',{name:'More navigation'}).click();const dialog=page.getByRole('dialog',{name:'More'});await dialog.waitFor({state:'visible'});await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
   results.navigation.push({moreClosesWithEscape:true,focusReturned:await page.getByRole('button',{name:'More navigation'}).evaluate(e=>e===document.activeElement)});
   await page.getByRole('button',{name:'Switch to light theme'}).click();if(await page.locator('html').getAttribute('data-theme')!=='light')throw Error('Theme switch failed');
-  await page.goto(base+'/trades',{waitUntil:'networkidle'});await page.getByText('Filters · Today',{exact:true}).click();await page.getByLabel('Strategy',{exact:true}).selectOption('ORB_15');
+  await page.goto(base+'/trades',{waitUntil:'networkidle'});await page.getByText('Filters · Today',{exact:true}).click();await page.getByLabel('Strategy',{exact:true}).selectOption('ACTS_V3');
   await page.screenshot({path:path.join(output,'screenshots/mobile-filters-light.png')});
   const expired=page.getByRole('row').filter({hasText:'CONTRACT EXPIRED / EXIT PRICE UNAVAILABLE'}).first();if(!await expired.count())throw Error('Unpriced expiry evidence lost');const expiredText=await expired.innerText();if(!expiredText.includes('N/A')||expiredText.includes('₹0.00'))throw Error('Unpriced expiry fabricated a value');
  }

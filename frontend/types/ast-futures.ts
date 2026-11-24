@@ -31,10 +31,13 @@ export type AstStatus = {
   position: AstTrade | null; position_detail: AstTrade | null; mark: AstMark | null; position_mark_gross_inr: number | null;
   trades_today: AstTrade[]; today_gross_points: number;
   cumulative_closed_trades: number; cumulative_gross_points: number; cumulative_net_research_points: number | null;
-  forced_exit_status: string; journal_sequence: number; journal_head: string; journal_verification: string;
+  /** Null when the journal cursor does not exist yet (fresh database). */
+  forced_exit_status: string; journal_sequence: number | null; journal_head: string | null; journal_verification: string;
   fill_basis: string; fill_basis_note: string;
 };
 export type AstPage<T> = { items: T[]; total: number; limit: number; offset: number; has_more: boolean };
+/** /api/ast-direct/trades also reports the paper fill basis of every listed trade. */
+export type AstTradePage = AstPage<AstTrade> & { fill_basis: string | null };
 export type AstEvent = { sequence: number; event_type: string; timestamp: string | null; snapshot_id: number; trade_id: string | null;
   event_hash: string; previous_hash: string; summary: Record<string, unknown> };
 export type AstEventPage = AstPage<AstEvent> & { scope: string; journal_sequence: number | null; journal_head: string | null };

@@ -1,16 +1,15 @@
-import type { AstEventPage, AstPage, AstPerformance, AstStatus, AstTrade } from "@/types/ast-futures";
+import type { AstEventPage, AstPerformance, AstStatus, AstTradePage } from "@/types/ast-futures";
+import { fetchJson } from "@/lib/http";
 
 /** Same-origin, server-side bridge only. The browser never learns database, API token or broker credentials. */
 const BASE = "/monitor-data/ast-direct/api/ast-direct";
-export class AstApiError extends Error { constructor(public status: number) { super(`AST read failed (${status})`); } }
-async function read<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}/${path}`, { headers: { Accept: "application/json" }, cache: "no-store", credentials: "same-origin" });
-  if (!response.ok) throw new AstApiError(response.status);
-  return response.json() as Promise<T>;
-}
+/** Kept for existing imports; failures are typed RequestErrors (503 SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED -> "not_configured"). */
+export { RequestError as AstApiError } from "@/lib/http";
+const read = <T,>(path: string, signal?: AbortSignal): Promise<T> =>
+  fetchJson(`${BASE}/${path}`, { signal, credentials: "same-origin" }) as Promise<T>;
 export const astApi = {
-  status: () => read<AstStatus>("status"),
-  trades: (date?: string, limit = 100) => read<AstPage<AstTrade>>(`trades?limit=${limit}${date ? `&date=${encodeURIComponent(date)}` : ""}`),
-  events: (limit = 25) => read<AstEventPage>(`events?scope=lifecycle&limit=${limit}`),
-  performance: () => read<AstPerformance>("performance"),
+  status: (signal?: AbortSignal) => read<AstStatus>("status", signal),
+  trades: (date?: string, limit = 100, signal?: AbortSignal) => read<AstTradePage>(`trades?limit=${limit}${date ? `&date=${encodeURIComponent(date)}` : ""}`, signal),
+  events: (limit = 25, signal?: AbortSignal) => read<AstEventPage>(`events?scope=lifecycle&limit=${limit}`, signal),
+  performance: (signal?: AbortSignal) => read<AstPerformance>("performance", signal),
 };

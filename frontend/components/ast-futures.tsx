@@ -3,12 +3,14 @@ import { useCallback, type ReactNode } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { usePolling } from "@/hooks/use-polling";
 import { astApi } from "@/lib/ast-futures";
-import { ageLabel, dateIST, integer, money, number, percent, timeIST } from "@/lib/format";
+import { ageLabel, dateIST, integer, istDateKey, money, number, parseTimestamp, percent, timeIST } from "@/lib/format";
 import { observationState } from "@/lib/monitoring";
 import { Icon } from "@/components/icons";
 import { ResponsiveTable } from "@/components/responsive-table";
 import { SectionBoundary } from "@/components/section-boundary";
 import { Badge, Empty, Metric, Panel, SectionError } from "@/components/ui";
+import { PollStatus, RetryButton } from "@/components/poll-status";
+import { describeFailure } from "@/lib/http";
 import type { AstPerformance, AstStatus, AstTrade } from "@/types/ast-futures";
 
 const ACTIVE = ["PENDING_PAPER_ENTRY", "OPEN", "PENDING_PAPER_EXIT", "UNRESOLVED_EXPOSURE"];
@@ -38,7 +40,7 @@ const stamp = (value?: string | null) => value ? `${dateIST(value)} · ${timeIST
 const tone = (value: number | null | undefined) => value == null ? "" : value > 0 ? "positive" : value < 0 ? "negative" : "";
 const signed = (value: number | null | undefined, digits = 2) => value == null ? "N/A" : `${value > 0 ? "+" : ""}${number(value, digits)}`;
 const istClock = (now: number) => new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(now));
-const istDate = (value: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date(value));
+const istDate = (value: string) => istDateKey(value);
 
 /** Today's capture exists only when the latest observation belongs to the reported trading date. */
 function observedToday(status: AstStatus): boolean {
@@ -77,7 +79,8 @@ function InstrumentHero({ status, now }: { status: AstStatus; now: number }) {
   const futures = status.futures_instrument;
   const today = observedToday(status);
   const config = status.policy_configuration;
-  const age = status.last_observation_at ? Math.max(0, Math.floor((now - Date.parse(status.last_observation_at)) / 1000)) : null;
+  const observed = parseTimestamp(status.last_observation_at);
+  const age = observed != null ? Math.max(0, Math.floor((now - observed) / 1000)) : null;
   return <section className="instrument-identity ast-instrument" aria-label="NIFTY futures instrument">
     <p className="eyebrow"><span/>NIFTY futures · observed contract</p>
     {today && futures ? <>
@@ -186,13 +189,13 @@ function TradeTable({ trades, label }: { trades: AstTrade[]; label: string }) {
 
 function DailyPaperChart({ daily }: { daily: AstPerformance["daily"] }) {
   return <div className="chart-sm" aria-label="Cumulative forward paper points by day"><ResponsiveContainer width="100%" height="100%"><LineChart data={daily}>
-    <CartesianGrid stroke="var(--border)"/><XAxis dataKey="date" stroke="var(--muted)" fontSize={10}/><YAxis stroke="var(--muted)" fontSize={11}/>
+    <CartesianGrid stroke="var(--border)"/><XAxis dataKey="date" stroke="var(--muted)" fontSize={10} minTickGap={24} interval="preserveStartEnd" tickMargin={6}/><YAxis stroke="var(--muted)" fontSize={11} width={52} tickMargin={4}/>
     <Tooltip contentStyle={{ color: "var(--text)", background: "var(--panel)", border: "1px solid var(--border)" }}/><ReferenceLine y={0} stroke="var(--muted)"/>
     <Line dataKey="cumulative_points" name="Cumulative paper points" stroke="var(--accent)" strokeWidth={2} dot={false}/></LineChart></ResponsiveContainer></div>;
 }
 
 function ForwardPerformance() {
-  const loader = useCallback(() => astApi.performance(), []);
+  const loader = useCallback((signal: AbortSignal) => astApi.performance(signal), []);
   const { data, error } = usePolling(loader, 15000);
   if (error) return <Panel title="FORWARD PAPER PERFORMANCE"><SectionError>FORWARD PAPER PERFORMANCE UNAVAILABLE</SectionError></Panel>;
   if (!data) return <Panel title="FORWARD PAPER PERFORMANCE"><Empty>Loading forward paper performance</Empty></Panel>;
@@ -228,7 +231,7 @@ function DecisionEvidence({ status }: { status: AstStatus }) {
 }
 
 function Journal({ status }: { status: AstStatus | null }) {
-  const loader = useCallback(() => astApi.events(25), []);
+  const loader = useCallback((signal: AbortSignal) => astApi.events(25, signal), []);
   const { data, error } = usePolling(loader, 15000);
   return <Panel title="JOURNAL · AUDIT EVIDENCE">
     <dl className="commodity-fields">
@@ -247,14 +250,19 @@ function Journal({ status }: { status: AstStatus | null }) {
 
 export function AstFuturesMonitor() {
   // The clock is read once per poll, outside render, so ages refresh with every status response.
-  const loader = useCallback(() => astApi.status().then(value => ({ value, now: Date.now() })), []);
-  const { data, error } = usePolling(loader, 5000);
+  const loader = useCallback((signal: AbortSignal) => astApi.status(signal).then(value => ({ value, now: Date.now() })), []);
+  const poll = usePolling(loader, 5000);
+  const { data, failure } = poll;
   const status = data?.value ?? null;
   const now = data?.now ?? 0;
   const active = status?.position && ACTIVE.includes(status.position.state);
+  // The AST engine runs in its own isolated stack; elsewhere the bridge answers 503 SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED.
+  // That is a deployment fact, not an outage: show it once and stop the dependent sections from polling.
+  if (failure?.kind === "not_configured" && !status) return <AstNotConfigured code={failure.code} onRetry={() => void poll.refresh()}/>;
   return <>
-    {error ? <SectionError>AST STATUS UNAVAILABLE — the read API or bridge is not reachable. Other sections keep loading independently.</SectionError>
+    {failure && !status ? <SectionError>AST STATUS UNAVAILABLE — {describeFailure(failure)}. The read API or bridge is not reachable. Other sections keep loading independently. <RetryButton onRetry={() => void poll.refresh()}/></SectionError>
       : !status ? <Empty>Loading AST futures status</Empty> : <>
+        <PollStatus poll={poll} label="AST STATUS"/>
         <StatusStrip status={status} now={now}/>
         <Alerts status={status} now={now}/>
         {active && <SectionBoundary label="Current paper position"><PositionCard status={status}/></SectionBoundary>}
@@ -268,6 +276,17 @@ export function AstFuturesMonitor() {
     <SectionBoundary label="Forward paper performance"><ForwardPerformance/></SectionBoundary>
     <SectionBoundary label="Journal"><Journal status={status}/></SectionBoundary>
   </>;
+}
+
+export function AstNotConfigured({ code, onRetry }: { code: string | null; onRetry: () => void }) {
+  return <section className="panel ast-not-configured" aria-label="AST Futures not configured" role="status">
+    <header className="panel-head"><h2 className="panel-title">NOT CONFIGURED IN THIS DEPLOYMENT</h2><Badge value="NOT_CONFIGURED" tone="neutral"/></header>
+    <div className="panel-body">
+      <p><strong>AST Futures runs in its isolated stack; not configured in this deployment.</strong></p>
+      <p className="muted">The read-only bridge reported {code ?? "SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED"}: either this deployment has no AST Direct origin, or the isolated AST stack is unreachable from it. No AST data is shown rather than guessed. Open the dashboard served by the AST stack to monitor it.</p>
+      <RetryButton onRetry={onRetry} label="Check again"/>
+    </div>
+  </section>;
 }
 
 export function AstPaperBanner() {

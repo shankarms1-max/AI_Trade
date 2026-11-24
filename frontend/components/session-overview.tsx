@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { api } from "@/lib/api";
-import { ageLabel, ageSeconds, money, number, pretty, timeIST } from "@/lib/format";
+import { ageLabel, ageSeconds, money, number, parseTimestamp, pretty, timeIST } from "@/lib/format";
 import { usePolling } from "@/hooks/use-polling";
 import { Badge, Empty, Panel } from "@/components/ui";
 import type {
@@ -35,7 +35,7 @@ const reasonLabels: Record<string,string> = {
 
 const istParts = (value:string) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
   timeZone:"Asia/Kolkata", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false,
-}).formatToParts(new Date(value)).map(item=>[item.type,item.value]));
+}).formatToParts(new Date(parseTimestamp(value) ?? NaN)).map(item=>[item.type,item.value]));
 const dateIST = (value:string) => { const p=istParts(value); return `${p.year}-${p.month}-${p.day}`; };
 const minuteIST = (value:string) => { const p=istParts(value); return `${p.hour}:${p.minute}`; };
 const safePercent = (value:number|null|undefined) => value == null ? unavailable : `${number(value,1)}%`;
