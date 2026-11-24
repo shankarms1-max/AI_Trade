@@ -1,0 +1,6452 @@
+{
+ "label": "SYNTHETIC portfolio payloads from the real projection code (backend/tests/portfolio_support.py); not market data, not production data",
+ "summary": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "window": {
+   "from": "2026-11-24",
+   "to": "2026-11-24",
+   "timezone": "Asia/Kolkata"
+  },
+  "mode": "ALL",
+  "currency": "INR",
+  "pnl": {
+   "realized_gross": -60.0,
+   "realized_net": -108.96,
+   "unrealized_gross": -30.0,
+   "incurred_charges": 56.62,
+   "incurred_charges_detail": {
+    "total": 56.62,
+    "orders": 15,
+    "turnover": 348060.0,
+    "items": {
+     "ctt": 13.37,
+     "exchange": 15.64,
+     "sebi_fee": 0.36,
+     "stamp_duty": 4.14,
+     "brokerage": 0.0,
+     "gst": 2.88,
+     "stt": 20.28
+    }
+   },
+   "estimated_exit_charges": 8.32,
+   "total_net_pnl": -146.62,
+   "net_liquidation_pnl": -154.94,
+   "partial": true,
+   "excluded_open_positions": 1,
+   "excluded_unpriced_closed": 0,
+   "note": "PARTIAL: 1 open position(s) without a fresh executable mark and 0 closed position(s) without an exit price are excluded from these totals."
+  },
+  "counts": {
+   "open_positions": 3,
+   "unresolved_positions": 1,
+   "executed_trades": 6,
+   "closed_trades": 4,
+   "winning_trades": 3,
+   "pending_orders": 0,
+   "rejected_orders": 2,
+   "orders_in_window": 17
+  },
+  "charge_model": {
+   "brokerage_per_order": 0.0,
+   "status": {
+    "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+    "stt": "STATUTORY",
+    "stamp_duty": "STATUTORY",
+    "sebi_fee": "STATUTORY",
+    "gst": "STATUTORY",
+    "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+   }
+  },
+  "attention": [
+   {
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "label": "NIFTY ACTS V3",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+    "flags": [
+     "EXPIRED_NOT_SETTLED",
+     "PAST_FORCED_EXIT"
+    ]
+   }
+  ]
+ },
+ "positions_open": {
+  "tab": "open",
+  "tab_counts": {
+   "open": 3,
+   "unresolved": 2,
+   "closed": 5
+  },
+  "total": 3,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+    "expiry": "2026-11-23",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [
+     "EXPIRED_NOT_SETTLED",
+     "PAST_FORCED_EXIT"
+    ],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-23T12:24:30+05:30",
+    "entry_at": "2026-11-23T12:24:45+05:30",
+    "exit_at": null,
+    "entry_price": 26.55,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "STALE",
+     "price": null,
+     "at": "2026-11-23T12:46:00+05:30",
+     "age_seconds": 94440.0,
+     "bid": null,
+     "ask": null,
+     "reason": "EXPIRED_CONTRACT_NOT_SETTLED",
+     "last_known_price": 28.15
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24274.25,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 39.825,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "entry": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 95715.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-12:24",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25600.0,
+      "symbol": "NIFTY26NOV25600CE",
+      "quantity": 65,
+      "entry_price": 63.95,
+      "exit_price": null,
+      "bid": 63.95,
+      "ask": 64.45,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26000.0,
+      "symbol": "NIFTY26NOV26000CE",
+      "quantity": 65,
+      "entry_price": 37.4,
+      "exit_price": null,
+      "bid": 36.9,
+      "ask": 37.4,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T4-00000000000000000000",
+     "first_sequence": 11,
+     "last_sequence": 11,
+     "events": 1
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 26.55
+   },
+   {
+    "position_id": "mcx-crudeoilm:M2",
+    "trade_id": "M2",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "expiry": null,
+    "direction": "LONG",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 10,
+    "quantity": 10,
+    "multiplier": 10,
+    "decided_at": "2026-11-24T14:55:00+05:30",
+    "entry_at": "2026-11-24T14:55:00+05:30",
+    "exit_at": null,
+    "entry_price": 5600.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": null,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "EXECUTABLE_BID_ASK",
+     "price": 5610.0,
+     "at": "2026-11-24T14:59:50+05:30",
+     "age_seconds": 10.0,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": 5610.0
+    },
+    "spread_width": null,
+    "defined_max_loss": 100.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 5590.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": 100.0,
+    "est_exit_charges": 7.07,
+    "est_net_liquidation": 90.36,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "entry": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "engine_recorded_net": null,
+    "engine_recorded_fees": null,
+    "holding_seconds": 300.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "BUY",
+      "option_type": null,
+      "strike": null,
+      "symbol": "CRUDEOILM18DEC26FUT",
+      "quantity": 10,
+      "entry_price": 5600.0,
+      "exit_price": null,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M2",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "trade_id": "T3-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25700/26100 CE bear call spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T14:50:00+05:30",
+    "entry_at": "2026-11-24T14:50:15+05:30",
+    "exit_at": null,
+    "entry_price": 36.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "EXECUTABLE_BID_ASK",
+     "price": 38.0,
+     "at": "2026-11-24T14:59:30+05:30",
+     "age_seconds": 30.0,
+     "bid": 1.0,
+     "ask": 39.0,
+     "reason": null,
+     "last_known_price": 38.0
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 23660.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 54.0,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": -130.0,
+    "est_exit_charges": 1.25,
+    "est_net_liquidation": -136.34,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 5.09,
+      "orders": 2,
+      "turnover": 2860.0,
+      "items": {
+       "stt": 3.9,
+       "exchange": 1.0,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.18
+      }
+     },
+     "entry": {
+      "total": 5.09,
+      "orders": 2,
+      "turnover": 2860.0,
+      "items": {
+       "stt": 3.9,
+       "exchange": 1.0,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.18
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 585.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-14:50",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25700.0,
+      "symbol": "NIFTY26DEC25700CE",
+      "quantity": 65,
+      "entry_price": 40.0,
+      "exit_price": null,
+      "bid": 40.0,
+      "ask": 40.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26100.0,
+      "symbol": "NIFTY26DEC26100CE",
+      "quantity": 65,
+      "entry_price": 4.0,
+      "exit_price": null,
+      "bid": 3.5,
+      "ask": 4.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T3-00000000000000000000",
+     "first_sequence": 9,
+     "last_sequence": 10,
+     "events": 2
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 36.0
+   }
+  ]
+ },
+ "positions_closed": {
+  "tab": "closed",
+  "tab_counts": {
+   "open": 3,
+   "unresolved": 2,
+   "closed": 5
+  },
+  "total": 5,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "position_id": "mcx-natgasmini:M3",
+    "trade_id": "M3",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-natgasmini",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "NATGASMINI",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "NATGASMINI18DEC26FUT",
+    "expiry": null,
+    "direction": "SHORT",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 250,
+    "quantity": 250,
+    "multiplier": 250,
+    "decided_at": "2026-11-24T12:00:00+05:30",
+    "entry_at": "2026-11-24T12:00:00+05:30",
+    "exit_at": "2026-11-24T14:00:00+05:30",
+    "entry_price": 310.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": 308.5,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": null,
+    "defined_max_loss": 500.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 312.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 375.0,
+    "realized_gross_engine": 375.0,
+    "charges": {
+     "incurred": {
+      "total": 13.3,
+      "orders": 2,
+      "turnover": 154625.0,
+      "items": {
+       "ctt": 7.75,
+       "exchange": 3.25,
+       "sebi_fee": 0.16,
+       "stamp_duty": 1.54,
+       "brokerage": 0.0,
+       "gst": 0.62
+      }
+     },
+     "entry": {
+      "total": 9.76,
+      "orders": 1,
+      "turnover": 77500.0,
+      "items": {
+       "ctt": 7.75,
+       "exchange": 1.63,
+       "sebi_fee": 0.08,
+       "stamp_duty": 0.0,
+       "brokerage": 0.0,
+       "gst": 0.31
+      }
+     },
+     "exit": {
+      "total": 3.54,
+      "orders": 1,
+      "turnover": 77125.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.62,
+       "sebi_fee": 0.08,
+       "stamp_duty": 1.54,
+       "brokerage": 0.0,
+       "gst": 0.31
+      }
+     }
+    },
+    "realized_net": 361.7,
+    "engine_recorded_net": null,
+    "engine_recorded_fees": null,
+    "holding_seconds": 7200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "ATR_TRAIL_STOP",
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "SELL",
+      "option_type": null,
+      "strike": null,
+      "symbol": "NATGASMINI18DEC26FUT",
+      "quantity": 250,
+      "entry_price": 310.0,
+      "exit_price": 308.5,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M3",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T11:00:00+05:30",
+    "entry_at": "2026-11-24T11:00:15+05:30",
+    "exit_at": "2026-11-24T11:20:15+05:30",
+    "entry_price": 45.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": 59.0,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 23075.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 67.5,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": -910.0,
+    "realized_gross_engine": -910.0,
+    "charges": {
+     "incurred": {
+      "total": 8.53,
+      "orders": 4,
+      "turnover": 7800.0,
+      "items": {
+       "stt": 5.17,
+       "exchange": 2.73,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.13,
+       "brokerage": 0.0,
+       "gst": 0.5
+      }
+     },
+     "entry": {
+      "total": 6.37,
+      "orders": 2,
+      "turnover": 3575.0,
+      "items": {
+       "stt": 4.88,
+       "exchange": 1.25,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.23
+      }
+     },
+     "exit": {
+      "total": 2.16,
+      "orders": 2,
+      "turnover": 4225.0,
+      "items": {
+       "stt": 0.29,
+       "exchange": 1.48,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.12,
+       "brokerage": 0.0,
+       "gst": 0.27
+      }
+     }
+    },
+    "realized_net": -918.53,
+    "holding_seconds": 1200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "SPREAD_STOP",
+    "score": 70.2,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-11:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": -1.0,
+    "mfe_points": 3.0,
+    "mae": -65.0,
+    "mfe": 195.0,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25600.0,
+      "symbol": "NIFTY26DEC25600CE",
+      "quantity": 65,
+      "entry_price": 50.0,
+      "exit_price": 62.0,
+      "bid": 50.0,
+      "ask": 50.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26000.0,
+      "symbol": "NIFTY26DEC26000CE",
+      "quantity": 65,
+      "entry_price": 5.0,
+      "exit_price": 3.0,
+      "bid": 4.5,
+      "ask": 5.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T2-00000000000000000000",
+     "first_sequence": 5,
+     "last_sequence": 8,
+     "events": 4
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 45.0
+   },
+   {
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25400/25000 PE bull put spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BULL",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T10:00:00+05:30",
+    "entry_at": "2026-11-24T10:00:15+05:30",
+    "exit_at": "2026-11-24T10:30:15+05:30",
+    "entry_price": 80.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": 75.0,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 20800.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 120.0,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 325.0,
+    "realized_gross_engine": 325.0,
+    "charges": {
+     "incurred": {
+      "total": 17.49,
+      "orders": 4,
+      "turnover": 14625.0,
+      "items": {
+       "stt": 11.21,
+       "exchange": 5.12,
+       "sebi_fee": 0.02,
+       "stamp_duty": 0.22,
+       "brokerage": 0.0,
+       "gst": 0.92
+      }
+     },
+     "entry": {
+      "total": 13.02,
+      "orders": 2,
+      "turnover": 7800.0,
+      "items": {
+       "stt": 9.75,
+       "exchange": 2.73,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.04,
+       "brokerage": 0.0,
+       "gst": 0.49
+      }
+     },
+     "exit": {
+      "total": 4.47,
+      "orders": 2,
+      "turnover": 6825.0,
+      "items": {
+       "stt": 1.46,
+       "exchange": 2.39,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.18,
+       "brokerage": 0.0,
+       "gst": 0.43
+      }
+     }
+    },
+    "realized_net": 307.51,
+    "holding_seconds": 1800.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-10:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": -1.0,
+    "mfe_points": 3.0,
+    "mae": -65.0,
+    "mfe": 195.0,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "PE",
+      "strike": 25400.0,
+      "symbol": "NIFTY26DEC25400PE",
+      "quantity": 65,
+      "entry_price": 100.0,
+      "exit_price": 90.0,
+      "bid": 100.0,
+      "ask": 100.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "PE",
+      "strike": 25000.0,
+      "symbol": "NIFTY26DEC25000PE",
+      "quantity": 65,
+      "entry_price": 20.0,
+      "exit_price": 15.0,
+      "bid": 19.5,
+      "ask": 20.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T1-00000000000000000000",
+     "first_sequence": 1,
+     "last_sequence": 4,
+     "events": 4
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 80.0
+   },
+   {
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "expiry": null,
+    "direction": "LONG",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 10,
+    "quantity": 10,
+    "multiplier": 10,
+    "decided_at": "2026-11-24T10:00:00+05:30",
+    "entry_at": "2026-11-24T10:00:00+05:30",
+    "exit_at": "2026-11-24T12:00:00+05:30",
+    "entry_price": 5600.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": 5615.0,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": null,
+    "defined_max_loss": 80.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 5592.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 150.0,
+    "realized_gross_engine": 150.0,
+    "charges": {
+     "incurred": {
+      "total": 9.64,
+      "orders": 2,
+      "turnover": 112150.0,
+      "items": {
+       "ctt": 5.62,
+       "exchange": 2.36,
+       "sebi_fee": 0.12,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.44
+      }
+     },
+     "entry": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "exit": {
+      "total": 7.07,
+      "orders": 1,
+      "turnover": 56150.0,
+      "items": {
+       "ctt": 5.62,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 0.0,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     }
+    },
+    "realized_net": 140.36,
+    "engine_recorded_net": 140.35,
+    "engine_recorded_fees": 9.65,
+    "holding_seconds": 7200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "MAX_HOLDING_TIME",
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": 20.0,
+    "mfe": 160.0,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "BUY",
+      "option_type": null,
+      "strike": null,
+      "symbol": "CRUDEOILM18DEC26FUT",
+      "quantity": 10,
+      "entry_price": 5600.0,
+      "exit_price": 5615.0,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M1",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25700/26100 CE bear call spread \u00b7 exp 2026-11-20",
+    "expiry": "2026-11-20",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "EXPIRED_UNPRICED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-19T13:00:15+05:30",
+    "entry_at": "2026-11-19T13:00:30+05:30",
+    "exit_at": null,
+    "entry_price": 27.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24245.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 40.5,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "entry": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 439170.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "CONTRACT_EXPIRED_UNPRICED",
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-13:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25700.0,
+      "symbol": "NIFTY26NOV25700CE",
+      "quantity": 65,
+      "entry_price": 30.0,
+      "exit_price": null,
+      "bid": 30.0,
+      "ask": 30.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26100.0,
+      "symbol": "NIFTY26NOV26100CE",
+      "quantity": 65,
+      "entry_price": 3.0,
+      "exit_price": null,
+      "bid": 2.5,
+      "ask": 3.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T6-00000000000000000000"
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 27.0
+   }
+  ]
+ },
+ "positions_unresolved": {
+  "tab": "unresolved",
+  "tab_counts": {
+   "open": 3,
+   "unresolved": 2,
+   "closed": 5
+  },
+  "total": 2,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+    "expiry": "2026-11-23",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [
+     "EXPIRED_NOT_SETTLED",
+     "PAST_FORCED_EXIT"
+    ],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-23T12:24:30+05:30",
+    "entry_at": "2026-11-23T12:24:45+05:30",
+    "exit_at": null,
+    "entry_price": 26.55,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "STALE",
+     "price": null,
+     "at": "2026-11-23T12:46:00+05:30",
+     "age_seconds": 94440.0,
+     "bid": null,
+     "ask": null,
+     "reason": "EXPIRED_CONTRACT_NOT_SETTLED",
+     "last_known_price": 28.15
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24274.25,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 39.825,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "entry": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 95715.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-12:24",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25600.0,
+      "symbol": "NIFTY26NOV25600CE",
+      "quantity": 65,
+      "entry_price": 63.95,
+      "exit_price": null,
+      "bid": 63.95,
+      "ask": 64.45,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26000.0,
+      "symbol": "NIFTY26NOV26000CE",
+      "quantity": 65,
+      "entry_price": 37.4,
+      "exit_price": null,
+      "bid": 36.9,
+      "ask": 37.4,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T4-00000000000000000000",
+     "first_sequence": 11,
+     "last_sequence": 11,
+     "events": 1
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 26.55
+   },
+   {
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25700/26100 CE bear call spread \u00b7 exp 2026-11-20",
+    "expiry": "2026-11-20",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "EXPIRED_UNPRICED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-19T13:00:15+05:30",
+    "entry_at": "2026-11-19T13:00:30+05:30",
+    "exit_at": null,
+    "entry_price": 27.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24245.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 40.5,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "entry": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 439170.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "CONTRACT_EXPIRED_UNPRICED",
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-13:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25700.0,
+      "symbol": "NIFTY26NOV25700CE",
+      "quantity": 65,
+      "entry_price": 30.0,
+      "exit_price": null,
+      "bid": 30.0,
+      "ask": 30.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26100.0,
+      "symbol": "NIFTY26NOV26100CE",
+      "quantity": 65,
+      "entry_price": 3.0,
+      "exit_price": null,
+      "bid": 2.5,
+      "ask": 3.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T6-00000000000000000000"
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 27.0
+   }
+  ]
+ },
+ "positions_all": {
+  "tab": "all",
+  "tab_counts": {
+   "open": 3,
+   "unresolved": 2,
+   "closed": 5
+  },
+  "total": 8,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+    "expiry": "2026-11-23",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [
+     "EXPIRED_NOT_SETTLED",
+     "PAST_FORCED_EXIT"
+    ],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-23T12:24:30+05:30",
+    "entry_at": "2026-11-23T12:24:45+05:30",
+    "exit_at": null,
+    "entry_price": 26.55,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "STALE",
+     "price": null,
+     "at": "2026-11-23T12:46:00+05:30",
+     "age_seconds": 94440.0,
+     "bid": null,
+     "ask": null,
+     "reason": "EXPIRED_CONTRACT_NOT_SETTLED",
+     "last_known_price": 28.15
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24274.25,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 39.825,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "entry": {
+      "total": 9.04,
+      "orders": 2,
+      "turnover": 6587.75,
+      "items": {
+       "stt": 6.24,
+       "exchange": 2.31,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.07,
+       "brokerage": 0.0,
+       "gst": 0.42
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 95715.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-12:24",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25600.0,
+      "symbol": "NIFTY26NOV25600CE",
+      "quantity": 65,
+      "entry_price": 63.95,
+      "exit_price": null,
+      "bid": 63.95,
+      "ask": 64.45,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26000.0,
+      "symbol": "NIFTY26NOV26000CE",
+      "quantity": 65,
+      "entry_price": 37.4,
+      "exit_price": null,
+      "bid": 36.9,
+      "ask": 37.4,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T4-00000000000000000000",
+     "first_sequence": 11,
+     "last_sequence": 11,
+     "events": 1
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 26.55
+   },
+   {
+    "position_id": "mcx-crudeoilm:M2",
+    "trade_id": "M2",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "expiry": null,
+    "direction": "LONG",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 10,
+    "quantity": 10,
+    "multiplier": 10,
+    "decided_at": "2026-11-24T14:55:00+05:30",
+    "entry_at": "2026-11-24T14:55:00+05:30",
+    "exit_at": null,
+    "entry_price": 5600.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": null,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "EXECUTABLE_BID_ASK",
+     "price": 5610.0,
+     "at": "2026-11-24T14:59:50+05:30",
+     "age_seconds": 10.0,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": 5610.0
+    },
+    "spread_width": null,
+    "defined_max_loss": 100.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 5590.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": 100.0,
+    "est_exit_charges": 7.07,
+    "est_net_liquidation": 90.36,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "entry": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "engine_recorded_net": null,
+    "engine_recorded_fees": null,
+    "holding_seconds": 300.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "BUY",
+      "option_type": null,
+      "strike": null,
+      "symbol": "CRUDEOILM18DEC26FUT",
+      "quantity": 10,
+      "entry_price": 5600.0,
+      "exit_price": null,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M2",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "trade_id": "T3-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25700/26100 CE bear call spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "OPEN",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T14:50:00+05:30",
+    "entry_at": "2026-11-24T14:50:15+05:30",
+    "exit_at": null,
+    "entry_price": 36.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "EXECUTABLE_BID_ASK",
+     "price": 38.0,
+     "at": "2026-11-24T14:59:30+05:30",
+     "age_seconds": 30.0,
+     "bid": 1.0,
+     "ask": 39.0,
+     "reason": null,
+     "last_known_price": 38.0
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 23660.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 54.0,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": -130.0,
+    "est_exit_charges": 1.25,
+    "est_net_liquidation": -136.34,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 5.09,
+      "orders": 2,
+      "turnover": 2860.0,
+      "items": {
+       "stt": 3.9,
+       "exchange": 1.0,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.18
+      }
+     },
+     "entry": {
+      "total": 5.09,
+      "orders": 2,
+      "turnover": 2860.0,
+      "items": {
+       "stt": 3.9,
+       "exchange": 1.0,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.18
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 585.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": null,
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-14:50",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25700.0,
+      "symbol": "NIFTY26DEC25700CE",
+      "quantity": 65,
+      "entry_price": 40.0,
+      "exit_price": null,
+      "bid": 40.0,
+      "ask": 40.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26100.0,
+      "symbol": "NIFTY26DEC26100CE",
+      "quantity": 65,
+      "entry_price": 4.0,
+      "exit_price": null,
+      "bid": 3.5,
+      "ask": 4.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T3-00000000000000000000",
+     "first_sequence": 9,
+     "last_sequence": 10,
+     "events": 2
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 36.0
+   },
+   {
+    "position_id": "mcx-natgasmini:M3",
+    "trade_id": "M3",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-natgasmini",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "NATGASMINI",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "NATGASMINI18DEC26FUT",
+    "expiry": null,
+    "direction": "SHORT",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 250,
+    "quantity": 250,
+    "multiplier": 250,
+    "decided_at": "2026-11-24T12:00:00+05:30",
+    "entry_at": "2026-11-24T12:00:00+05:30",
+    "exit_at": "2026-11-24T14:00:00+05:30",
+    "entry_price": 310.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": 308.5,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": null,
+    "defined_max_loss": 500.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 312.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 375.0,
+    "realized_gross_engine": 375.0,
+    "charges": {
+     "incurred": {
+      "total": 13.3,
+      "orders": 2,
+      "turnover": 154625.0,
+      "items": {
+       "ctt": 7.75,
+       "exchange": 3.25,
+       "sebi_fee": 0.16,
+       "stamp_duty": 1.54,
+       "brokerage": 0.0,
+       "gst": 0.62
+      }
+     },
+     "entry": {
+      "total": 9.76,
+      "orders": 1,
+      "turnover": 77500.0,
+      "items": {
+       "ctt": 7.75,
+       "exchange": 1.63,
+       "sebi_fee": 0.08,
+       "stamp_duty": 0.0,
+       "brokerage": 0.0,
+       "gst": 0.31
+      }
+     },
+     "exit": {
+      "total": 3.54,
+      "orders": 1,
+      "turnover": 77125.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.62,
+       "sebi_fee": 0.08,
+       "stamp_duty": 1.54,
+       "brokerage": 0.0,
+       "gst": 0.31
+      }
+     }
+    },
+    "realized_net": 361.7,
+    "engine_recorded_net": null,
+    "engine_recorded_fees": null,
+    "holding_seconds": 7200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "ATR_TRAIL_STOP",
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "SELL",
+      "option_type": null,
+      "strike": null,
+      "symbol": "NATGASMINI18DEC26FUT",
+      "quantity": 250,
+      "entry_price": 310.0,
+      "exit_price": 308.5,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M3",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T11:00:00+05:30",
+    "entry_at": "2026-11-24T11:00:15+05:30",
+    "exit_at": "2026-11-24T11:20:15+05:30",
+    "entry_price": 45.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": 59.0,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 23075.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 67.5,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": -910.0,
+    "realized_gross_engine": -910.0,
+    "charges": {
+     "incurred": {
+      "total": 8.53,
+      "orders": 4,
+      "turnover": 7800.0,
+      "items": {
+       "stt": 5.17,
+       "exchange": 2.73,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.13,
+       "brokerage": 0.0,
+       "gst": 0.5
+      }
+     },
+     "entry": {
+      "total": 6.37,
+      "orders": 2,
+      "turnover": 3575.0,
+      "items": {
+       "stt": 4.88,
+       "exchange": 1.25,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.23
+      }
+     },
+     "exit": {
+      "total": 2.16,
+      "orders": 2,
+      "turnover": 4225.0,
+      "items": {
+       "stt": 0.29,
+       "exchange": 1.48,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.12,
+       "brokerage": 0.0,
+       "gst": 0.27
+      }
+     }
+    },
+    "realized_net": -918.53,
+    "holding_seconds": 1200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "SPREAD_STOP",
+    "score": 70.2,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-11:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": -1.0,
+    "mfe_points": 3.0,
+    "mae": -65.0,
+    "mfe": 195.0,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25600.0,
+      "symbol": "NIFTY26DEC25600CE",
+      "quantity": 65,
+      "entry_price": 50.0,
+      "exit_price": 62.0,
+      "bid": 50.0,
+      "ask": 50.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26000.0,
+      "symbol": "NIFTY26DEC26000CE",
+      "quantity": 65,
+      "entry_price": 5.0,
+      "exit_price": 3.0,
+      "bid": 4.5,
+      "ask": 5.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T2-00000000000000000000",
+     "first_sequence": 5,
+     "last_sequence": 8,
+     "events": 4
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 45.0
+   },
+   {
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25400/25000 PE bull put spread \u00b7 exp 2026-12-01",
+    "expiry": "2026-12-01",
+    "direction": "BULL",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-24T10:00:00+05:30",
+    "entry_at": "2026-11-24T10:00:15+05:30",
+    "exit_at": "2026-11-24T10:30:15+05:30",
+    "entry_price": 80.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": 75.0,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 20800.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 120.0,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 325.0,
+    "realized_gross_engine": 325.0,
+    "charges": {
+     "incurred": {
+      "total": 17.49,
+      "orders": 4,
+      "turnover": 14625.0,
+      "items": {
+       "stt": 11.21,
+       "exchange": 5.12,
+       "sebi_fee": 0.02,
+       "stamp_duty": 0.22,
+       "brokerage": 0.0,
+       "gst": 0.92
+      }
+     },
+     "entry": {
+      "total": 13.02,
+      "orders": 2,
+      "turnover": 7800.0,
+      "items": {
+       "stt": 9.75,
+       "exchange": 2.73,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.04,
+       "brokerage": 0.0,
+       "gst": 0.49
+      }
+     },
+     "exit": {
+      "total": 4.47,
+      "orders": 2,
+      "turnover": 6825.0,
+      "items": {
+       "stt": 1.46,
+       "exchange": 2.39,
+       "sebi_fee": 0.01,
+       "stamp_duty": 0.18,
+       "brokerage": 0.0,
+       "gst": 0.43
+      }
+     }
+    },
+    "realized_net": 307.51,
+    "holding_seconds": 1800.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-10:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": -1.0,
+    "mfe_points": 3.0,
+    "mae": -65.0,
+    "mfe": 195.0,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "PE",
+      "strike": 25400.0,
+      "symbol": "NIFTY26DEC25400PE",
+      "quantity": 65,
+      "entry_price": 100.0,
+      "exit_price": 90.0,
+      "bid": 100.0,
+      "ask": 100.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "PE",
+      "strike": 25000.0,
+      "symbol": "NIFTY26DEC25000PE",
+      "quantity": 65,
+      "entry_price": 20.0,
+      "exit_price": 15.0,
+      "bid": 19.5,
+      "ask": 20.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T1-00000000000000000000",
+     "first_sequence": 1,
+     "last_sequence": 4,
+     "events": 4
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 80.0
+   },
+   {
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "source": "MCX_FUTURES_PAPER",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "family": "MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "structure": "FUTURES_OUTRIGHT",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "expiry": null,
+    "direction": "LONG",
+    "mode": "PAPER",
+    "status": "CLOSED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 10,
+    "quantity": 10,
+    "multiplier": 10,
+    "decided_at": "2026-11-24T10:00:00+05:30",
+    "entry_at": "2026-11-24T10:00:00+05:30",
+    "exit_at": "2026-11-24T12:00:00+05:30",
+    "entry_price": 5600.0,
+    "entry_price_basis": "FUTURES_PRICE",
+    "exit_price": 5615.0,
+    "exit_price_basis": "FUTURES_PRICE",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": null,
+    "defined_max_loss": 80.0,
+    "stop": {
+     "basis": "PRICE",
+     "level": 5592.0,
+     "rule": "ATR-based protective stop (engine config)"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": 150.0,
+    "realized_gross_engine": 150.0,
+    "charges": {
+     "incurred": {
+      "total": 9.64,
+      "orders": 2,
+      "turnover": 112150.0,
+      "items": {
+       "ctt": 5.62,
+       "exchange": 2.36,
+       "sebi_fee": 0.12,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.44
+      }
+     },
+     "entry": {
+      "total": 2.57,
+      "orders": 1,
+      "turnover": 56000.0,
+      "items": {
+       "ctt": 0.0,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 1.12,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     },
+     "exit": {
+      "total": 7.07,
+      "orders": 1,
+      "turnover": 56150.0,
+      "items": {
+       "ctt": 5.62,
+       "exchange": 1.18,
+       "sebi_fee": 0.06,
+       "stamp_duty": 0.0,
+       "brokerage": 0.0,
+       "gst": 0.22
+      }
+     }
+    },
+    "realized_net": 140.36,
+    "engine_recorded_net": 140.35,
+    "engine_recorded_fees": 9.65,
+    "holding_seconds": 7200.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "MAX_HOLDING_TIME",
+    "score": 88.0,
+    "score_band": null,
+    "score_components": null,
+    "cycle_id": "mcx-cyc",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": 20.0,
+    "mfe": 160.0,
+    "legs": [
+     {
+      "role": "OUTRIGHT",
+      "side_entry": "BUY",
+      "option_type": null,
+      "strike": null,
+      "symbol": "CRUDEOILM18DEC26FUT",
+      "quantity": 10,
+      "entry_price": 5600.0,
+      "exit_price": 5615.0,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null
+     }
+    ],
+    "journal": {
+     "table": "mcx_futures_trades",
+     "id": "M1",
+     "last_sequence": 1
+    },
+    "provenance": {
+     "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+     "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": null
+   },
+   {
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "source": "ACTS_PAPER",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "strategy_version": "ACTS_V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "structure": "CREDIT_SPREAD",
+    "contract": "NIFTY 25700/26100 CE bear call spread \u00b7 exp 2026-11-20",
+    "expiry": "2026-11-20",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "status": "EXPIRED_UNPRICED",
+    "flags": [],
+    "lots": 1,
+    "lot_size": 65,
+    "quantity": 65,
+    "multiplier": 1,
+    "decided_at": "2026-11-19T13:00:15+05:30",
+    "entry_at": "2026-11-19T13:00:30+05:30",
+    "exit_at": null,
+    "entry_price": 27.0,
+    "entry_price_basis": "NET_CREDIT_PER_UNIT",
+    "exit_price": null,
+    "exit_price_basis": "NET_DEBIT_PER_UNIT",
+    "mark": {
+     "basis": "UNAVAILABLE",
+     "price": null,
+     "at": null,
+     "age_seconds": null,
+     "bid": null,
+     "ask": null,
+     "reason": null,
+     "last_known_price": null
+    },
+    "spread_width": 400.0,
+    "defined_max_loss": 24245.0,
+    "stop": {
+     "basis": "SPREAD_DEBIT",
+     "level": 40.5,
+     "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+    },
+    "trailing_stop": null,
+    "target": null,
+    "unrealized_gross": null,
+    "est_exit_charges": null,
+    "est_net_liquidation": null,
+    "realized_gross": null,
+    "realized_gross_engine": null,
+    "charges": {
+     "incurred": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "entry": {
+      "total": 3.82,
+      "orders": 2,
+      "turnover": 2145.0,
+      "items": {
+       "stt": 2.93,
+       "exchange": 0.75,
+       "sebi_fee": 0.0,
+       "stamp_duty": 0.01,
+       "brokerage": 0.0,
+       "gst": 0.14
+      }
+     },
+     "exit": null
+    },
+    "realized_net": null,
+    "holding_seconds": 439170.0,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "CONTRACT_EXPIRED_UNPRICED",
+    "score": 64.0,
+    "score_band": "TRADEABLE",
+    "score_components": {
+     "momentum": 20,
+     "structure": 14,
+     "positioning": 12
+    },
+    "cycle_id": "cyc-13:00",
+    "rearm_reason": null,
+    "rejection_reason": null,
+    "unresolved_reason": null,
+    "mae_points": null,
+    "mfe_points": null,
+    "mae": null,
+    "mfe": null,
+    "legs": [
+     {
+      "role": "SHORT",
+      "side_entry": "SELL",
+      "option_type": "CE",
+      "strike": 25700.0,
+      "symbol": "NIFTY26NOV25700CE",
+      "quantity": 65,
+      "entry_price": 30.0,
+      "exit_price": null,
+      "bid": 30.0,
+      "ask": 30.5,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     },
+     {
+      "role": "HEDGE",
+      "side_entry": "BUY",
+      "option_type": "CE",
+      "strike": 26100.0,
+      "symbol": "NIFTY26NOV26100CE",
+      "quantity": 65,
+      "entry_price": 3.0,
+      "exit_price": null,
+      "bid": 2.5,
+      "ask": 3.0,
+      "bid_qty": 650.0,
+      "ask_qty": 650.0
+     }
+    ],
+    "journal": {
+     "table": "acts_paper_trades",
+     "id": "T6-00000000000000000000"
+    },
+    "provenance": {
+     "source": "acts_paper_trades.document",
+     "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+     "charges_status": {
+      "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+      "stt": "STATUTORY",
+      "stamp_duty": "STATUTORY",
+      "sebi_fee": "STATUTORY",
+      "gst": "STATUTORY",
+      "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+     }
+    },
+    "decision_credit": 27.0
+   }
+  ]
+ },
+ "orders": {
+  "status_counts": {
+   "FILLED": 19,
+   "REJECTED": 2,
+   "EXPIRED": 2
+  },
+  "note": "Simulated paper orders reconstructed from journal events; broker order ids are never invented.",
+  "total": 23,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "order_id": "mcx-crudeoilm:M2:ENTRY",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-crudeoilm:M2",
+    "trade_id": "M2",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 10,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 5600.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T14:55:00+05:30",
+    "last_update_at": "2026-11-24T14:55:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "trade_id": "T3-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25700CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 40.0,
+    "avg_fill_price": 40.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T14:50:00+05:30",
+    "last_update_at": "2026-11-24T14:50:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "trade_id": "T3-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26100CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 4.0,
+    "avg_fill_price": 4.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T14:50:00+05:30",
+    "last_update_at": "2026-11-24T14:50:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "mcx-natgasmini:M3:EXIT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-natgasmini:M3",
+    "trade_id": "M3",
+    "engine_id": "mcx-natgasmini",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "contract": "NATGASMINI18DEC26FUT",
+    "side": "BUY",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_STOP",
+    "requested_quantity": 250,
+    "filled_quantity": 250,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 308.5,
+    "trigger_price": 312.0,
+    "submitted_at": "2026-11-24T14:00:00+05:30",
+    "last_update_at": "2026-11-24T14:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T5-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T5-00000000000000000000",
+    "trade_id": "T5-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25800CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 0,
+    "remaining_quantity": 65,
+    "requested_price": 30.0,
+    "avg_fill_price": null,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T13:00:15+05:30",
+    "last_update_at": "2026-11-24T13:00:30+05:30",
+    "status": "REJECTED",
+    "rejection_reason": "PENDING_ACTS_V2_DIRECTION_REVERSED"
+   },
+   {
+    "order_id": "nifty-acts_v3:T5-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T5-00000000000000000000",
+    "trade_id": "T5-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26200CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 0,
+    "remaining_quantity": 65,
+    "requested_price": 3.0,
+    "avg_fill_price": null,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T13:00:15+05:30",
+    "last_update_at": "2026-11-24T13:00:30+05:30",
+    "status": "REJECTED",
+    "rejection_reason": "PENDING_ACTS_V2_DIRECTION_REVERSED"
+   },
+   {
+    "order_id": "mcx-crudeoilm:M1:EXIT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 10,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 5615.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T12:00:00+05:30",
+    "last_update_at": "2026-11-24T12:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "mcx-natgasmini:M3:ENTRY",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-natgasmini:M3",
+    "trade_id": "M3",
+    "engine_id": "mcx-natgasmini",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "contract": "NATGASMINI18DEC26FUT",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 250,
+    "filled_quantity": 250,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 310.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T12:00:00+05:30",
+    "last_update_at": "2026-11-24T12:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25600CE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 62.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T11:20:15+05:30",
+    "last_update_at": "2026-11-24T11:20:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26000CE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 3.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T11:20:15+05:30",
+    "last_update_at": "2026-11-24T11:20:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 50.0,
+    "avg_fill_price": 50.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T11:00:00+05:30",
+    "last_update_at": "2026-11-24T11:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "trade_id": "T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 5.0,
+    "avg_fill_price": 5.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T11:00:00+05:30",
+    "last_update_at": "2026-11-24T11:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 90.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:30:15+05:30",
+    "last_update_at": "2026-11-24T10:30:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 15.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:30:15+05:30",
+    "last_update_at": "2026-11-24T10:30:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 100.0,
+    "avg_fill_price": 100.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 20.0,
+    "avg_fill_price": 20.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "mcx-crudeoilm:M1:ENTRY",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 10,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 5600.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 63.95,
+    "avg_fill_price": 63.95,
+    "trigger_price": null,
+    "submitted_at": "2026-11-23T12:24:30+05:30",
+    "last_update_at": "2026-11-23T12:24:45+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 37.4,
+    "avg_fill_price": 37.4,
+    "trigger_price": null,
+    "submitted_at": "2026-11-23T12:24:30+05:30",
+    "last_update_at": "2026-11-23T12:24:45+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:EXIT:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25700CE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 0,
+    "remaining_quantity": 65,
+    "requested_price": null,
+    "avg_fill_price": null,
+    "trigger_price": null,
+    "submitted_at": "2026-11-19T13:00:30+05:30",
+    "last_update_at": null,
+    "status": "EXPIRED",
+    "rejection_reason": "CONTRACT_EXPIRED_UNPRICED"
+   },
+   {
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:EXIT:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26100CE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 0,
+    "remaining_quantity": 65,
+    "requested_price": null,
+    "avg_fill_price": null,
+    "trigger_price": null,
+    "submitted_at": "2026-11-19T13:00:30+05:30",
+    "last_update_at": null,
+    "status": "EXPIRED",
+    "rejection_reason": "CONTRACT_EXPIRED_UNPRICED"
+   },
+   {
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25700CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 30.0,
+    "avg_fill_price": 30.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-19T13:00:15+05:30",
+    "last_update_at": "2026-11-19T13:00:30+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "trade_id": "T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26100CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 3.0,
+    "avg_fill_price": 3.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-19T13:00:15+05:30",
+    "last_update_at": "2026-11-19T13:00:30+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   }
+  ]
+ },
+ "fills": {
+  "total": 19,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "fill_id": "mcx-crudeoilm:M2:ENTRY:FILL",
+    "order_id": "mcx-crudeoilm:M2:ENTRY",
+    "position_id": "mcx-crudeoilm:M2",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 10,
+    "price": 5600.0,
+    "at": "2026-11-24T14:55:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25700CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 40.0,
+    "at": "2026-11-24T14:50:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T3-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26100CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 4.0,
+    "at": "2026-11-24T14:50:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "mcx-natgasmini:M3:EXIT:FILL",
+    "order_id": "mcx-natgasmini:M3:EXIT",
+    "position_id": "mcx-natgasmini:M3",
+    "engine_id": "mcx-natgasmini",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "contract": "NATGASMINI18DEC26FUT",
+    "side": "BUY",
+    "intent": "EXIT",
+    "quantity": 250,
+    "price": 308.5,
+    "at": "2026-11-24T14:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "mcx-crudeoilm:M1:EXIT:FILL",
+    "order_id": "mcx-crudeoilm:M1:EXIT",
+    "position_id": "mcx-crudeoilm:M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "SELL",
+    "intent": "EXIT",
+    "quantity": 10,
+    "price": 5615.0,
+    "at": "2026-11-24T12:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "mcx-natgasmini:M3:ENTRY:FILL",
+    "order_id": "mcx-natgasmini:M3:ENTRY",
+    "position_id": "mcx-natgasmini:M3",
+    "engine_id": "mcx-natgasmini",
+    "strategy_label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "contract": "NATGASMINI18DEC26FUT",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 250,
+    "price": 310.0,
+    "at": "2026-11-24T12:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:SHORT",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25600CE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 62.0,
+    "at": "2026-11-24T11:20:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:EXIT:HEDGE",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26000CE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 3.0,
+    "at": "2026-11-24T11:20:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 50.0,
+    "at": "2026-11-24T11:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T2-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 5.0,
+    "at": "2026-11-24T11:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 90.0,
+    "at": "2026-11-24T10:30:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 15.0,
+    "at": "2026-11-24T10:30:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 100.0,
+    "at": "2026-11-24T10:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 20.0,
+    "at": "2026-11-24T10:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "mcx-crudeoilm:M1:ENTRY:FILL",
+    "order_id": "mcx-crudeoilm:M1:ENTRY",
+    "position_id": "mcx-crudeoilm:M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 10,
+    "price": 5600.0,
+    "at": "2026-11-24T10:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 63.95,
+    "at": "2026-11-23T12:24:45+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 37.4,
+    "at": "2026-11-23T12:24:45+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25700CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 30.0,
+    "at": "2026-11-19T13:00:30+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T6-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T6-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26100CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 3.0,
+    "at": "2026-11-19T13:00:30+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   }
+  ]
+ },
+ "trades": {
+  "totals": {
+   "trades": 4,
+   "gross_pnl": -60.0,
+   "charges": 48.96,
+   "net_pnl": -108.96
+  },
+  "total": 4,
+  "limit": 50,
+  "offset": 0,
+  "items": [
+   {
+    "trade_id": "M3",
+    "position_id": "mcx-natgasmini:M3",
+    "engine": "mcx-natgasmini",
+    "strategy": "ACTS V3 NATGASMINI Futures",
+    "version": "ACTS_V3_MCX_FUTURES",
+    "instrument": "NATGASMINI",
+    "contract": "NATGASMINI18DEC26FUT",
+    "direction": "SHORT",
+    "mode": "PAPER",
+    "entry_at": "2026-11-24T12:00:00+05:30",
+    "entry_price": 310.0,
+    "exit_at": "2026-11-24T14:00:00+05:30",
+    "exit_price": 308.5,
+    "holding_seconds": 7200.0,
+    "lots": 1,
+    "quantity": 250,
+    "gross_pnl": 375.0,
+    "charges": 13.3,
+    "net_pnl": 361.7,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "ATR_TRAIL_STOP",
+    "entry_score": 88.0,
+    "cycle_id": "mcx-cyc",
+    "market_regime": null,
+    "return_on_defined_risk_pct": 72.34
+   },
+   {
+    "trade_id": "M1",
+    "position_id": "mcx-crudeoilm:M1",
+    "engine": "mcx-crudeoilm",
+    "strategy": "ACTS V3 CRUDEOILM Futures",
+    "version": "ACTS_V3_MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "direction": "LONG",
+    "mode": "PAPER",
+    "entry_at": "2026-11-24T10:00:00+05:30",
+    "entry_price": 5600.0,
+    "exit_at": "2026-11-24T12:00:00+05:30",
+    "exit_price": 5615.0,
+    "holding_seconds": 7200.0,
+    "lots": 1,
+    "quantity": 10,
+    "gross_pnl": 150.0,
+    "charges": 9.64,
+    "net_pnl": 140.36,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "MAX_HOLDING_TIME",
+    "entry_score": 88.0,
+    "cycle_id": "mcx-cyc",
+    "market_regime": null,
+    "return_on_defined_risk_pct": 175.45
+   },
+   {
+    "trade_id": "T2-00000000000000000000",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "engine": "nifty-acts_v3",
+    "strategy": "NIFTY ACTS V3",
+    "version": "ACTS_V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-12-01",
+    "direction": "BEAR",
+    "mode": "PAPER",
+    "entry_at": "2026-11-24T11:00:15+05:30",
+    "entry_price": 45.0,
+    "exit_at": "2026-11-24T11:20:15+05:30",
+    "exit_price": 59.0,
+    "holding_seconds": 1200.0,
+    "lots": 1,
+    "quantity": 65,
+    "gross_pnl": -910.0,
+    "charges": 8.53,
+    "net_pnl": -918.53,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "SPREAD_STOP",
+    "entry_score": 70.2,
+    "cycle_id": "cyc-11:00",
+    "market_regime": null,
+    "return_on_defined_risk_pct": -3.98
+   },
+   {
+    "trade_id": "T1-00000000000000000000",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine": "nifty-acts_v3",
+    "strategy": "NIFTY ACTS V3",
+    "version": "ACTS_V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY 25400/25000 PE bull put spread \u00b7 exp 2026-12-01",
+    "direction": "BULL",
+    "mode": "PAPER",
+    "entry_at": "2026-11-24T10:00:15+05:30",
+    "entry_price": 80.0,
+    "exit_at": "2026-11-24T10:30:15+05:30",
+    "exit_price": 75.0,
+    "holding_seconds": 1800.0,
+    "lots": 1,
+    "quantity": 65,
+    "gross_pnl": 325.0,
+    "charges": 17.49,
+    "net_pnl": 307.51,
+    "entry_reason": "FIRST_OPPORTUNITY",
+    "exit_reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+    "entry_score": 64.0,
+    "cycle_id": "cyc-10:00",
+    "market_regime": null,
+    "return_on_defined_risk_pct": 1.48
+   }
+  ]
+ },
+ "performance": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "window": {
+   "from": null,
+   "to": null
+  },
+  "mode": "ALL",
+  "overall": {
+   "trades": 4,
+   "wins": 3,
+   "losses": 1,
+   "win_rate": 0.75,
+   "gross_pnl": -60.0,
+   "net_pnl": -108.96,
+   "charges": 48.96,
+   "gross_profit": 809.57,
+   "gross_loss": -918.53,
+   "expectancy_net": -27.24,
+   "avg_win": 269.86,
+   "avg_loss": -918.53,
+   "profit_factor": 0.881,
+   "largest_win": 361.7,
+   "largest_loss": -918.53,
+   "max_drawdown": 918.53,
+   "current_drawdown": 416.47,
+   "max_consecutive_wins": 2,
+   "max_consecutive_losses": 1,
+   "avg_holding_seconds": 4350.0,
+   "first_exit": "2026-11-24T10:30:15+05:30",
+   "last_exit": "2026-11-24T14:00:00+05:30",
+   "avg_defined_risk": 11113.75,
+   "net_to_max_drawdown": -0.119
+  },
+  "excluded_trades_without_exit_price": 1,
+  "daily": [
+   {
+    "date": "2026-11-24",
+    "trades": 4,
+    "gross": -60.0,
+    "net": -108.96,
+    "cum_net": -108.96
+   }
+  ],
+  "monthly": [
+   {
+    "month": "2026-11",
+    "net_pnl": -108.96
+   }
+  ],
+  "by_strategy": [
+   {
+    "engine_id": "mcx-crudeoilm",
+    "label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 150.0,
+    "net_pnl": 140.36,
+    "charges": 9.64,
+    "gross_profit": 140.36,
+    "gross_loss": 0.0,
+    "expectancy_net": 140.36,
+    "avg_win": 140.36,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 140.36,
+    "largest_loss": 140.36,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 7200.0,
+    "first_exit": "2026-11-24T12:00:00+05:30",
+    "last_exit": "2026-11-24T12:00:00+05:30",
+    "avg_defined_risk": 80.0,
+    "net_to_max_drawdown": null
+   },
+   {
+    "engine_id": "mcx-natgasmini",
+    "label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 375.0,
+    "net_pnl": 361.7,
+    "charges": 13.3,
+    "gross_profit": 361.7,
+    "gross_loss": 0.0,
+    "expectancy_net": 361.7,
+    "avg_win": 361.7,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 361.7,
+    "largest_loss": 361.7,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 7200.0,
+    "first_exit": "2026-11-24T14:00:00+05:30",
+    "last_exit": "2026-11-24T14:00:00+05:30",
+    "avg_defined_risk": 500.0,
+    "net_to_max_drawdown": null
+   },
+   {
+    "engine_id": "nifty-acts_v3",
+    "label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "trades": 2,
+    "wins": 1,
+    "losses": 1,
+    "win_rate": 0.5,
+    "gross_pnl": -585.0,
+    "net_pnl": -611.02,
+    "charges": 26.02,
+    "gross_profit": 307.51,
+    "gross_loss": -918.53,
+    "expectancy_net": -305.51,
+    "avg_win": 307.51,
+    "avg_loss": -918.53,
+    "profit_factor": 0.335,
+    "largest_win": 307.51,
+    "largest_loss": -918.53,
+    "max_drawdown": 918.53,
+    "current_drawdown": 918.53,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 1,
+    "avg_holding_seconds": 1500.0,
+    "first_exit": "2026-11-24T10:30:15+05:30",
+    "last_exit": "2026-11-24T11:20:15+05:30",
+    "avg_defined_risk": 21937.5,
+    "net_to_max_drawdown": -0.665
+   }
+  ],
+  "by_direction": [
+   {
+    "direction": "LONG",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 150.0,
+    "net_pnl": 140.36,
+    "charges": 9.64,
+    "gross_profit": 140.36,
+    "gross_loss": 0.0,
+    "expectancy_net": 140.36,
+    "avg_win": 140.36,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 140.36,
+    "largest_loss": 140.36,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 7200.0,
+    "first_exit": "2026-11-24T12:00:00+05:30",
+    "last_exit": "2026-11-24T12:00:00+05:30",
+    "avg_defined_risk": 80.0,
+    "net_to_max_drawdown": null
+   },
+   {
+    "direction": "SHORT",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 375.0,
+    "net_pnl": 361.7,
+    "charges": 13.3,
+    "gross_profit": 361.7,
+    "gross_loss": 0.0,
+    "expectancy_net": 361.7,
+    "avg_win": 361.7,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 361.7,
+    "largest_loss": 361.7,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 7200.0,
+    "first_exit": "2026-11-24T14:00:00+05:30",
+    "last_exit": "2026-11-24T14:00:00+05:30",
+    "avg_defined_risk": 500.0,
+    "net_to_max_drawdown": null
+   },
+   {
+    "direction": "BULL",
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 325.0,
+    "net_pnl": 307.51,
+    "charges": 17.49,
+    "gross_profit": 307.51,
+    "gross_loss": 0.0,
+    "expectancy_net": 307.51,
+    "avg_win": 307.51,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 307.51,
+    "largest_loss": 307.51,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 1800.0,
+    "first_exit": "2026-11-24T10:30:15+05:30",
+    "last_exit": "2026-11-24T10:30:15+05:30",
+    "avg_defined_risk": 20800.0,
+    "net_to_max_drawdown": null
+   },
+   {
+    "direction": "BEAR",
+    "trades": 1,
+    "wins": 0,
+    "losses": 1,
+    "win_rate": 0.0,
+    "gross_pnl": -910.0,
+    "net_pnl": -918.53,
+    "charges": 8.53,
+    "gross_profit": 0.0,
+    "gross_loss": -918.53,
+    "expectancy_net": -918.53,
+    "avg_win": null,
+    "avg_loss": -918.53,
+    "profit_factor": 0.0,
+    "largest_win": -918.53,
+    "largest_loss": -918.53,
+    "max_drawdown": 918.53,
+    "current_drawdown": 918.53,
+    "max_consecutive_wins": 0,
+    "max_consecutive_losses": 1,
+    "avg_holding_seconds": 1200.0,
+    "first_exit": "2026-11-24T11:20:15+05:30",
+    "last_exit": "2026-11-24T11:20:15+05:30",
+    "avg_defined_risk": 23075.0,
+    "net_to_max_drawdown": -1.0
+   }
+  ],
+  "exit_reason_contribution": [
+   {
+    "bucket": "ATR_TRAIL_STOP",
+    "trades": 1,
+    "net_pnl": 361.7,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": "MAX_HOLDING_TIME",
+    "trades": 1,
+    "net_pnl": 140.36,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+    "trades": 1,
+    "net_pnl": 307.51,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": "SPREAD_STOP",
+    "trades": 1,
+    "net_pnl": -918.53,
+    "win_rate": 0.0
+   }
+  ],
+  "entry_score_vs_outcome": [
+   {
+    "bucket": "60-65",
+    "trades": 1,
+    "net_pnl": 307.51,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": "70-80",
+    "trades": 1,
+    "net_pnl": -918.53,
+    "win_rate": 0.0
+   },
+   {
+    "bucket": ">=80",
+    "trades": 2,
+    "net_pnl": 502.06,
+    "win_rate": 1.0
+   }
+  ],
+  "time_of_day": [
+   {
+    "bucket": "10:00",
+    "trades": 2,
+    "net_pnl": 447.87,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": "11:00",
+    "trades": 1,
+    "net_pnl": -918.53,
+    "win_rate": 0.0
+   },
+   {
+    "bucket": "12:00",
+    "trades": 1,
+    "net_pnl": 361.7,
+    "win_rate": 1.0
+   }
+  ],
+  "holding_duration": [
+   {
+    "bucket": "5-30m",
+    "trades": 1,
+    "net_pnl": -918.53,
+    "win_rate": 0.0
+   },
+   {
+    "bucket": "30m-2h",
+    "trades": 1,
+    "net_pnl": 307.51,
+    "win_rate": 1.0
+   },
+   {
+    "bucket": ">2h",
+    "trades": 2,
+    "net_pnl": 502.06,
+    "win_rate": 1.0
+   }
+  ],
+  "excursions": {
+   "trades_with_data": 3,
+   "avg_mae": -36.67,
+   "avg_mfe": 183.33
+  },
+  "cost_sensitivity_net_pnl": {
+   "brokerage_0_per_order": -108.96,
+   "brokerage_10_per_order": -250.56,
+   "brokerage_20_per_order": -392.16
+  },
+  "opportunity_rejections": [
+   {
+    "reason": "PENDING_ACTS_V2_DIRECTION_REVERSED",
+    "count": 2
+   }
+  ],
+  "unavailable": {
+   "sharpe_sortino": "UNAVAILABLE: sample too short and no valid capital basis",
+   "market_regime": "UNAVAILABLE: regime is not recorded on NIFTY trade documents"
+  },
+  "comparison_note": "Absolute P&L across strategies is NOT risk-adjusted: position sizes differ. Compare expectancy, drawdown and net-to-drawdown on their own sample periods."
+ },
+ "risk": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "mode": "ALL",
+  "engines": [
+   {
+    "engine_id": "mcx-crudeoilm",
+    "label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "open_positions": 1,
+    "open_position_risk": 100.0,
+    "daily_realized_net": 140.36,
+    "daily_realized_loss": 0.0,
+    "daily_loss_limit": null,
+    "remaining_daily_loss_budget": null,
+    "max_risk_per_trade": null,
+    "entries_today": 2,
+    "max_entries_per_day": null,
+    "limits_source": "engine status record (deployed config)",
+    "stop_coverage": {
+     "with_stop": 1,
+     "open": 1
+    }
+   },
+   {
+    "engine_id": "mcx-natgasmini",
+    "label": "ACTS V3 NATGASMINI Futures",
+    "instrument": "NATGASMINI",
+    "open_positions": 0,
+    "open_position_risk": 0.0,
+    "daily_realized_net": 361.7,
+    "daily_realized_loss": 0.0,
+    "daily_loss_limit": null,
+    "remaining_daily_loss_budget": null,
+    "max_risk_per_trade": null,
+    "entries_today": 1,
+    "max_entries_per_day": null,
+    "limits_source": "engine status record (deployed config)",
+    "stop_coverage": {
+     "with_stop": 0,
+     "open": 0
+    }
+   },
+   {
+    "engine_id": "nifty-acts_v3",
+    "label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "open_positions": 2,
+    "open_position_risk": 47934.25,
+    "daily_realized_net": -611.02,
+    "daily_realized_loss": -611.02,
+    "daily_loss_limit": 50000.0,
+    "remaining_daily_loss_budget": 1454.73,
+    "max_risk_per_trade": 25000.0,
+    "entries_today": 3,
+    "max_entries_per_day": 6,
+    "limits_source": "effective policy stored on trade T3-0000000 (hash synthetic-)",
+    "stop_coverage": {
+     "with_stop": 2,
+     "open": 2
+    }
+   }
+  ],
+  "exposure": {
+   "defined_risk_total": 48034.25,
+   "futures_long_notional": 56000.0,
+   "futures_short_notional": 0.0,
+   "notional_note": "Notional contract value, NOT margin. Margin is unavailable: broker margin requirements are not recorded and are never assumed.",
+   "margin_utilization": null,
+   "capital_allocation": null,
+   "capital_note": "No paper capital is configured; utilisation is unavailable until it is."
+  },
+  "concentration": [
+   {
+    "engine_id": "mcx-crudeoilm",
+    "share_of_open_risk": 0.002
+   },
+   {
+    "engine_id": "mcx-natgasmini",
+    "share_of_open_risk": 0.0
+   },
+   {
+    "engine_id": "nifty-acts_v3",
+    "share_of_open_risk": 0.998
+   }
+  ],
+  "unresolved_exposure": [
+   {
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "label": "NIFTY ACTS V3",
+    "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+    "flags": [
+     "EXPIRED_NOT_SETTLED",
+     "PAST_FORCED_EXIT"
+    ],
+    "defined_max_loss": 24274.25
+   }
+  ],
+  "limitations": [
+   "Portfolio-level limits are not enforced across engines; per-engine limits come from each engine's deployed policy.",
+   "Live risk is not shown: no live execution exists."
+  ]
+ },
+ "equity": {
+  "date": "2026-11-24",
+  "available": true,
+  "points": [
+   {
+    "t": "2026-11-24T10:00:00+05:30",
+    "realized_gross": 0.0,
+    "realized_net": 0.0,
+    "unrealized_gross": 0.0,
+    "combined_net": 0.0,
+    "open_positions": 1,
+    "partial": true
+   },
+   {
+    "t": "2026-11-24T10:10:00+05:30",
+    "realized_gross": 0.0,
+    "realized_net": 0.0,
+    "unrealized_gross": 116.98,
+    "combined_net": 116.98,
+    "open_positions": 1,
+    "partial": false
+   },
+   {
+    "t": "2026-11-24T10:20:00+05:30",
+    "realized_gross": 0.0,
+    "realized_net": 0.0,
+    "unrealized_gross": 246.98,
+    "combined_net": 246.98,
+    "open_positions": 1,
+    "partial": false
+   },
+   {
+    "t": "2026-11-24T10:30:00+05:30",
+    "realized_gross": 325.0,
+    "realized_net": 307.51,
+    "unrealized_gross": 0.0,
+    "combined_net": 307.51,
+    "open_positions": 0,
+    "partial": false
+   },
+   {
+    "t": "2026-11-24T11:00:00+05:30",
+    "realized_gross": 325.0,
+    "realized_net": 307.51,
+    "unrealized_gross": 0.0,
+    "combined_net": 307.51,
+    "open_positions": 1,
+    "partial": true
+   },
+   {
+    "t": "2026-11-24T11:10:00+05:30",
+    "realized_gross": 325.0,
+    "realized_net": 307.51,
+    "unrealized_gross": -396.37,
+    "combined_net": -88.86,
+    "open_positions": 1,
+    "partial": false
+   },
+   {
+    "t": "2026-11-24T11:15:00+05:30",
+    "realized_gross": 325.0,
+    "realized_net": 307.51,
+    "unrealized_gross": 0.0,
+    "combined_net": 307.51,
+    "open_positions": 1,
+    "partial": true
+   },
+   {
+    "t": "2026-11-24T11:20:00+05:30",
+    "realized_gross": -585.0,
+    "realized_net": -611.02,
+    "unrealized_gross": 0.0,
+    "combined_net": -611.02,
+    "open_positions": 0,
+    "partial": false
+   },
+   {
+    "t": "2026-11-24T14:50:00+05:30",
+    "realized_gross": -585.0,
+    "realized_net": -611.02,
+    "unrealized_gross": 0.0,
+    "combined_net": -611.02,
+    "open_positions": 1,
+    "partial": true
+   },
+   {
+    "t": "2026-11-24T14:59:00+05:30",
+    "realized_gross": -585.0,
+    "realized_net": -611.02,
+    "unrealized_gross": -135.09,
+    "combined_net": -746.11,
+    "open_positions": 1,
+    "partial": false
+   }
+  ],
+  "markers": [
+   {
+    "t": "2026-11-24T10:00:15+05:30",
+    "type": "ENTRY",
+    "engine_id": "nifty-acts_v3",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "direction": "BULL",
+    "price": 80.0
+   },
+   {
+    "t": "2026-11-24T10:30:15+05:30",
+    "type": "EXIT",
+    "engine_id": "nifty-acts_v3",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "direction": "BULL",
+    "price": 75.0,
+    "net_pnl": 307.51
+   },
+   {
+    "t": "2026-11-24T11:00:15+05:30",
+    "type": "ENTRY",
+    "engine_id": "nifty-acts_v3",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "direction": "BEAR",
+    "price": 45.0
+   },
+   {
+    "t": "2026-11-24T11:20:15+05:30",
+    "type": "EXIT",
+    "engine_id": "nifty-acts_v3",
+    "position_id": "nifty-acts_v3:T2-00000000000000000000",
+    "direction": "BEAR",
+    "price": 59.0,
+    "net_pnl": -918.53
+   },
+   {
+    "t": "2026-11-24T14:50:15+05:30",
+    "type": "ENTRY",
+    "engine_id": "nifty-acts_v3",
+    "position_id": "nifty-acts_v3:T3-00000000000000000000",
+    "direction": "BEAR",
+    "price": 36.0
+   }
+  ],
+  "source": "event-sourced from journal MARK/ENTRY/EXIT events; resolution 1 minute",
+  "note": null
+ },
+ "strategies": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "items": [
+   {
+    "engine_id": "nifty-acts_v3",
+    "label": "NIFTY ACTS V3",
+    "family": "ACTS",
+    "instrument": "NIFTY",
+    "version": "ACTS_V3",
+    "mode": "PAPER",
+    "retired": false,
+    "operational_state": "MARKET_CLOSED",
+    "state_reason": null,
+    "last_update": "2026-11-24T14:59:30+05:30",
+    "today": {
+     "trades": 2,
+     "open_positions": 2,
+     "realized_net": -611.02,
+     "unrealized_gross": -130.0,
+     "total_net": -746.11,
+     "partial": true
+    },
+    "unresolved": 1,
+    "dimensions": {
+     "enablement": {
+      "paper_execution": "OBSERVED_ACTIVE",
+      "live_execution": "NONE (no live execution path exists)"
+     },
+     "session": {
+      "status": "CLOSED_OR_UNKNOWN"
+     },
+     "feed": {
+      "last_observation": "2026-11-24T14:59:30+05:30",
+      "state": "MARKET_CLOSED"
+     },
+     "readiness": null,
+     "signal": {
+      "status": "NO_SETUP",
+      "direction": null,
+      "score": 41.2,
+      "score_band": null,
+      "components": null,
+      "blockers": [
+       "MAX_OPEN_POSITIONS_REACHED"
+      ],
+      "market_state": null,
+      "cycle_id": null,
+      "cycle_state": null,
+      "primary_blocker": "MAX_OPEN_POSITIONS_REACHED"
+     },
+     "position": {
+      "open": 2
+     },
+     "risk": {
+      "daily_loss_limit": 50000.0,
+      "max_risk_per_trade": 25000.0,
+      "max_entries": 6,
+      "source": "effective policy stored on trade T3-0000000 (hash synthetic-)"
+     }
+    }
+   },
+   {
+    "engine_id": "mcx-crudeoilm",
+    "label": "ACTS V3 CRUDEOILM Futures",
+    "family": "MCX_FUTURES",
+    "instrument": "CRUDEOILM",
+    "version": "ACTS_V3_MCX_FUTURES",
+    "mode": "PAPER",
+    "retired": false,
+    "operational_state": "DISABLED",
+    "state_reason": "MCX_FUTURES_PAPER_FLAG_OFF",
+    "last_update": null,
+    "today": {
+     "trades": 1,
+     "open_positions": 1,
+     "realized_net": 140.36,
+     "unrealized_gross": 100.0,
+     "total_net": 237.79,
+     "partial": false
+    },
+    "unresolved": 0,
+    "dimensions": {
+     "enablement": {
+      "paper_execution": "UNKNOWN",
+      "live_execution": "NONE (no live execution path exists)"
+     },
+     "session": {
+      "status": "CLOSED",
+      "window": null,
+      "next_open": null,
+      "last_entry_time": null,
+      "forced_exit_time": null
+     },
+     "feed": {
+      "last_quote_at": null,
+      "observed_at": null,
+      "source_timestamp_available": null,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null,
+      "ltp": null,
+      "spread_ticks": null,
+      "age_seconds": null,
+      "capture_latency_seconds": null,
+      "stale": true
+     },
+     "readiness": null,
+     "signal": null,
+     "position": {
+      "open": 1
+     },
+     "risk": {
+      "daily_loss_limit": null,
+      "daily_realized": null,
+      "max_risk_per_trade": null,
+      "entries_today": null,
+      "max_entries": null
+     },
+     "contract": null,
+     "calibration": "PRE_REGISTERED_UNVALIDATED"
+    }
+   },
+   {
+    "engine_id": "mcx-natgasmini",
+    "label": "ACTS V3 NATGASMINI Futures",
+    "family": "MCX_FUTURES",
+    "instrument": "NATGASMINI",
+    "version": "ACTS_V3_MCX_FUTURES",
+    "mode": "PAPER",
+    "retired": false,
+    "operational_state": "DISABLED",
+    "state_reason": "MCX_FUTURES_PAPER_FLAG_OFF",
+    "last_update": null,
+    "today": {
+     "trades": 1,
+     "open_positions": 0,
+     "realized_net": 361.7,
+     "unrealized_gross": 0.0,
+     "total_net": 361.7,
+     "partial": false
+    },
+    "unresolved": 0,
+    "dimensions": {
+     "enablement": {
+      "paper_execution": "UNKNOWN",
+      "live_execution": "NONE (no live execution path exists)"
+     },
+     "session": {
+      "status": "CLOSED",
+      "window": null,
+      "next_open": null,
+      "last_entry_time": null,
+      "forced_exit_time": null
+     },
+     "feed": {
+      "last_quote_at": null,
+      "observed_at": null,
+      "source_timestamp_available": null,
+      "bid": null,
+      "ask": null,
+      "bid_qty": null,
+      "ask_qty": null,
+      "ltp": null,
+      "spread_ticks": null,
+      "age_seconds": null,
+      "capture_latency_seconds": null,
+      "stale": true
+     },
+     "readiness": null,
+     "signal": null,
+     "position": {
+      "open": 0
+     },
+     "risk": {
+      "daily_loss_limit": null,
+      "daily_realized": null,
+      "max_risk_per_trade": null,
+      "entries_today": null,
+      "max_entries": null
+     },
+     "contract": null,
+     "calibration": "PRE_REGISTERED_UNVALIDATED"
+    }
+   }
+  ]
+ },
+ "alerts": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "critical": 1,
+  "warning": 0,
+  "items": [
+   {
+    "engine_id": "nifty-acts_v3",
+    "engine": "NIFTY ACTS V3",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "severity": "CRITICAL",
+    "code": "EXPIRED_POSITION_NOT_SETTLED",
+    "message": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23 expired 2026-11-23 but the position is still OPEN with no recorded exit. It is excluded from totals, not treated as zero.",
+    "since": "2026-11-23",
+    "action": "Do not edit the journal. Restart the worker with valid credentials so it terminalises the position, or reconcile from an official NSE settlement price."
+   }
+  ]
+ },
+ "header": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "now_ist": "2026-11-24T15:00:00+05:30",
+  "timezone": "Asia/Kolkata",
+  "nse": {
+   "status": "OPEN"
+  },
+  "mcx": {
+   "status": "OPEN",
+   "window": "09:00-23:55 IST",
+   "next_open": null
+  },
+  "broker_connectivity": {
+   "state": "UNKNOWN",
+   "basis": "inferred from fresh market observations; the broker session itself is not probed (no extra broker traffic)"
+  },
+  "data_freshness": {
+   "fresh_feeds": 0,
+   "stale_feeds": 0,
+   "feeds": 3,
+   "stale": []
+  },
+  "critical_alerts": 1,
+  "warning_alerts": 0,
+  "default_mode": "PAPER",
+  "live_execution": "NONE"
+ },
+ "sources": {
+  "as_of": "2026-11-24T15:00:00+05:30",
+  "sources": [
+   {
+    "source": "acts_paper",
+    "status": "OK",
+    "records": 6,
+    "note": "NIFTY ACTS V3/V2 paper journal (gross-only engine record; charges applied here)"
+   },
+   {
+    "source": "mcx_futures",
+    "status": "OK",
+    "records": 3,
+    "note": "ACTS V3 MCX futures paper journal"
+   },
+   {
+    "source": "ast_futures",
+    "status": "NOT_CONFIGURED",
+    "records": 0,
+    "note": "AST runs in an isolated stack; its read-only API is not reachable from this deployment"
+   },
+   {
+    "source": "commodity_options_legacy",
+    "status": "NOT_NORMALISED",
+    "records": 0,
+    "note": "Legacy Commodity ACTS options engine has no deployed worker; its pages remain available"
+   }
+  ],
+  "charge_model": {
+   "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+   "stt": "STATUTORY",
+   "stamp_duty": "STATUTORY",
+   "sebi_fee": "STATUTORY",
+   "gst": "STATUTORY",
+   "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+  },
+  "brokerage_per_order": 0.0,
+  "definitions": "Portfolio read service: loads normalised positions/orders/fills from the strategy journals and computes the\nauthoritative summary, lists and alerts. READ ONLY (PostgreSQL sessions use SET TRANSACTION READ ONLY).\n\nP&L DEFINITIONS (one set, used by every page; the frontend never recomputes money):\n  realized_gross        closed positions in the window: sum((short_entry - hedge_entry - short_exit + hedge_exit) x qty)\n                        for spreads, (exit - entry) x sign x qty for futures, recomputed from the recorded fills and\n                        reconciled against the engine's own record (discrepancies raise an alert).\n  charges (incurred)    entry-side charges of positions entered in the window + exit-side charges of positions exited\n                        in the window (app.portfolio.charges; brokerage is a configured scenario, never assumed).\n  realized_net          realized_gross - charges for those closed positions.\n  unrealized_gross      open positions with a FRESH executable mark only (<= 60 s old, no expiry/forced-exit flag).\n                        Stale / unavailable marks are EXCLUDED and counted - never silently treated as zero.\n  total_net_pnl         realized_net + unrealized_gross - entry charges already incurred on open positions.\n  net_liquidation_pnl   total_net_pnl - estimated exit charges of open positions (a mark-based estimate).\nAny total that excludes open/unresolved exposure is flagged `partial` with the excluded count.\n"
+ },
+ "strategy_nifty_v3": {
+  "engine_id": "nifty-acts_v3",
+  "label": "NIFTY ACTS V3",
+  "family": "ACTS",
+  "instrument": "NIFTY",
+  "version": "ACTS_V3",
+  "mode": "PAPER",
+  "retired": false,
+  "operational_state": "MARKET_CLOSED",
+  "state_reason": null,
+  "last_update": "2026-11-24T14:59:30+05:30",
+  "today": {
+   "trades": 2,
+   "open_positions": 2,
+   "realized_net": -611.02,
+   "unrealized_gross": -130.0,
+   "total_net": -746.11,
+   "partial": true
+  },
+  "unresolved": 1,
+  "dimensions": {
+   "enablement": {
+    "paper_execution": "OBSERVED_ACTIVE",
+    "live_execution": "NONE (no live execution path exists)"
+   },
+   "session": {
+    "status": "CLOSED_OR_UNKNOWN"
+   },
+   "feed": {
+    "last_observation": "2026-11-24T14:59:30+05:30",
+    "state": "MARKET_CLOSED"
+   },
+   "readiness": null,
+   "signal": {
+    "status": "NO_SETUP",
+    "direction": null,
+    "score": 41.2,
+    "score_band": null,
+    "components": null,
+    "blockers": [
+     "MAX_OPEN_POSITIONS_REACHED"
+    ],
+    "market_state": null,
+    "cycle_id": null,
+    "cycle_state": null,
+    "primary_blocker": "MAX_OPEN_POSITIONS_REACHED"
+   },
+   "position": {
+    "open": 2
+   },
+   "risk": {
+    "daily_loss_limit": 50000.0,
+    "max_risk_per_trade": 25000.0,
+    "max_entries": 6,
+    "source": "effective policy stored on trade T3-0000000 (hash synthetic-)"
+   }
+  },
+  "config": {
+   "available": true,
+   "source": "policy stored on the latest trade (what actually ran)",
+   "policy_hash": "synthetic-policy-hash",
+   "from_trade": "T3-00000000000000000000",
+   "decided_at": "2026-11-24T14:50:00+05:30",
+   "effective": {
+    "signal_min_score": 80,
+    "min_credit": null,
+    "min_credit_to_width": null,
+    "min_short_distance_points": null,
+    "max_bid_ask_spread_pct": null,
+    "max_quote_age_seconds": null,
+    "min_open_interest": null,
+    "min_volume": null,
+    "allowed_widths": null,
+    "stop_credit_multiple": 1.5,
+    "max_loss_per_trade": 25000,
+    "hard_daily_loss": 50000,
+    "max_consecutive_losses": null,
+    "max_trades_per_day": 6,
+    "cooldown_after_exit_seconds": null,
+    "cooldown_after_loss_seconds": null,
+    "start_time": null,
+    "entry_end_time": null,
+    "forced_exit_time": "15:20:00",
+    "entry_ttl_seconds": null,
+    "lots": null,
+    "interval_seconds": null
+   },
+   "parameters": {
+    "tradeable_score": 55
+   },
+   "exit_policy": {
+    "version": "MIRROR_EXIT_V1"
+   },
+   "entry_policy": null,
+   "opportunity_cycle_policy": null,
+   "note": "Profit capture, trailing and the 30-minute time stop are DIAGNOSTICS_ONLY in V3's MIRROR_EXIT_V1; exits are FORCED_CLOSE 15:20, SPREAD_STOP, HARD_MAX_LOSS and the opposite ACTS V2 entry signal."
+  },
+  "performance": {
+   "as_of": "2026-11-24T15:00:00+05:30",
+   "window": {
+    "from": null,
+    "to": null
+   },
+   "mode": "ALL",
+   "overall": {
+    "trades": 2,
+    "wins": 1,
+    "losses": 1,
+    "win_rate": 0.5,
+    "gross_pnl": -585.0,
+    "net_pnl": -611.02,
+    "charges": 26.02,
+    "gross_profit": 307.51,
+    "gross_loss": -918.53,
+    "expectancy_net": -305.51,
+    "avg_win": 307.51,
+    "avg_loss": -918.53,
+    "profit_factor": 0.335,
+    "largest_win": 307.51,
+    "largest_loss": -918.53,
+    "max_drawdown": 918.53,
+    "current_drawdown": 918.53,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 1,
+    "avg_holding_seconds": 1500.0,
+    "first_exit": "2026-11-24T10:30:15+05:30",
+    "last_exit": "2026-11-24T11:20:15+05:30",
+    "avg_defined_risk": 21937.5,
+    "net_to_max_drawdown": -0.665
+   },
+   "excluded_trades_without_exit_price": 1,
+   "daily": [
+    {
+     "date": "2026-11-24",
+     "trades": 2,
+     "gross": -585.0,
+     "net": -611.02,
+     "cum_net": -611.02
+    }
+   ],
+   "monthly": [
+    {
+     "month": "2026-11",
+     "net_pnl": -611.02
+    }
+   ],
+   "by_strategy": [
+    {
+     "engine_id": "nifty-acts_v3",
+     "label": "NIFTY ACTS V3",
+     "instrument": "NIFTY",
+     "trades": 2,
+     "wins": 1,
+     "losses": 1,
+     "win_rate": 0.5,
+     "gross_pnl": -585.0,
+     "net_pnl": -611.02,
+     "charges": 26.02,
+     "gross_profit": 307.51,
+     "gross_loss": -918.53,
+     "expectancy_net": -305.51,
+     "avg_win": 307.51,
+     "avg_loss": -918.53,
+     "profit_factor": 0.335,
+     "largest_win": 307.51,
+     "largest_loss": -918.53,
+     "max_drawdown": 918.53,
+     "current_drawdown": 918.53,
+     "max_consecutive_wins": 1,
+     "max_consecutive_losses": 1,
+     "avg_holding_seconds": 1500.0,
+     "first_exit": "2026-11-24T10:30:15+05:30",
+     "last_exit": "2026-11-24T11:20:15+05:30",
+     "avg_defined_risk": 21937.5,
+     "net_to_max_drawdown": -0.665
+    }
+   ],
+   "by_direction": [
+    {
+     "direction": "BULL",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 1.0,
+     "gross_pnl": 325.0,
+     "net_pnl": 307.51,
+     "charges": 17.49,
+     "gross_profit": 307.51,
+     "gross_loss": 0.0,
+     "expectancy_net": 307.51,
+     "avg_win": 307.51,
+     "avg_loss": null,
+     "profit_factor": null,
+     "largest_win": 307.51,
+     "largest_loss": 307.51,
+     "max_drawdown": 0.0,
+     "current_drawdown": 0.0,
+     "max_consecutive_wins": 1,
+     "max_consecutive_losses": 0,
+     "avg_holding_seconds": 1800.0,
+     "first_exit": "2026-11-24T10:30:15+05:30",
+     "last_exit": "2026-11-24T10:30:15+05:30",
+     "avg_defined_risk": 20800.0,
+     "net_to_max_drawdown": null
+    },
+    {
+     "direction": "BEAR",
+     "trades": 1,
+     "wins": 0,
+     "losses": 1,
+     "win_rate": 0.0,
+     "gross_pnl": -910.0,
+     "net_pnl": -918.53,
+     "charges": 8.53,
+     "gross_profit": 0.0,
+     "gross_loss": -918.53,
+     "expectancy_net": -918.53,
+     "avg_win": null,
+     "avg_loss": -918.53,
+     "profit_factor": 0.0,
+     "largest_win": -918.53,
+     "largest_loss": -918.53,
+     "max_drawdown": 918.53,
+     "current_drawdown": 918.53,
+     "max_consecutive_wins": 0,
+     "max_consecutive_losses": 1,
+     "avg_holding_seconds": 1200.0,
+     "first_exit": "2026-11-24T11:20:15+05:30",
+     "last_exit": "2026-11-24T11:20:15+05:30",
+     "avg_defined_risk": 23075.0,
+     "net_to_max_drawdown": -1.0
+    }
+   ],
+   "exit_reason_contribution": [
+    {
+     "bucket": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+     "trades": 1,
+     "net_pnl": 307.51,
+     "win_rate": 1.0
+    },
+    {
+     "bucket": "SPREAD_STOP",
+     "trades": 1,
+     "net_pnl": -918.53,
+     "win_rate": 0.0
+    }
+   ],
+   "entry_score_vs_outcome": [
+    {
+     "bucket": "60-65",
+     "trades": 1,
+     "net_pnl": 307.51,
+     "win_rate": 1.0
+    },
+    {
+     "bucket": "70-80",
+     "trades": 1,
+     "net_pnl": -918.53,
+     "win_rate": 0.0
+    }
+   ],
+   "time_of_day": [
+    {
+     "bucket": "10:00",
+     "trades": 1,
+     "net_pnl": 307.51,
+     "win_rate": 1.0
+    },
+    {
+     "bucket": "11:00",
+     "trades": 1,
+     "net_pnl": -918.53,
+     "win_rate": 0.0
+    }
+   ],
+   "holding_duration": [
+    {
+     "bucket": "5-30m",
+     "trades": 1,
+     "net_pnl": -918.53,
+     "win_rate": 0.0
+    },
+    {
+     "bucket": "30m-2h",
+     "trades": 1,
+     "net_pnl": 307.51,
+     "win_rate": 1.0
+    }
+   ],
+   "excursions": {
+    "trades_with_data": 2,
+    "avg_mae": -65.0,
+    "avg_mfe": 195.0
+   },
+   "cost_sensitivity_net_pnl": {
+    "brokerage_0_per_order": -611.02,
+    "brokerage_10_per_order": -705.42,
+    "brokerage_20_per_order": -799.82
+   },
+   "opportunity_rejections": [
+    {
+     "reason": "PENDING_ACTS_V2_DIRECTION_REVERSED",
+     "count": 2
+    }
+   ],
+   "unavailable": {
+    "sharpe_sortino": "UNAVAILABLE: sample too short and no valid capital basis",
+    "market_regime": "UNAVAILABLE: regime is not recorded on NIFTY trade documents"
+   },
+   "comparison_note": "Absolute P&L across strategies is NOT risk-adjusted: position sizes differ. Compare expectancy, drawdown and net-to-drawdown on their own sample periods."
+  }
+ },
+ "strategy_crude": {
+  "engine_id": "mcx-crudeoilm",
+  "label": "ACTS V3 CRUDEOILM Futures",
+  "family": "MCX_FUTURES",
+  "instrument": "CRUDEOILM",
+  "version": "ACTS_V3_MCX_FUTURES",
+  "mode": "PAPER",
+  "retired": false,
+  "operational_state": "DISABLED",
+  "state_reason": "MCX_FUTURES_PAPER_FLAG_OFF",
+  "last_update": null,
+  "today": {
+   "trades": 1,
+   "open_positions": 1,
+   "realized_net": 140.36,
+   "unrealized_gross": 100.0,
+   "total_net": 237.79,
+   "partial": false
+  },
+  "unresolved": 0,
+  "dimensions": {
+   "enablement": {
+    "paper_execution": "UNKNOWN",
+    "live_execution": "NONE (no live execution path exists)"
+   },
+   "session": {
+    "status": "CLOSED",
+    "window": null,
+    "next_open": null,
+    "last_entry_time": null,
+    "forced_exit_time": null
+   },
+   "feed": {
+    "last_quote_at": null,
+    "observed_at": null,
+    "source_timestamp_available": null,
+    "bid": null,
+    "ask": null,
+    "bid_qty": null,
+    "ask_qty": null,
+    "ltp": null,
+    "spread_ticks": null,
+    "age_seconds": null,
+    "capture_latency_seconds": null,
+    "stale": true
+   },
+   "readiness": null,
+   "signal": null,
+   "position": {
+    "open": 1
+   },
+   "risk": {
+    "daily_loss_limit": null,
+    "daily_realized": null,
+    "max_risk_per_trade": null,
+    "entries_today": null,
+    "max_entries": null
+   },
+   "contract": null,
+   "calibration": "PRE_REGISTERED_UNVALIDATED"
+  },
+  "config": {
+   "available": true,
+   "source": "deployed code config (app.mcx_futures.config)",
+   "config_id": "ACTS_V3_MCX_FUTURES:CRUDEOILM:MCXF_CRUDEOILM_V1_1:b233b078354e",
+   "persisted_config_hash": null,
+   "matches_running_worker": false,
+   "calibration_status": "PRE_REGISTERED_UNVALIDATED",
+   "parameters": {
+    "instrument": "CRUDEOILM",
+    "version": "MCXF_CRUDEOILM_V1_1",
+    "calibration_status": "PRE_REGISTERED_UNVALIDATED",
+    "quotation_unit": "BBL",
+    "feature_timeframe_minutes": 3,
+    "feature_window_bars": 160,
+    "ema_fast": 9,
+    "ema_slow": 21,
+    "slope_bars": 3,
+    "atr_period": 14,
+    "adx_period": 14,
+    "breakout_lookback": 20,
+    "er_lookback": 10,
+    "atr_percentile_window": 100,
+    "atr_percentile_min_samples": 40,
+    "momentum_bars": 3,
+    "pullback_bars": 3,
+    "weights": {
+     "trend": 25.0,
+     "momentum": 20.0,
+     "structure": 20.0,
+     "strength": 15.0,
+     "regime": 10.0,
+     "execution": 10.0
+    },
+    "slope_full_atr": 0.3,
+    "momentum_full_atr": 1.0,
+    "breakout_full_atr": 0.25,
+    "vwap_full_atr": 0.5,
+    "adx_floor": 18.0,
+    "adx_full": 35.0,
+    "chop_er_threshold": 0.3,
+    "trend_er_full": 0.6,
+    "vol_percentile_low": 0.1,
+    "vol_percentile_high": 0.9,
+    "entry_score_floor": 60.0,
+    "exceptional_reversal_score_floor": 85.0,
+    "opposite_exit_score_floor": 60.0,
+    "confirmation_bars": 1,
+    "pullback_atr": 0.5,
+    "setup_lifetime_minutes": 30,
+    "reversal_confirmation_seconds": 360,
+    "observation_interval_seconds": 15,
+    "lots": 1,
+    "stop_atr_multiple": 1.5,
+    "min_stop_ticks": 8,
+    "max_risk_per_trade": 2500.0,
+    "daily_loss_limit": 6000.0,
+    "max_entries_per_session": 4,
+    "max_consecutive_losses": 3,
+    "cooldown_after_exit_minutes": 5,
+    "cooldown_after_loss_minutes": 15,
+    "trail_activation_atr": 1.0,
+    "trail_atr": 1.5,
+    "max_holding_minutes": 120,
+    "gap_guard_atr": 1.5,
+    "gap_guard_minutes": 15,
+    "expiry_window_days": 3,
+    "last_entry_minutes_before_close": 30,
+    "forced_exit_minutes_before_close": 10,
+    "max_spread_ticks": 3.0,
+    "full_credit_spread_ticks": 1.0,
+    "stale_quote_seconds": 45.0,
+    "stale_exit_seconds": 120.0,
+    "max_entry_latency_seconds": 30.0,
+    "stop_slippage_ticks": 1,
+    "entry_slippage_ticks": 0,
+    "events": [
+     {
+      "name": "EIA_WEEKLY_PETROLEUM_STATUS_REPORT",
+      "weekday": 2,
+      "time_et": "10:30:00",
+      "minutes_before": 10,
+      "minutes_after": 15,
+      "source": "EIA WPSR schedule: Wednesdays 10:30 ET (holiday weeks shift; add via `shifted`)",
+      "shifted": [],
+      "extra": []
+     }
+    ],
+    "notes": [
+     "PRE_REGISTERED_UNVALIDATED: no historical MCX data; every value is a design choice under test."
+    ]
+   }
+  },
+  "performance": {
+   "as_of": "2026-11-24T15:00:00+05:30",
+   "window": {
+    "from": null,
+    "to": null
+   },
+   "mode": "ALL",
+   "overall": {
+    "trades": 1,
+    "wins": 1,
+    "losses": 0,
+    "win_rate": 1.0,
+    "gross_pnl": 150.0,
+    "net_pnl": 140.36,
+    "charges": 9.64,
+    "gross_profit": 140.36,
+    "gross_loss": 0.0,
+    "expectancy_net": 140.36,
+    "avg_win": 140.36,
+    "avg_loss": null,
+    "profit_factor": null,
+    "largest_win": 140.36,
+    "largest_loss": 140.36,
+    "max_drawdown": 0.0,
+    "current_drawdown": 0.0,
+    "max_consecutive_wins": 1,
+    "max_consecutive_losses": 0,
+    "avg_holding_seconds": 7200.0,
+    "first_exit": "2026-11-24T12:00:00+05:30",
+    "last_exit": "2026-11-24T12:00:00+05:30",
+    "avg_defined_risk": 80.0,
+    "net_to_max_drawdown": null
+   },
+   "excluded_trades_without_exit_price": 0,
+   "daily": [
+    {
+     "date": "2026-11-24",
+     "trades": 1,
+     "gross": 150.0,
+     "net": 140.36,
+     "cum_net": 140.36
+    }
+   ],
+   "monthly": [
+    {
+     "month": "2026-11",
+     "net_pnl": 140.36
+    }
+   ],
+   "by_strategy": [
+    {
+     "engine_id": "mcx-crudeoilm",
+     "label": "ACTS V3 CRUDEOILM Futures",
+     "instrument": "CRUDEOILM",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 1.0,
+     "gross_pnl": 150.0,
+     "net_pnl": 140.36,
+     "charges": 9.64,
+     "gross_profit": 140.36,
+     "gross_loss": 0.0,
+     "expectancy_net": 140.36,
+     "avg_win": 140.36,
+     "avg_loss": null,
+     "profit_factor": null,
+     "largest_win": 140.36,
+     "largest_loss": 140.36,
+     "max_drawdown": 0.0,
+     "current_drawdown": 0.0,
+     "max_consecutive_wins": 1,
+     "max_consecutive_losses": 0,
+     "avg_holding_seconds": 7200.0,
+     "first_exit": "2026-11-24T12:00:00+05:30",
+     "last_exit": "2026-11-24T12:00:00+05:30",
+     "avg_defined_risk": 80.0,
+     "net_to_max_drawdown": null
+    }
+   ],
+   "by_direction": [
+    {
+     "direction": "LONG",
+     "trades": 1,
+     "wins": 1,
+     "losses": 0,
+     "win_rate": 1.0,
+     "gross_pnl": 150.0,
+     "net_pnl": 140.36,
+     "charges": 9.64,
+     "gross_profit": 140.36,
+     "gross_loss": 0.0,
+     "expectancy_net": 140.36,
+     "avg_win": 140.36,
+     "avg_loss": null,
+     "profit_factor": null,
+     "largest_win": 140.36,
+     "largest_loss": 140.36,
+     "max_drawdown": 0.0,
+     "current_drawdown": 0.0,
+     "max_consecutive_wins": 1,
+     "max_consecutive_losses": 0,
+     "avg_holding_seconds": 7200.0,
+     "first_exit": "2026-11-24T12:00:00+05:30",
+     "last_exit": "2026-11-24T12:00:00+05:30",
+     "avg_defined_risk": 80.0,
+     "net_to_max_drawdown": null
+    }
+   ],
+   "exit_reason_contribution": [
+    {
+     "bucket": "MAX_HOLDING_TIME",
+     "trades": 1,
+     "net_pnl": 140.36,
+     "win_rate": 1.0
+    }
+   ],
+   "entry_score_vs_outcome": [
+    {
+     "bucket": ">=80",
+     "trades": 1,
+     "net_pnl": 140.36,
+     "win_rate": 1.0
+    }
+   ],
+   "time_of_day": [
+    {
+     "bucket": "10:00",
+     "trades": 1,
+     "net_pnl": 140.36,
+     "win_rate": 1.0
+    }
+   ],
+   "holding_duration": [
+    {
+     "bucket": ">2h",
+     "trades": 1,
+     "net_pnl": 140.36,
+     "win_rate": 1.0
+    }
+   ],
+   "excursions": {
+    "trades_with_data": 1,
+    "avg_mae": 20.0,
+    "avg_mfe": 160.0
+   },
+   "cost_sensitivity_net_pnl": {
+    "brokerage_0_per_order": 140.36,
+    "brokerage_10_per_order": 116.76,
+    "brokerage_20_per_order": 93.16
+   },
+   "opportunity_rejections": [
+    {
+     "reason": "PENDING_ACTS_V2_DIRECTION_REVERSED",
+     "count": 2
+    }
+   ],
+   "unavailable": {
+    "sharpe_sortino": "UNAVAILABLE: sample too short and no valid capital basis",
+    "market_regime": "UNAVAILABLE: regime is not recorded on NIFTY trade documents"
+   },
+   "comparison_note": "Absolute P&L across strategies is NOT risk-adjusted: position sizes differ. Compare expectancy, drawdown and net-to-drawdown on their own sample periods."
+  }
+ },
+ "position_detail_closed_spread": {
+  "position": {
+   "position_id": "nifty-acts_v3:T1-00000000000000000000",
+   "trade_id": "T1-00000000000000000000",
+   "source": "ACTS_PAPER",
+   "engine_id": "nifty-acts_v3",
+   "strategy_id": "ACTS_V3",
+   "strategy_label": "NIFTY ACTS V3",
+   "strategy_version": "ACTS_V3",
+   "family": "ACTS",
+   "instrument": "NIFTY",
+   "structure": "CREDIT_SPREAD",
+   "contract": "NIFTY 25400/25000 PE bull put spread \u00b7 exp 2026-12-01",
+   "expiry": "2026-12-01",
+   "direction": "BULL",
+   "mode": "PAPER",
+   "status": "CLOSED",
+   "flags": [],
+   "lots": 1,
+   "lot_size": 65,
+   "quantity": 65,
+   "multiplier": 1,
+   "decided_at": "2026-11-24T10:00:00+05:30",
+   "entry_at": "2026-11-24T10:00:15+05:30",
+   "exit_at": "2026-11-24T10:30:15+05:30",
+   "entry_price": 80.0,
+   "entry_price_basis": "NET_CREDIT_PER_UNIT",
+   "exit_price": 75.0,
+   "exit_price_basis": "NET_DEBIT_PER_UNIT",
+   "mark": {
+    "basis": "UNAVAILABLE",
+    "price": null,
+    "at": null,
+    "age_seconds": null,
+    "bid": null,
+    "ask": null,
+    "reason": null,
+    "last_known_price": null
+   },
+   "spread_width": 400.0,
+   "defined_max_loss": 20800.0,
+   "stop": {
+    "basis": "SPREAD_DEBIT",
+    "level": 120.0,
+    "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+   },
+   "trailing_stop": null,
+   "target": null,
+   "unrealized_gross": null,
+   "est_exit_charges": null,
+   "est_net_liquidation": null,
+   "realized_gross": 325.0,
+   "realized_gross_engine": 325.0,
+   "charges": {
+    "incurred": {
+     "total": 17.49,
+     "orders": 4,
+     "turnover": 14625.0,
+     "items": {
+      "stt": 11.21,
+      "exchange": 5.12,
+      "sebi_fee": 0.02,
+      "stamp_duty": 0.22,
+      "brokerage": 0.0,
+      "gst": 0.92
+     }
+    },
+    "entry": {
+     "total": 13.02,
+     "orders": 2,
+     "turnover": 7800.0,
+     "items": {
+      "stt": 9.75,
+      "exchange": 2.73,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.04,
+      "brokerage": 0.0,
+      "gst": 0.49
+     }
+    },
+    "exit": {
+     "total": 4.47,
+     "orders": 2,
+     "turnover": 6825.0,
+     "items": {
+      "stt": 1.46,
+      "exchange": 2.39,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.18,
+      "brokerage": 0.0,
+      "gst": 0.43
+     }
+    }
+   },
+   "realized_net": 307.51,
+   "holding_seconds": 1800.0,
+   "entry_reason": "FIRST_OPPORTUNITY",
+   "exit_reason": "OPPOSITE_ACTS_V2_ENTRY_SIGNAL",
+   "score": 64.0,
+   "score_band": "TRADEABLE",
+   "score_components": {
+    "momentum": 20,
+    "structure": 14,
+    "positioning": 12
+   },
+   "cycle_id": "cyc-10:00",
+   "rearm_reason": null,
+   "rejection_reason": null,
+   "unresolved_reason": null,
+   "mae_points": -1.0,
+   "mfe_points": 3.0,
+   "mae": -65.0,
+   "mfe": 195.0,
+   "legs": [
+    {
+     "role": "SHORT",
+     "side_entry": "SELL",
+     "option_type": "PE",
+     "strike": 25400.0,
+     "symbol": "NIFTY26DEC25400PE",
+     "quantity": 65,
+     "entry_price": 100.0,
+     "exit_price": 90.0,
+     "bid": 100.0,
+     "ask": 100.5,
+     "bid_qty": 650.0,
+     "ask_qty": 650.0
+    },
+    {
+     "role": "HEDGE",
+     "side_entry": "BUY",
+     "option_type": "PE",
+     "strike": 25000.0,
+     "symbol": "NIFTY26DEC25000PE",
+     "quantity": 65,
+     "entry_price": 20.0,
+     "exit_price": 15.0,
+     "bid": 19.5,
+     "ask": 20.0,
+     "bid_qty": 650.0,
+     "ask_qty": 650.0
+    }
+   ],
+   "journal": {
+    "table": "acts_paper_trades",
+    "id": "T1-00000000000000000000",
+    "first_sequence": 1,
+    "last_sequence": 4,
+    "events": 4
+   },
+   "provenance": {
+    "source": "acts_paper_trades.document",
+    "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+    "charges_status": {
+     "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+     "stt": "STATUTORY",
+     "stamp_duty": "STATUTORY",
+     "sebi_fee": "STATUTORY",
+     "gst": "STATUTORY",
+     "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+    }
+   },
+   "decision_credit": 80.0
+  },
+  "orders": [
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 90.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:30:15+05:30",
+    "last_update_at": "2026-11-24T10:30:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 15.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:30:15+05:30",
+    "last_update_at": "2026-11-24T10:30:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 100.0,
+    "avg_fill_price": 100.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "trade_id": "T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 20.0,
+    "avg_fill_price": 20.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:15+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   }
+  ],
+  "fills": [
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:SHORT",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "BUY",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 90.0,
+    "at": "2026-11-24T10:30:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:EXIT:HEDGE",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "SELL",
+    "intent": "EXIT",
+    "quantity": 65,
+    "price": 15.0,
+    "at": "2026-11-24T10:30:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25400PE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 100.0,
+    "at": "2026-11-24T10:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T1-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T1-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26DEC25000PE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 20.0,
+    "at": "2026-11-24T10:00:15+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   }
+  ],
+  "timeline": [
+   {
+    "sequence": 1,
+    "type": "ACTS_ENTRY",
+    "at": "2026-11-24T10:00:15+05:30",
+    "reason": null,
+    "state": null
+   },
+   {
+    "sequence": 4,
+    "type": "ACTS_EXIT",
+    "at": "2026-11-24T10:30:15+05:30",
+    "reason": null,
+    "state": null
+   }
+  ],
+  "marks": [
+   {
+    "t": "2026-11-24T10:10:00+05:30",
+    "price": 78.0,
+    "unrealized": 130.0
+   },
+   {
+    "t": "2026-11-24T10:20:00+05:30",
+    "price": 76.0,
+    "unrealized": 260.0
+   }
+  ],
+  "mark_count": 2,
+  "entry_evidence": {
+   "score": 64.0,
+   "score_band": "TRADEABLE",
+   "score_components": {
+    "momentum": 20,
+    "structure": 14,
+    "positioning": 12
+   },
+   "cycle_id": "cyc-10:00",
+   "rearm_reason": null,
+   "entry_reason": "FIRST_OPPORTUNITY"
+  },
+  "pnl_calculation": {
+   "formula": "gross = (short_entry - hedge_entry - short_exit + hedge_exit) x quantity",
+   "quantity": 65,
+   "realized_gross": 325.0,
+   "engine_recorded_gross": 325.0,
+   "charges": {
+    "incurred": {
+     "total": 17.49,
+     "orders": 4,
+     "turnover": 14625.0,
+     "items": {
+      "stt": 11.21,
+      "exchange": 5.12,
+      "sebi_fee": 0.02,
+      "stamp_duty": 0.22,
+      "brokerage": 0.0,
+      "gst": 0.92
+     }
+    },
+    "entry": {
+     "total": 13.02,
+     "orders": 2,
+     "turnover": 7800.0,
+     "items": {
+      "stt": 9.75,
+      "exchange": 2.73,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.04,
+      "brokerage": 0.0,
+      "gst": 0.49
+     }
+    },
+    "exit": {
+     "total": 4.47,
+     "orders": 2,
+     "turnover": 6825.0,
+     "items": {
+      "stt": 1.46,
+      "exchange": 2.39,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.18,
+      "brokerage": 0.0,
+      "gst": 0.43
+     }
+    }
+   },
+   "realized_net": 307.51,
+   "engine_recorded_net": null,
+   "charge_status": {
+    "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+    "stt": "STATUTORY",
+    "stamp_duty": "STATUTORY",
+    "sebi_fee": "STATUTORY",
+    "gst": "STATUTORY",
+    "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+   }
+  }
+ },
+ "position_detail_expired_open": {
+  "position": {
+   "position_id": "nifty-acts_v3:T4-00000000000000000000",
+   "trade_id": "T4-00000000000000000000",
+   "source": "ACTS_PAPER",
+   "engine_id": "nifty-acts_v3",
+   "strategy_id": "ACTS_V3",
+   "strategy_label": "NIFTY ACTS V3",
+   "strategy_version": "ACTS_V3",
+   "family": "ACTS",
+   "instrument": "NIFTY",
+   "structure": "CREDIT_SPREAD",
+   "contract": "NIFTY 25600/26000 CE bear call spread \u00b7 exp 2026-11-23",
+   "expiry": "2026-11-23",
+   "direction": "BEAR",
+   "mode": "PAPER",
+   "status": "OPEN",
+   "flags": [
+    "EXPIRED_NOT_SETTLED",
+    "PAST_FORCED_EXIT"
+   ],
+   "lots": 1,
+   "lot_size": 65,
+   "quantity": 65,
+   "multiplier": 1,
+   "decided_at": "2026-11-23T12:24:30+05:30",
+   "entry_at": "2026-11-23T12:24:45+05:30",
+   "exit_at": null,
+   "entry_price": 26.55,
+   "entry_price_basis": "NET_CREDIT_PER_UNIT",
+   "exit_price": null,
+   "exit_price_basis": "NET_DEBIT_PER_UNIT",
+   "mark": {
+    "basis": "STALE",
+    "price": null,
+    "at": "2026-11-23T12:46:00+05:30",
+    "age_seconds": 94440.0,
+    "bid": null,
+    "ask": null,
+    "reason": "EXPIRED_CONTRACT_NOT_SETTLED",
+    "last_known_price": 28.15
+   },
+   "spread_width": 400.0,
+   "defined_max_loss": 24274.25,
+   "stop": {
+    "basis": "SPREAD_DEBIT",
+    "level": 39.825,
+    "rule": "SPREAD_STOP when debit >= 1.5x credit; HARD_MAX_LOSS per policy"
+   },
+   "trailing_stop": null,
+   "target": null,
+   "unrealized_gross": null,
+   "est_exit_charges": null,
+   "est_net_liquidation": null,
+   "realized_gross": null,
+   "realized_gross_engine": null,
+   "charges": {
+    "incurred": {
+     "total": 9.04,
+     "orders": 2,
+     "turnover": 6587.75,
+     "items": {
+      "stt": 6.24,
+      "exchange": 2.31,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.07,
+      "brokerage": 0.0,
+      "gst": 0.42
+     }
+    },
+    "entry": {
+     "total": 9.04,
+     "orders": 2,
+     "turnover": 6587.75,
+     "items": {
+      "stt": 6.24,
+      "exchange": 2.31,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.07,
+      "brokerage": 0.0,
+      "gst": 0.42
+     }
+    },
+    "exit": null
+   },
+   "realized_net": null,
+   "holding_seconds": 95715.0,
+   "entry_reason": "FIRST_OPPORTUNITY",
+   "exit_reason": null,
+   "score": 64.0,
+   "score_band": "TRADEABLE",
+   "score_components": {
+    "momentum": 20,
+    "structure": 14,
+    "positioning": 12
+   },
+   "cycle_id": "cyc-12:24",
+   "rearm_reason": null,
+   "rejection_reason": null,
+   "unresolved_reason": null,
+   "mae_points": null,
+   "mfe_points": null,
+   "mae": null,
+   "mfe": null,
+   "legs": [
+    {
+     "role": "SHORT",
+     "side_entry": "SELL",
+     "option_type": "CE",
+     "strike": 25600.0,
+     "symbol": "NIFTY26NOV25600CE",
+     "quantity": 65,
+     "entry_price": 63.95,
+     "exit_price": null,
+     "bid": 63.95,
+     "ask": 64.45,
+     "bid_qty": 650.0,
+     "ask_qty": 650.0
+    },
+    {
+     "role": "HEDGE",
+     "side_entry": "BUY",
+     "option_type": "CE",
+     "strike": 26000.0,
+     "symbol": "NIFTY26NOV26000CE",
+     "quantity": 65,
+     "entry_price": 37.4,
+     "exit_price": null,
+     "bid": 36.9,
+     "ask": 37.4,
+     "bid_qty": 650.0,
+     "ask_qty": 650.0
+    }
+   ],
+   "journal": {
+    "table": "acts_paper_trades",
+    "id": "T4-00000000000000000000",
+    "first_sequence": 11,
+    "last_sequence": 11,
+    "events": 1
+   },
+   "provenance": {
+    "source": "acts_paper_trades.document",
+    "pnl_basis": "GROSS_ENGINE_RECORD_RECOMPUTED_FROM_FILLS",
+    "charges_status": {
+     "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+     "stt": "STATUTORY",
+     "stamp_duty": "STATUTORY",
+     "sebi_fee": "STATUTORY",
+     "gst": "STATUTORY",
+     "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+    }
+   },
+   "decision_credit": 26.55
+  },
+  "orders": [
+   {
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 63.95,
+    "avg_fill_price": 63.95,
+    "trigger_price": null,
+    "submitted_at": "2026-11-23T12:24:30+05:30",
+    "last_update_at": "2026-11-23T12:24:45+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "trade_id": "T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_id": "ACTS_V3",
+    "strategy_version": "ACTS_V3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 65,
+    "filled_quantity": 65,
+    "remaining_quantity": 0,
+    "requested_price": 37.4,
+    "avg_fill_price": 37.4,
+    "trigger_price": null,
+    "submitted_at": "2026-11-23T12:24:30+05:30",
+    "last_update_at": "2026-11-23T12:24:45+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   }
+  ],
+  "fills": [
+   {
+    "fill_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT:FILL",
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:SHORT",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV25600CE",
+    "side": "SELL",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 63.95,
+    "at": "2026-11-23T12:24:45+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE:FILL",
+    "order_id": "nifty-acts_v3:T4-00000000000000000000:ENTRY:HEDGE",
+    "position_id": "nifty-acts_v3:T4-00000000000000000000",
+    "engine_id": "nifty-acts_v3",
+    "strategy_label": "NIFTY ACTS V3",
+    "instrument": "NIFTY",
+    "contract": "NIFTY26NOV26000CE",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 65,
+    "price": 37.4,
+    "at": "2026-11-23T12:24:45+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   }
+  ],
+  "timeline": [],
+  "marks": [
+   {
+    "t": "2026-11-23T12:46:00+05:30",
+    "price": 28.15,
+    "unrealized": -104.0
+   }
+  ],
+  "mark_count": 1,
+  "entry_evidence": {
+   "score": 64.0,
+   "score_band": "TRADEABLE",
+   "score_components": {
+    "momentum": 20,
+    "structure": 14,
+    "positioning": 12
+   },
+   "cycle_id": "cyc-12:24",
+   "rearm_reason": null,
+   "entry_reason": "FIRST_OPPORTUNITY"
+  },
+  "pnl_calculation": {
+   "formula": "gross = (short_entry - hedge_entry - short_exit + hedge_exit) x quantity",
+   "quantity": 65,
+   "realized_gross": null,
+   "engine_recorded_gross": null,
+   "charges": {
+    "incurred": {
+     "total": 9.04,
+     "orders": 2,
+     "turnover": 6587.75,
+     "items": {
+      "stt": 6.24,
+      "exchange": 2.31,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.07,
+      "brokerage": 0.0,
+      "gst": 0.42
+     }
+    },
+    "entry": {
+     "total": 9.04,
+     "orders": 2,
+     "turnover": 6587.75,
+     "items": {
+      "stt": 6.24,
+      "exchange": 2.31,
+      "sebi_fee": 0.01,
+      "stamp_duty": 0.07,
+      "brokerage": 0.0,
+      "gst": 0.42
+     }
+    },
+    "exit": null
+   },
+   "realized_net": null,
+   "engine_recorded_net": null,
+   "charge_status": {
+    "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+    "stt": "STATUTORY",
+    "stamp_duty": "STATUTORY",
+    "sebi_fee": "STATUTORY",
+    "gst": "STATUTORY",
+    "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+   }
+  }
+ },
+ "position_detail_futures": {
+  "position": {
+   "position_id": "mcx-crudeoilm:M1",
+   "trade_id": "M1",
+   "source": "MCX_FUTURES_PAPER",
+   "engine_id": "mcx-crudeoilm",
+   "strategy_id": "ACTS_V3_MCX_FUTURES",
+   "strategy_label": "ACTS V3 CRUDEOILM Futures",
+   "strategy_version": "ACTS_V3_MCX_FUTURES",
+   "family": "MCX_FUTURES",
+   "instrument": "CRUDEOILM",
+   "structure": "FUTURES_OUTRIGHT",
+   "contract": "CRUDEOILM18DEC26FUT",
+   "expiry": null,
+   "direction": "LONG",
+   "mode": "PAPER",
+   "status": "CLOSED",
+   "flags": [],
+   "lots": 1,
+   "lot_size": 10,
+   "quantity": 10,
+   "multiplier": 10,
+   "decided_at": "2026-11-24T10:00:00+05:30",
+   "entry_at": "2026-11-24T10:00:00+05:30",
+   "exit_at": "2026-11-24T12:00:00+05:30",
+   "entry_price": 5600.0,
+   "entry_price_basis": "FUTURES_PRICE",
+   "exit_price": 5615.0,
+   "exit_price_basis": "FUTURES_PRICE",
+   "mark": {
+    "basis": "UNAVAILABLE",
+    "price": null,
+    "at": null,
+    "age_seconds": null,
+    "bid": null,
+    "ask": null,
+    "reason": null,
+    "last_known_price": null
+   },
+   "spread_width": null,
+   "defined_max_loss": 80.0,
+   "stop": {
+    "basis": "PRICE",
+    "level": 5592.0,
+    "rule": "ATR-based protective stop (engine config)"
+   },
+   "trailing_stop": null,
+   "target": null,
+   "unrealized_gross": null,
+   "est_exit_charges": null,
+   "est_net_liquidation": null,
+   "realized_gross": 150.0,
+   "realized_gross_engine": 150.0,
+   "charges": {
+    "incurred": {
+     "total": 9.64,
+     "orders": 2,
+     "turnover": 112150.0,
+     "items": {
+      "ctt": 5.62,
+      "exchange": 2.36,
+      "sebi_fee": 0.12,
+      "stamp_duty": 1.12,
+      "brokerage": 0.0,
+      "gst": 0.44
+     }
+    },
+    "entry": {
+     "total": 2.57,
+     "orders": 1,
+     "turnover": 56000.0,
+     "items": {
+      "ctt": 0.0,
+      "exchange": 1.18,
+      "sebi_fee": 0.06,
+      "stamp_duty": 1.12,
+      "brokerage": 0.0,
+      "gst": 0.22
+     }
+    },
+    "exit": {
+     "total": 7.07,
+     "orders": 1,
+     "turnover": 56150.0,
+     "items": {
+      "ctt": 5.62,
+      "exchange": 1.18,
+      "sebi_fee": 0.06,
+      "stamp_duty": 0.0,
+      "brokerage": 0.0,
+      "gst": 0.22
+     }
+    }
+   },
+   "realized_net": 140.36,
+   "engine_recorded_net": 140.35,
+   "engine_recorded_fees": 9.65,
+   "holding_seconds": 7200.0,
+   "entry_reason": "FIRST_OPPORTUNITY",
+   "exit_reason": "MAX_HOLDING_TIME",
+   "score": 88.0,
+   "score_band": null,
+   "score_components": null,
+   "cycle_id": "mcx-cyc",
+   "rearm_reason": null,
+   "rejection_reason": null,
+   "unresolved_reason": null,
+   "mae_points": null,
+   "mfe_points": null,
+   "mae": 20.0,
+   "mfe": 160.0,
+   "legs": [
+    {
+     "role": "OUTRIGHT",
+     "side_entry": "BUY",
+     "option_type": null,
+     "strike": null,
+     "symbol": "CRUDEOILM18DEC26FUT",
+     "quantity": 10,
+     "entry_price": 5600.0,
+     "exit_price": 5615.0,
+     "bid": null,
+     "ask": null,
+     "bid_qty": null,
+     "ask_qty": null
+    }
+   ],
+   "journal": {
+    "table": "mcx_futures_trades",
+    "id": "M1",
+    "last_sequence": 1
+   },
+   "provenance": {
+    "source": "mcx_futures_trades.document (projection of mcx_futures_events)",
+    "pnl_basis": "GROSS_RECOMPUTED_FROM_FILLS",
+    "charges_status": {
+     "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+     "stt": "STATUTORY",
+     "stamp_duty": "STATUTORY",
+     "sebi_fee": "STATUTORY",
+     "gst": "STATUTORY",
+     "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+    }
+   },
+   "decision_credit": null
+  },
+  "orders": [
+   {
+    "order_id": "mcx-crudeoilm:M1:EXIT",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "SELL",
+    "intent": "EXIT",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 10,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 5615.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T12:00:00+05:30",
+    "last_update_at": "2026-11-24T12:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   },
+   {
+    "order_id": "mcx-crudeoilm:M1:ENTRY",
+    "broker_order_id": null,
+    "simulated": true,
+    "mode": "PAPER",
+    "position_id": "mcx-crudeoilm:M1",
+    "trade_id": "M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_id": "ACTS_V3_MCX_FUTURES",
+    "strategy_version": "ACTS_V3_MCX_FUTURES",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "order_type": "SIMULATED_NEXT_OBSERVATION_BID_ASK",
+    "requested_quantity": 10,
+    "filled_quantity": 10,
+    "remaining_quantity": 0,
+    "requested_price": null,
+    "avg_fill_price": 5600.0,
+    "trigger_price": null,
+    "submitted_at": "2026-11-24T10:00:00+05:30",
+    "last_update_at": "2026-11-24T10:00:00+05:30",
+    "status": "FILLED",
+    "rejection_reason": null
+   }
+  ],
+  "fills": [
+   {
+    "fill_id": "mcx-crudeoilm:M1:EXIT:FILL",
+    "order_id": "mcx-crudeoilm:M1:EXIT",
+    "position_id": "mcx-crudeoilm:M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "SELL",
+    "intent": "EXIT",
+    "quantity": 10,
+    "price": 5615.0,
+    "at": "2026-11-24T12:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   },
+   {
+    "fill_id": "mcx-crudeoilm:M1:ENTRY:FILL",
+    "order_id": "mcx-crudeoilm:M1:ENTRY",
+    "position_id": "mcx-crudeoilm:M1",
+    "engine_id": "mcx-crudeoilm",
+    "strategy_label": "ACTS V3 CRUDEOILM Futures",
+    "instrument": "CRUDEOILM",
+    "contract": "CRUDEOILM18DEC26FUT",
+    "side": "BUY",
+    "intent": "ENTRY",
+    "quantity": 10,
+    "price": 5600.0,
+    "at": "2026-11-24T10:00:00+05:30",
+    "simulated": true,
+    "mode": "PAPER"
+   }
+  ],
+  "timeline": [],
+  "marks": [],
+  "mark_count": 0,
+  "entry_evidence": {
+   "score": 88.0,
+   "score_band": null,
+   "score_components": null,
+   "cycle_id": "mcx-cyc",
+   "rearm_reason": null,
+   "entry_reason": "FIRST_OPPORTUNITY"
+  },
+  "pnl_calculation": {
+   "formula": "gross = (exit - entry) x (+1 LONG / -1 SHORT) x quantity",
+   "quantity": 10,
+   "realized_gross": 150.0,
+   "engine_recorded_gross": 150.0,
+   "charges": {
+    "incurred": {
+     "total": 9.64,
+     "orders": 2,
+     "turnover": 112150.0,
+     "items": {
+      "ctt": 5.62,
+      "exchange": 2.36,
+      "sebi_fee": 0.12,
+      "stamp_duty": 1.12,
+      "brokerage": 0.0,
+      "gst": 0.44
+     }
+    },
+    "entry": {
+     "total": 2.57,
+     "orders": 1,
+     "turnover": 56000.0,
+     "items": {
+      "ctt": 0.0,
+      "exchange": 1.18,
+      "sebi_fee": 0.06,
+      "stamp_duty": 1.12,
+      "brokerage": 0.0,
+      "gst": 0.22
+     }
+    },
+    "exit": {
+     "total": 7.07,
+     "orders": 1,
+     "turnover": 56150.0,
+     "items": {
+      "ctt": 5.62,
+      "exchange": 1.18,
+      "sebi_fee": 0.06,
+      "stamp_duty": 0.0,
+      "brokerage": 0.0,
+      "gst": 0.22
+     }
+    }
+   },
+   "realized_net": 140.36,
+   "engine_recorded_net": 140.35,
+   "charge_status": {
+    "brokerage": "UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified",
+    "stt": "STATUTORY",
+    "stamp_duty": "STATUTORY",
+    "sebi_fee": "STATUTORY",
+    "gst": "STATUTORY",
+    "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); MCX 'UNVERIFIED_ASSUMPTION' per app.mcx_futures.costs"
+   }
+  }
+ }
+}
