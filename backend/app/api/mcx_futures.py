@@ -17,6 +17,7 @@ from app.mcx_futures.settings import McxFuturesSettings
 
 IST = ZoneInfo("Asia/Kolkata")
 router = APIRouter(prefix="/api/mcx-futures", tags=["mcx-futures"])
+FUTURE_TOLERANCE_SECONDS = 5
 
 
 def _instrument(value: str | None) -> str | None:
@@ -29,7 +30,7 @@ def _age(at: str | None, now: datetime) -> float | None:
     if not at:
         return None
     try:
-        return max(0.0, (now - datetime.fromisoformat(at)).total_seconds())
+        return (now - datetime.fromisoformat(at)).total_seconds()  # negative = timestamp in the future
     except ValueError:
         return None
 
@@ -50,6 +51,8 @@ def derive_state(latest: dict[str, Any], enabled: bool, now: datetime, stale_aft
         if nxt and datetime.fromisoformat(nxt) <= now:
             return "DATA_STALE", "NO_OBSERVATION_SINCE_SCHEDULED_OPEN"
         return "MARKET_CLOSED", (latest.get("session") or {}).get("reason")
+    if age is not None and age < -FUTURE_TOLERANCE_SECONDS:
+        return "DATA_STALE", "FEED_TIMESTAMP_IN_FUTURE_CLOCK_SKEW"
     if age is None or age > stale_after:
         return "DATA_STALE", f"LAST_QUOTE_AGE_{int(age)}S" if age is not None else "NO_QUOTE_TIMESTAMP"
     return "RUNNING", None
@@ -109,8 +112,11 @@ def build_status(sessions: sessionmaker[Session], now: datetime | None = None,
                         "contract": json.loads(c.contract_json) or None if c else None,
                         "session": latest.get("session") or {"status": "CLOSED", "window": None, "next_open": None,
                                                               "last_entry_time": None, "forced_exit_time": None},
-                        "feed": latest.get("feed") or {"last_quote_at": None, "age_seconds": None, "stale": True,
-                                                       "bid": None, "ask": None, "ltp": None, "spread_ticks": None},
+                        # feed.stale follows the server-derived state (age, clock skew), not only quote age.
+                        "feed": {**(latest.get("feed") or {"last_quote_at": None, "age_seconds": None,
+                                                           "bid": None, "ask": None, "ltp": None,
+                                                           "spread_ticks": None}),
+                                 "stale": state == "DATA_STALE" or not latest.get("feed")},
                         "last_decision": latest.get("last_decision"),
                         "position": latest.get("position") if open_ else None,
                         "trades_today": len(closed),

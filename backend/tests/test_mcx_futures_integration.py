@@ -118,6 +118,9 @@ def test_status_and_engines_api_reflect_journal(crude_run):
     assert natgas["state"] == "IDLE"  # enabled, never observed: not dressed up as running
     later = mcx_api.build_status(sessions, now=now + timedelta(minutes=5), settings=ENABLED)
     assert next(r for r in later["instruments"] if r["instrument"] == "CRUDEOILM")["state"] == "DATA_STALE"
+    skewed = mcx_api.build_status(sessions, now=now - timedelta(minutes=10), settings=ENABLED)
+    assert next(r for r in skewed["instruments"] if r["instrument"] == "CRUDEOILM")["state_reason"] == \
+        "FEED_TIMESTAMP_IN_FUTURE_CLOCK_SKEW"  # a future-dated feed is never reported as healthy
     off = mcx_api.build_status(sessions, now=now, settings=McxFuturesSettings.from_env({}))
     assert {r["state"] for r in off["instruments"]} == {"DISABLED"}
     perf = mcx_api.performance(instrument="CRUDEOILM", sessions=sessions)

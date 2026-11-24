@@ -51,6 +51,8 @@ def freshness_state(observed_at: str | None, now: datetime, in_session: bool) ->
     if not observed_at:
         return "DATA_STALE", "NO_OBSERVATION_RECORDED"
     age = (now - datetime.fromisoformat(observed_at)).total_seconds()
+    if age < -5:
+        return "DATA_STALE", "OBSERVATION_TIMESTAMP_IN_FUTURE_CLOCK_SKEW"
     if age > STALE_SECONDS:
         return "DATA_STALE", f"LAST_OBSERVATION_{int(age)}S_AGO"
     return "RUNNING", None
