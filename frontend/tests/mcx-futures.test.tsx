@@ -38,7 +38,7 @@ describe("/mcx-futures", () => {
     expect(within(crude).getByText("ARMED")).toBeInTheDocument();
     const bars = within(crude).getByRole("list", { name: "Score breakdown" });
     expect(within(bars).getAllByRole("listitem")).toHaveLength(4);
-    expect(within(bars).getByText("-5.00")).toHaveClass("negative");
+    expect(within(bars).getByText("-5.00 / 5.00")).toHaveClass("negative");
     expect(within(crude).getByText("Unrealized (MTM)").nextSibling).toHaveTextContent("₹150.00");
     expect(within(crude).getByText(/Marked 23 Oct 2026 · 11:59:57 IST/)).toBeInTheDocument();
     expect(within(crude).getByText("Realized today (closed)").nextSibling).toHaveTextContent("−₹230.00");
@@ -131,5 +131,25 @@ describe("/mcx-futures/[instrument]", () => {
     expect(await screen.findByText("MCX FUTURES NOT CONFIGURED")).toBeInTheDocument();
     expect(screen.queryByText("DECISION TIMELINE")).not.toBeInTheDocument();
     expect(screen.queryByText("PAPER TRADE BLOTTER")).not.toBeInTheDocument();
+  });
+});
+
+describe("commodity futures state visibility", () => {
+  it.each(["RUNNING", "MARKET_CLOSED", "DATA_STALE", "IDLE", "DISABLED", "NOT_CONFIGURED"] as const)("shows %s without guessing a trade", async state => {
+    const source = fixtures.fixtures["/api/mcx-futures/status"];
+    routes["/api/mcx-futures/status"] = { body: { ...source, instruments: [{ ...source.instruments[0], state, state_reason: state + "_REASON" }] } };
+    render(<McxFuturesPage/>);
+    const row = await screen.findByRole("region", { name: "CRUDEOILM paper engine" });
+    expect(within(row).getByText(state.replaceAll("_", " "))).toBeInTheDocument();
+    expect(within(row).getByText(state + "_REASON")).toBeInTheDocument();
+  });
+  it("shows warm-up counts from status", async () => {
+    const source = fixtures.fixtures["/api/mcx-futures/status"];
+    routes["/api/mcx-futures/status"] = { body: { ...source, instruments: [{ ...source.instruments[0], warmup: {
+      ready: false, bars_available: 11, bars_required: 44, timeframe_minutes: 3, blocking: ["FEATURE_BARS_WARMING_UP"] } }] } };
+    render(<McxFuturesPage/>);
+    const row = await screen.findByRole("region", { name: "CRUDEOILM paper engine" });
+    expect(within(row).getByText("11 / 44 completed 3-minute bars")).toBeInTheDocument();
+    expect(within(row).getByText("WARMING UP")).toBeInTheDocument();
   });
 });

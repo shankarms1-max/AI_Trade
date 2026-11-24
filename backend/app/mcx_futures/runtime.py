@@ -17,6 +17,7 @@ from app.mcx_futures.bars import Observation
 from app.mcx_futures.config import STRATEGY_ID, InstrumentConfig
 from app.mcx_futures.costs import CostSchedule
 from app.mcx_futures.engine import McxFuturesEngine
+from app.mcx_futures.features import warmup_bars
 from app.mcx_futures.session import SessionCalendar
 from app.mcx_futures.spec import ContractSpec
 from app.research.manifest import digest
@@ -94,6 +95,11 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
     """The JSON the API serves for one instrument; carries forward the last decision between bars."""
     snap = engine.snapshot()
     cfg, spec = engine.config, engine.spec
+    available = len(snap.get("bars") or [])
+    required = warmup_bars(cfg)
+    warmup = {"ready": available >= required, "bars_available": available, "bars_required": required,
+              "timeframe_minutes": cfg.feature_timeframe_minutes,
+              "blocking": [] if available >= required else ["FEATURE_BARS_WARMING_UP"]}
     st = calendar.state(now)
     sess = snap.get("session") or {}
     window = (f"{st.session.open_at.strftime('%H:%M')}-{st.session.close_at.strftime('%H:%M')} IST"
@@ -135,7 +141,7 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
                         "next_open": st.next_open.isoformat() if st.next_open else None,
                         "last_entry_time": sess.get("last_entry_at"), "forced_exit_time": sess.get("forced_exit_at"),
                         "reason": None if st.status == "OPEN" else "OUTSIDE_MCX_SESSION_OR_HOLIDAY"},
-            "feed": feed, "last_decision": decision, "position": position,
+            "feed": feed, "last_decision": decision, "position": position, "warmup": warmup,
             "risk": {"daily_loss_limit": cfg.daily_loss_limit, "daily_realized": r.get("realised_net"),
                      "max_risk_per_trade": cfg.max_risk_per_trade, "entries_today": r.get("entries"),
                      "max_entries": cfg.max_entries_per_session, "consecutive_losses": r.get("consecutive_losses")},

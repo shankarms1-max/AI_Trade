@@ -8,7 +8,7 @@
         {
           "id": "acts-v3", "label": "ACTS V3", "family": "ACTS", "version": "ACTS_V3", "instrument": "NIFTY", "mode": "PAPER",
           "state": "RUNNING", "state_reason": null, "last_update": "2026-10-23T06:29:40Z",
-          "last_decision": { "at": "2026-10-23T06:29:00Z", "status": "BLOCKED", "direction": "BULL", "score": 61.5, "primary_blocker": "SCORE_BELOW_ENTRY_THRESHOLD" },
+          "warmup": null, "last_decision": { "at": "2026-10-23T06:29:00Z", "status": "BLOCKED", "direction": "BULL", "score": 61.5, "primary_blocker": "SCORE_BELOW_ENTRY_THRESHOLD" },
           "active_position": { "direction": "SHORT_PUT_SPREAD", "contract": "SYNTH-NIFTY-25600PE", "quantity": 75, "entry_price": 42.5, "mark_price": 38.0, "mark_at": "2026-10-23T06:29:30Z", "unrealized_pnl": 337.5 },
           "trades_today": 1, "realized_pnl_today": -120.0, "unrealized_pnl": 337.5, "detail_href": "/nifty"
         },
@@ -52,7 +52,7 @@
           "feed": { "last_quote_at": "2026-10-23T06:29:57Z", "age_seconds": 3, "stale": false, "bid": 5412, "ask": 5414, "ltp": 5413, "spread_ticks": 2 },
           "last_decision": {
             "at": "2026-10-23T06:29:00Z", "status": "ENTER", "direction": "LONG", "score": 72.5,
-            "components": { "trend": 30, "momentum": 22.5, "volatility_penalty": -5, "liquidity": 25 },
+            "components": { "trend": 30, "momentum": 22.5, "volatility_penalty": -5, "liquidity": 25 }, "component_max": { "trend": 30, "momentum": 25, "volatility_penalty": 5, "liquidity": 25 },
             "vetoes": [], "market_state": "TRENDING_UP", "cycle_id": "SYNTH-CYCLE-7", "cycle_state": "ARMED", "rearm_reason": null
           },
           "position": { "direction": "LONG", "entry_at": "2026-10-23T05:10:00Z", "entry_price": 5398, "stop_price": 5371, "quantity_lots": 1, "mark_price": 5413, "mark_at": "2026-10-23T06:29:57Z", "unrealized_pnl": 150 },
@@ -65,7 +65,7 @@
           "contract": null,
           "session": { "status": "OPEN", "window": "09:00–23:30 IST", "next_open": null, "last_entry_time": null, "forced_exit_time": null },
           "feed": { "last_quote_at": null, "age_seconds": null, "stale": true, "bid": null, "ask": null, "ltp": null, "spread_ticks": null },
-          "last_decision": null, "position": null,
+          "warmup": null, "last_decision": null, "position": null,
           "trades_today": 0, "realized_pnl_today": 0, "entries_rejected_today": 0, "last_rejection": null,
           "risk": { "daily_loss_limit": 2000, "daily_realized": 0, "max_risk_per_trade": 500, "entries_today": 0, "max_entries": 4 }
         }
@@ -74,10 +74,10 @@
     "/api/mcx-futures/decisions": {
       "items": [
         { "at": "2026-10-23T06:29:00Z", "instrument": "NATGASMINI", "status": "BLOCKED", "direction": "SHORT", "score": 48.0,
-          "components": { "trend": 20, "momentum": 18, "liquidity": 10 }, "vetoes": ["FEED_STALE", "SCORE_BELOW_ENTRY_THRESHOLD"],
+          "components": { "trend": 20, "momentum": 18, "liquidity": 10 }, "component_max": { "trend": 30, "momentum": 25, "liquidity": 25 }, "vetoes": ["FEED_STALE", "SCORE_BELOW_ENTRY_THRESHOLD"],
           "cycle_id": "SYNTH-CYCLE-3", "cycle_state": "COOLDOWN", "transition": "ARMED_TO_COOLDOWN", "evidence_at": "2026-10-23T06:28:58Z" },
         { "at": "2026-10-22T17:45:00Z", "instrument": "NATGASMINI", "status": "WATCH", "direction": null, "score": null,
-          "components": {}, "vetoes": [], "cycle_id": null, "cycle_state": null, "transition": null, "evidence_at": null }
+          "components": {}, "component_max": {}, "vetoes": [], "cycle_id": null, "cycle_state": null, "transition": null, "evidence_at": null }
       ]
     },
     "/api/mcx-futures/trades": {

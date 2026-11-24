@@ -19,7 +19,7 @@ export type McxFeed = {
 };
 export type McxDecision = {
   at: string | null; status: string | null; direction: string | null; score: number | null;
-  components: Record<string, number>; vetoes: string[]; market_state: string | null;
+  components: Record<string, number>; component_max: Record<string, number>; vetoes: string[]; market_state: string | null;
   cycle_id: string | null; cycle_state: string | null; rearm_reason: string | null;
 };
 export type McxPosition = {
@@ -30,9 +30,10 @@ export type McxRisk = {
   daily_loss_limit: number | null; daily_realized: number | null; max_risk_per_trade: number | null;
   entries_today: number | null; max_entries: number | null;
 };
+export type McxWarmup = { ready: boolean; bars_available: number; bars_required: number; timeframe_minutes: number; blocking: string[] };
 export type McxInstrument = {
   instrument: McxInstrumentId; state: EngineState; state_reason: string | null; contract: McxContract | null;
-  session: McxSession; feed: McxFeed; last_decision: McxDecision | null; position: McxPosition | null;
+  session: McxSession; feed: McxFeed; warmup: McxWarmup | null; last_decision: McxDecision | null; position: McxPosition | null;
   trades_today: number; realized_pnl_today: number; entries_rejected_today: number;
   last_rejection: { at: string | null; reason: string | null } | null; risk: McxRisk;
 };
@@ -48,7 +49,7 @@ export type McxTrade = {
 export type McxTradePage = { items: McxTrade[]; next_before: string | null };
 export type McxDecisionRecord = {
   at: string; instrument: McxInstrumentId; status: string | null; direction: string | null; score: number | null;
-  components: Record<string, number>; vetoes: string[]; cycle_id: string | null; cycle_state: string | null;
+  components: Record<string, number>; component_max: Record<string, number>; vetoes: string[]; cycle_id: string | null; cycle_state: string | null;
   transition: string | null; evidence_at: string | null;
 };
 export type McxDecisionPage = { items: McxDecisionRecord[] };

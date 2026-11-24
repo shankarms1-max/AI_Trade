@@ -356,3 +356,15 @@ button { min-width:44px; }
 /* Single-word mode badges (PAPER / RESEARCH / LIVE) must never break per letter in narrow table columns. */
 td.mode-cell .badge, .engine-badges .badge { white-space:nowrap; overflow-wrap:normal; word-break:keep-all; }
 td.mode-cell { min-width:96px; }
+
+.commodity-live-title { margin:12px 0; font-size:clamp(20px,2vw,28px); }
+.legacy-commodity { margin:24px 0; border-top:1px solid var(--border); padding-top:12px; }
+.legacy-commodity-panels { margin-top:16px; display:grid; gap:16px; }
+.mcx-instrument[data-state="DISABLED"] { border-left:3px solid var(--muted); }
+.mcx-instrument[data-state="IDLE"] { border-left:3px solid var(--secondary); }
+.mcx-instrument[data-state="IDLE"] .engine-state .badge { color:var(--secondary); background:var(--panel2); }
+.mcx-instrument[data-state="MARKET_CLOSED"] { border-left:3px solid var(--accent); }
+.mcx-instrument[data-state="DATA_STALE"] { border-left:3px solid var(--warning); }
+.mcx-instrument[data-state="DISABLED"] .engine-state .badge { color:var(--muted); border:1px dashed var(--border); }
+.mcx-instrument[data-state="NOT_CONFIGURED"] .engine-state .badge { color:var(--warning); border:1px solid var(--warning); }
+.mcx-instrument:has(.badge.UNRESOLVED_EXPOSURE) { border-left:3px solid var(--negative); }

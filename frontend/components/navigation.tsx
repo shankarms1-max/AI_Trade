@@ -8,7 +8,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui";
 const primary: Array<[string,string,IconName]> = [["/","Overview","grid"],["/positions","Positions","wallet"],["/nifty","Strategies","chart"],["/trades","Trades","history"]];
-const secondary: Array<[string,string,IconName]> = [["/engines","Engines","layers"],["/mcx-futures","MCX Futures","flame"],["/ast-futures","AST Futures","pulse"],["/commodity-acts","Commodity ACTS","layers"],["/commodity-acts/CRUDEOILM","Crude Oil Mini","flame"],["/commodity-acts/NATGASMINI","Natural Gas Mini","gas"],["/nifty/research","Market research","chart"],["/history","Research history","history"],["/shadow","Legacy shadow portfolio","wallet"],["/system","System health","shield"],["/phase15","Phase 15 monitor","pulse"]];
+const secondary: Array<[string,string,IconName]> = [["/engines","Engines","layers"],["/mcx-futures","MCX Futures","flame"],["/ast-futures","AST Futures","pulse"],["/commodity-acts","Commodity (MCX)","layers"],["/mcx-futures/CRUDEOILM","Crude Oil Mini","flame"],["/mcx-futures/NATGASMINI","Natural Gas Mini","gas"],["/nifty/research","Market research","chart"],["/history","Research history","history"],["/shadow","Legacy shadow portfolio","wallet"],["/system","System health","shield"],["/phase15","Phase 15 monitor","pulse"]];
 /** Exact match first; otherwise the longest section prefix, so deep links such as /mcx-futures/NATGASMINI keep their section active. */
 export function activeHref(pathname: string): string | null {
   const all = [...primary, ...secondary].map(([href]) => href);

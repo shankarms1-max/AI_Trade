@@ -235,3 +235,32 @@ def test_quote_parser_maps_kotak_fields_and_checks_identity():
     assert (q["ltp"], q["bid"], q["ask"], q["cum_volume"], q["oi"]) == (5612, 5611, 5613, 123450, 4321)
     with pytest.raises(CommodityDataError):
         m.quote("576265", "NATGASMINI28DEC26FUT")
+
+
+def test_status_warmup_progress_and_old_cursor_null(crude_run):
+    early_sessions = _sessions()
+    early_observations = observations_from_bars(
+        trend_bars(date(2026, 11, 24), start_price=5600, slope=0.6, tick=1.0, minutes=30, wiggle=2.0), 1.0
+    )
+    _run("CRUDEOILM", early_sessions, early_observations, upto=1)
+    early_status = mcx_api.build_status(early_sessions, now=early_observations[0].at, settings=ENABLED)
+    early_row = next(r for r in early_status["instruments"] if r["instrument"] == "CRUDEOILM")
+    assert early_row["warmup"]["ready"] is False
+    assert early_row["warmup"]["bars_available"] < early_row["warmup"]["bars_required"]
+    sessions, _, _, obs = crude_run
+    now = obs[-1].at + timedelta(seconds=5)
+    ready = mcx_api.build_status(sessions, now=now, settings=ENABLED)
+    row = next(r for r in ready["instruments"] if r["instrument"] == "CRUDEOILM")
+    from app.mcx_futures.features import warmup_bars
+    from app.mcx_futures.config import CRUDEOILM
+    assert row["warmup"]["bars_required"] == warmup_bars(CRUDEOILM)
+    assert row["warmup"]["bars_available"] >= row["warmup"]["bars_required"]
+    assert row["warmup"]["ready"] is True
+    assert next(r for r in ready["instruments"] if r["instrument"] == "NATGASMINI")["warmup"] is None
+    with sessions.begin() as session:
+        cursor = session.get(McxFuturesCursor, "CRUDEOILM")
+        latest = json.loads(cursor.latest_json)
+        latest.pop("warmup")
+        cursor.latest_json = json.dumps(latest)
+    older = mcx_api.build_status(sessions, now=now, settings=ENABLED)
+    assert next(r for r in older["instruments"] if r["instrument"] == "CRUDEOILM")["warmup"] is None

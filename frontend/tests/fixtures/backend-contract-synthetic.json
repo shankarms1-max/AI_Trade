@@ -75,6 +75,13 @@
      ],
      "warm": true
     },
+    "warmup": {
+     "bars_available": 160,
+     "bars_required": 54,
+     "blocking": [],
+     "ready": true,
+     "timeframe_minutes": 3
+    },
     "position": null,
     "trades_today": 3,
     "realized_pnl_today": 2288.27,
@@ -104,13 +111,14 @@
     "feed": {
      "last_quote_at": null,
      "age_seconds": null,
-     "stale": true,
      "bid": null,
      "ask": null,
      "ltp": null,
-     "spread_ticks": null
+     "spread_ticks": null,
+     "stale": true
     },
     "last_decision": null,
+    "warmup": null,
     "position": null,
     "trades_today": 0,
     "realized_pnl_today": 0,

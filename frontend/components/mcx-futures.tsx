@@ -35,14 +35,14 @@ export function McxPaperBanner({ status }: { status?: McxStatus | null }) {
   </>;
 }
 
-function ScoreBars({ components }: { components: Record<string, number> }) {
+function ScoreBars({ components, maxima }: { components: Record<string, number>; maxima: Record<string, number> }) {
   const entries = Object.entries(components);
   if (!entries.length) return <p className="muted">No score components reported.</p>;
-  const scale = Math.max(...entries.map(([, v]) => Math.abs(v))) || 1;
+
   return <ul className="score-bars" aria-label="Score breakdown">{entries.map(([name, value]) =>
     <li key={name}><span>{pretty(name)}</span>
-      <span className="score-track" aria-hidden="true"><i className={value < 0 ? "is-negative" : ""} style={{ width: `${Math.round(Math.abs(value) / scale * 100)}%` }}/></span>
-      <b className={tone(value)}>{number(value, 2)}</b></li>)}</ul>;
+      <span className="score-track" aria-hidden="true"><i className={value < 0 ? "is-negative" : ""} style={{ width: `${Math.round(Math.min(1, Math.abs(value) / (maxima[name] || 1)) * 100)}%` }}/></span>
+      <b className={tone(value)}>{number(value, 2)} / {dash(maxima[name], v => number(v, 2))}</b></li>)}</ul>;
 }
 
 function Vetoes({ vetoes }: { vetoes: string[] }) {
@@ -61,7 +61,7 @@ function DecisionBlock({ decision }: { decision: McxDecision | null }) {
       <div><dt>Cycle</dt><dd>{decision.cycle_state ? <Badge value={decision.cycle_state}/> : DASH}{decision.cycle_id && <small> {decision.cycle_id}</small>}</dd></div>
       <div><dt>Re-arm reason</dt><dd>{decision.rearm_reason ?? DASH}</dd></div>
     </dl>
-    <h4 className="mcx-subhead">Score breakdown</h4><ScoreBars components={decision.components}/>
+    <h4 className="mcx-subhead">Score breakdown</h4><ScoreBars components={decision.components} maxima={decision.component_max}/>
     <h4 className="mcx-subhead">Vetoes</h4><Vetoes vetoes={decision.vetoes}/>
   </>;
 }
@@ -75,7 +75,7 @@ function Utilisation({ label, used, limit, detail }: { label: string; used: numb
 }
 
 export function McxInstrumentPanel({ row, now, detailLink = true }: { row: McxInstrument; now: number; detailLink?: boolean }) {
-  const { contract, session, feed, position, risk } = row;
+  const { contract, session, feed, position, risk, warmup } = row;
   const quoteAge = feed.age_seconds ?? (parseTimestamp(feed.last_quote_at) == null ? null : Math.max(0, Math.floor((now - parseTimestamp(feed.last_quote_at)!) / 1000)));
   const lossUsed = risk.daily_realized == null ? null : Math.max(0, -risk.daily_realized);
   return <section className="mcx-instrument" aria-label={`${row.instrument} paper engine`} data-state={row.state}>
@@ -101,8 +101,12 @@ export function McxInstrumentPanel({ row, now, detailLink = true }: { row: McxIn
         <div><dt>Bid / Ask</dt><dd>{price(feed.bid)} / {price(feed.ask)}</dd></div><div><dt>LTP</dt><dd>{price(feed.ltp)}</dd></div>
         <div><dt>Spread</dt><dd>{dash(feed.spread_ticks, v => `${number(v, 1)} ticks`)}</dd></div>
       </dl></Panel>
+      <Panel title="WARM-UP" action={warmup ? <Badge value={warmup.ready ? "READY" : "WARMING_UP"} tone={warmup.ready ? "good" : "warn"}/> : undefined}>
+        {warmup ? <><p>{integer(warmup.bars_available)} / {integer(warmup.bars_required)} completed {integer(warmup.timeframe_minutes)}-minute bars</p>
+          {!warmup.ready && <p className="muted">{warmup.blocking.map(pretty).join(", ")}</p>}</> : <p className="muted">Warm-up history unavailable for this record.</p>}
+      </Panel>
       <Panel title="LAST DECISION"><DecisionBlock decision={row.last_decision}/></Panel>
-      <Panel title="PAPER POSITION" action={position ? <Badge value={position.direction}/> : undefined}>{position ? <>
+      <Panel title="PAPER POSITION" action={position ? <><Badge value="OPEN" tone="accent"/><Badge value={position.direction}/></> : undefined}>{position ? <>
         <div className="compact-metrics">
           <Metric label="Unrealized (MTM)" value={inr(position.unrealized_pnl)} tone={tone(position.unrealized_pnl)} detail={position.mark_at ? `Marked ${stampIST(position.mark_at)}` : "Mark time unavailable"}/>
           <Metric label="Mark price" value={price(position.mark_price)}/>
@@ -174,7 +178,7 @@ function DecisionTimeline({ instrument }: { instrument: McxInstrumentId }) {
           <div><div className="engine-badges">{d.status ? <Badge value={d.status}/> : <span>{DASH}</span>}{d.direction && <Badge value={d.direction} tone="neutral"/>}{d.cycle_state && <Badge value={d.cycle_state} tone="neutral"/>}</div>
             <p>Score {dash(d.score, v => number(v, 2))}{d.transition ? ` · ${pretty(d.transition)}` : ""}{d.cycle_id ? ` · cycle ${d.cycle_id}` : ""}{d.evidence_at ? ` · evidence ${timeIST(d.evidence_at)}` : ""}</p>
             {d.vetoes.length > 0 && <Vetoes vetoes={d.vetoes}/>}
-            {Object.keys(d.components).length > 0 && <details className="research-disclosure"><summary>Score breakdown</summary><ScoreBars components={d.components}/></details>}
+            {Object.keys(d.components).length > 0 && <details className="research-disclosure"><summary>Score breakdown</summary><ScoreBars components={d.components} maxima={d.component_max}/></details>}
           </div></li>)}</ol></div>)}
   </Panel>;
 }

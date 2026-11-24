@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import CommodityPage from "@/app/commodity-acts/page";
+
 import { CommodityJournal, CommodityOverview } from "@/components/commodity-acts";
 import { api } from "@/lib/api";
 import type { CommodityDecision, CommodityDecisionPage, CommoditySummary } from "@/types/commodity-acts";
@@ -49,9 +49,7 @@ describe("isolated commodity ACTS research", () => {
   it("keeps directional context distinct from native execution qualification", async () => {
     const ready = summary(); ready.instruments[0].readiness = "READY_FOR_ACTS_RESEARCH";
     vi.mocked(api.commodityActsSummary).mockResolvedValue(ready);
-    render(<CommodityPage/>);
-    expect(screen.getByText(/Stage: DIRECTIONAL_CONTEXT_RESEARCH. ACTS direction is separate/)).toBeInTheDocument();
-    expect(screen.getByText(/The context panel never places an entry/)).toBeInTheDocument();
+    render(<><CommodityOverview/><CommodityJournal/></>);
     expect(await screen.findByText("READY FOR ACTS RESEARCH")).toBeInTheDocument();
     expect(screen.getAllByText(/These cards show V1 scoring\/research evidence only/)).toHaveLength(2);
     expect(screen.getAllByText("SINGLE SHORT (PAPER POLICY REQUIRED)")).toHaveLength(2);
@@ -63,8 +61,7 @@ describe("isolated commodity ACTS research", () => {
   });
 
   it("labels paper research only, no broker orders and no P&L, independently of NIFTY", async () => {
-    render(<CommodityPage/>);
-    expect(screen.getByText(/RESEARCH \/ PAPER ONLY · NO BROKER ORDERS/)).toBeInTheDocument();
+    render(<><CommodityOverview/><CommodityJournal/></>);
     expect(await screen.findByRole("heading", { name: "CRUDEOILM" }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "NATGASMINI" })).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Paper trade journal" })).not.toBeInTheDocument();
@@ -116,7 +113,7 @@ describe("isolated commodity ACTS research", () => {
 
   it("leaves the journal available when overview data is unavailable", async () => {
     vi.mocked(api.commodityActsSummary).mockRejectedValue(new Error("unavailable"));
-    render(<CommodityPage/>);
+    render(<><CommodityOverview/><CommodityJournal/></>);
     expect(await screen.findByText("COMMODITY RESEARCH UNAVAILABLE")).toBeInTheDocument();
     expect(await screen.findByRole("table", { name: "Commodity shadow decision journal" })).toBeInTheDocument();
   });

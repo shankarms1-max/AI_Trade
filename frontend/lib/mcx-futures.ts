@@ -1,7 +1,7 @@
 import { API_BASE, fetchJson } from "@/lib/http";
 import { array, boolean, finite, nFinite, nString, nTimestamp, nullable, oneOf, record, shape, string, timestamp, type Guard } from "@/lib/guards";
 import { ENGINE_STATES } from "@/types/engines";
-import { MCX_INSTRUMENTS, type McxContract, type McxDecision, type McxDecisionPage, type McxDecisionRecord, type McxFeed, type McxInstrument,
+import { MCX_INSTRUMENTS, type McxContract, type McxDecision, type McxDecisionPage, type McxDecisionRecord, type McxFeed, type McxInstrument, type McxWarmup,
   type McxInstrumentId, type McxPerf, type McxPerformance, type McxPosition, type McxRisk, type McxSession, type McxStatus,
   type McxTrade, type McxTradePage } from "@/types/mcx-futures";
 
@@ -15,13 +15,14 @@ const session = shape<McxSession>({ status: oneOf(["OPEN", "CLOSED", "PRE_OPEN"]
 const feed = shape<McxFeed>({ last_quote_at: nTimestamp, age_seconds: nFinite, stale: boolean, bid: nFinite, ask: nFinite, ltp: nFinite,
   spread_ticks: nFinite });
 const decision = shape<McxDecision>({ at: nTimestamp, status: nString, direction: nString, score: nFinite, components, vetoes,
-  market_state: nString, cycle_id: nString, cycle_state: nString, rearm_reason: nString });
+  component_max: record(finite), market_state: nString, cycle_id: nString, cycle_state: nString, rearm_reason: nString });
 const position = shape<McxPosition>({ direction: string, entry_at: nTimestamp, entry_price: nFinite, stop_price: nFinite,
   quantity_lots: nFinite, mark_price: nFinite, mark_at: nTimestamp, unrealized_pnl: nFinite });
 const risk = shape<McxRisk>({ daily_loss_limit: nFinite, daily_realized: nFinite, max_risk_per_trade: nFinite, entries_today: nFinite,
   max_entries: nFinite });
+const warmup = shape<McxWarmup>({ ready: boolean, bars_available: finite, bars_required: finite, timeframe_minutes: finite, blocking: vetoes });
 const instrumentStatus = shape<McxInstrument>({ instrument, state: oneOf(ENGINE_STATES), state_reason: nString, contract: nullable(contract),
-  session, feed, last_decision: nullable(decision), position: nullable(position), trades_today: finite, realized_pnl_today: finite,
+  session, feed, warmup: nullable(warmup), last_decision: nullable(decision), position: nullable(position), trades_today: finite, realized_pnl_today: finite,
   entries_rejected_today: finite, last_rejection: nullable(shape({ at: nTimestamp, reason: nString })), risk });
 
 export const parseMcxStatus: Guard<McxStatus> = shape<McxStatus>({ generated_at: timestamp, engine_version: string,
@@ -32,7 +33,7 @@ export const parseMcxTrades: Guard<McxTradePage> = shape<McxTradePage>({ next_be
   exit_reason: nString, gross_pnl: nFinite, fees: nFinite, slippage_cost: nFinite, net_pnl: nFinite, state: string,
   journal_sequence: nFinite, rejection_reason: nString })) });
 export const parseMcxDecisions: Guard<McxDecisionPage> = shape<McxDecisionPage>({ items: array(shape<McxDecisionRecord>({
-  at: timestamp, instrument, status: nString, direction: nString, score: nFinite, components, vetoes, cycle_id: nString,
+  at: timestamp, instrument, status: nString, direction: nString, score: nFinite, components, component_max: record(finite), vetoes, cycle_id: nString,
   cycle_state: nString, transition: nString, evidence_at: nTimestamp })) });
 const perf = shape<McxPerf>({ trades: finite, win_rate: nFinite, expectancy: nFinite, avg_win: nFinite, avg_loss: nFinite,
   profit_factor: nFinite, max_drawdown: nFinite, gross: nFinite, fees: nFinite, net: nFinite, realized: nFinite, unrealized: nFinite });

@@ -22,19 +22,28 @@ describe("navigation", () => {
     location.pathname = "/mcx-futures/NATGASMINI";
     render(<Navigation/>);
     const link = within(screen.getByRole("navigation", { name: "Primary" })).getByRole("link", { name: "MCX Futures" });
-    expect(link).toHaveClass("is-active");
-    expect(link).toHaveAttribute("aria-current", "location");
-    expect(screen.getByText("MCX Futures", { selector: "strong" })).toBeInTheDocument();
+    expect(link).not.toHaveClass("is-active");
+    expect(within(screen.getByRole("navigation", { name: "Primary" })).getByRole("link", { name: "Natural Gas Mini" })).toHaveClass("is-active");
+    expect(screen.getByText("Natural Gas Mini", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "More navigation" })).toHaveClass("is-active");
   });
 
   it("resolves exact matches before section prefixes", () => {
     expect(activeHref("/engines")).toBe("/engines");
-    expect(activeHref("/mcx-futures/CRUDEOILM")).toBe("/mcx-futures");
-    expect(activeHref("/commodity-acts/CRUDEOILM")).toBe("/commodity-acts/CRUDEOILM");
+    expect(activeHref("/mcx-futures/CRUDEOILM")).toBe("/mcx-futures/CRUDEOILM");
+    expect(activeHref("/commodity-acts/CRUDEOILM")).toBe("/commodity-acts");
     expect(activeHref("/nifty/research")).toBe("/nifty/research");
     expect(activeHref("/history/12")).toBe("/history");
     expect(activeHref("/unknown")).toBeNull();
     expect(activeHref("/mcx-futuresX")).toBeNull();
   });
+});
+
+it("routes commodity instruments to the running futures pages", () => {
+  location.pathname = "/";
+  render(<Navigation/>);
+  const nav = screen.getByRole("navigation", { name: "Primary" });
+  expect(within(nav).getByRole("link", { name: "Commodity (MCX)" })).toHaveAttribute("href", "/commodity-acts");
+  expect(within(nav).getByRole("link", { name: "Crude Oil Mini" })).toHaveAttribute("href", "/mcx-futures/CRUDEOILM");
+  expect(within(nav).getByRole("link", { name: "Natural Gas Mini" })).toHaveAttribute("href", "/mcx-futures/NATGASMINI");
 });
