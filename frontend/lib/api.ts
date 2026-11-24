@@ -2,16 +2,17 @@ import type { AIResearch, AlphaFeature, CompactSystemHealth, DashboardData, Deta
 import type { CommodityDecisionPage, CommodityInstrument, CommoditySummary } from "@/types/commodity-acts";
 import type { PaperKind, PaperPage, PaperSummary } from "@/types/commodity-paper";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
+import { API_BASE, fetchJson, RequestError } from "@/lib/http";
+
 const COMMODITY_BASE = process.env.NEXT_PUBLIC_COMMODITY_API_BASE ?? API_BASE;
-export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
-async function request<T>(path: string): Promise<T> {
+/** Kept for existing imports: every failure is a typed RequestError (HTTP status, timeout, network, not configured). */
+export { RequestError as ApiError } from "@/lib/http";
+/** Every read has a 10 s timeout and honours the polling hook's AbortSignal. */
+export function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   const base = path.startsWith("/api/commodity-acts/") ? COMMODITY_BASE : API_BASE;
-  const response = await fetch(`${base}${path}`, { headers: { Accept: "application/json" }, cache: "no-store" });
-  if (!response.ok) throw new ApiError(response.status, `Request failed (${response.status})`);
-  return response.json() as Promise<T>;
+  return fetchJson(`${base}${path}`, { signal }) as Promise<T>;
 }
-const optional = async <T>(path: string): Promise<T | null> => { try { return await request<T>(path); } catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; } };
+const optional = async <T>(path: string): Promise<T | null> => { try { return await request<T>(path); } catch (error) { if (error instanceof RequestError && error.status === 404) return null; throw error; } };
 export const api = {
   commodityPaperSummary: () => request<PaperSummary>("/api/commodity-acts/paper/summary"),
   commodityPaperPage: (instrument: CommodityInstrument, kind: PaperKind, offset = 0) =>
@@ -51,7 +52,7 @@ export const api = {
   shadow: (id: number) => optional<ShadowTrade>(`/api/shadow/trades/${id}`),
   marks: (id: number) => request<ShadowMark[]>(`/api/shadow/trades/${id}/marks`),
   performance: () => request<ShadowPerformance>("/api/shadow/performance"),
-  health: () => request<CompactSystemHealth>("/api/health"),
+  health: (signal?: AbortSignal) => request<CompactSystemHealth>("/api/health", signal),
   systemHealth: () => request<DetailedSystemHealth>("/api/system/health"),
   systemEvents: (limit = 100) => request<OperationalEvent[]>(`/api/system/events?limit=${limit}`),
   systemMetrics: () => request<SystemMetrics>("/api/system/metrics"),

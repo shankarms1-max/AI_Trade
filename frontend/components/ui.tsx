@@ -10,7 +10,7 @@ export function statusTone(value: string): string {
   if (/PAPER|GROSS|BULL|BEAR|OPEN/.test(value)) return "accent";
   return "neutral";
 }
-export function Badge({ value }: { value: string }) { return <span className={`badge ${value.replace(/[^A-Za-z0-9_-]/g, "-")}`} data-tone={statusTone(value)}><i aria-hidden="true"/>{value.replaceAll("_", " ")}</span>; }
+export function Badge({ value, tone }: { value: string; tone?: string }) { return <span className={`badge ${value.replace(/[^A-Za-z0-9_-]/g, "-")}`} data-tone={tone ?? statusTone(value)}><i aria-hidden="true"/>{value.replaceAll("_", " ")}</span>; }
 export function Metric({ label, value, detail, tone = "" }: { label: string; value: ReactNode; detail?: ReactNode; tone?: string }) { return <div className="metric"><div className="metric-label">{label}</div><div className={`metric-value ${tone}`}>{value}</div>{detail != null && <div className="metric-detail">{detail}</div>}</div>; }
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty"><span className="empty-symbol" aria-hidden="true"><Icon name="layers" size={22}/></span><span>{children}</span></div>; }
 export function SectionError({ children = "SECTION DATA UNAVAILABLE" }: { children?: ReactNode }) { return <div className="section-error">{children}</div>; }

@@ -1,0 +1,102 @@
+{
+  "notice": "SYNTHETIC UI FIXTURES ONLY — invented engine, contract and paper-trade values for rendering tests. Not production, broker, exchange or fill evidence. Fixed clock: 2026-10-23T06:30:00Z.",
+  "fixtures": {
+    "/api/engines/status": {
+      "generated_at": "2026-10-23T06:29:55Z",
+      "timezone": "Asia/Kolkata",
+      "engines": [
+        {
+          "id": "acts-v3", "label": "ACTS V3", "family": "ACTS", "version": "ACTS_V3", "instrument": "NIFTY", "mode": "PAPER",
+          "state": "RUNNING", "state_reason": null, "last_update": "2026-10-23T06:29:40Z",
+          "last_decision": { "at": "2026-10-23T06:29:00Z", "status": "BLOCKED", "direction": "BULL", "score": 61.5, "primary_blocker": "SCORE_BELOW_ENTRY_THRESHOLD" },
+          "active_position": { "direction": "SHORT_PUT_SPREAD", "contract": "SYNTH-NIFTY-25600PE", "quantity": 75, "entry_price": 42.5, "mark_price": 38.0, "mark_at": "2026-10-23T06:29:30Z", "unrealized_pnl": 337.5 },
+          "trades_today": 1, "realized_pnl_today": -120.0, "unrealized_pnl": 337.5, "detail_href": "/nifty"
+        },
+        {
+          "id": "mcx-futures-crudeoilm", "label": "MCX Futures · CRUDEOILM", "family": "MCX_FUTURES", "version": "MCX_FUT_V1", "instrument": "CRUDEOILM", "mode": "PAPER",
+          "state": "MARKET_CLOSED", "state_reason": "MCX evening session opens 09:00 IST", "last_update": "2026-10-23T06:25:00Z",
+          "last_decision": null, "active_position": null,
+          "trades_today": 0, "realized_pnl_today": 0, "unrealized_pnl": null, "detail_href": "/mcx-futures/CRUDEOILM"
+        },
+        {
+          "id": "mcx-futures-natgasmini", "label": "MCX Futures · NATGASMINI", "family": "MCX_FUTURES", "version": "MCX_FUT_V1", "instrument": "NATGASMINI", "mode": "PAPER",
+          "state": "DATA_STALE", "state_reason": "No quote for 240s", "last_update": "2026-10-23T06:26:00Z",
+          "last_decision": { "at": null, "status": null, "direction": null, "score": null, "primary_blocker": "FEED_STALE" },
+          "active_position": null,
+          "trades_today": null, "realized_pnl_today": null, "unrealized_pnl": null, "detail_href": "/mcx-futures/NATGASMINI"
+        },
+        {
+          "id": "ast-direct", "label": "AST Futures Direct", "family": "AST", "version": "AST_FUTURES_V1_DIRECT", "instrument": "NIFTY FUT", "mode": "PAPER",
+          "state": "NOT_CONFIGURED", "state_reason": "Runs in its isolated stack", "last_update": null,
+          "last_decision": null, "active_position": null,
+          "trades_today": null, "realized_pnl_today": null, "unrealized_pnl": null, "detail_href": "/ast-futures"
+        },
+        {
+          "id": "research-replay", "label": "Replay research worker", "family": "RESEARCH", "version": null, "instrument": null, "mode": "RESEARCH",
+          "state": "IDLE", "state_reason": null, "last_update": "2026-10-23T05:00:00Z",
+          "last_decision": null, "active_position": null,
+          "trades_today": null, "realized_pnl_today": null, "unrealized_pnl": null, "detail_href": null
+        }
+      ]
+    },
+    "/api/mcx-futures/status": {
+      "generated_at": "2026-10-23T06:29:58Z",
+      "engine_version": "MCX_FUT_V1",
+      "mode": "PAPER",
+      "calibration_status": "PRE_REGISTERED_UNVALIDATED",
+      "instruments": [
+        {
+          "instrument": "CRUDEOILM", "state": "RUNNING", "state_reason": null,
+          "contract": { "trading_symbol": "SYNTHCRUDEOILM26NOVFUT", "token": "000001", "expiry": "2026-11-19", "lot_size": 10, "tick_size": 1, "quotation_unit": "1 BBL", "source": "SYNTHETIC_SCRIP_MASTER" },
+          "session": { "status": "OPEN", "window": "09:00–23:30 IST", "next_open": null, "last_entry_time": "23:00", "forced_exit_time": "23:20" },
+          "feed": { "last_quote_at": "2026-10-23T06:29:57Z", "age_seconds": 3, "stale": false, "bid": 5412, "ask": 5414, "ltp": 5413, "spread_ticks": 2 },
+          "last_decision": {
+            "at": "2026-10-23T06:29:00Z", "status": "ENTER", "direction": "LONG", "score": 72.5,
+            "components": { "trend": 30, "momentum": 22.5, "volatility_penalty": -5, "liquidity": 25 },
+            "vetoes": [], "market_state": "TRENDING_UP", "cycle_id": "SYNTH-CYCLE-7", "cycle_state": "ARMED", "rearm_reason": null
+          },
+          "position": { "direction": "LONG", "entry_at": "2026-10-23T05:10:00Z", "entry_price": 5398, "stop_price": 5371, "quantity_lots": 1, "mark_price": 5413, "mark_at": "2026-10-23T06:29:57Z", "unrealized_pnl": 150 },
+          "trades_today": 2, "realized_pnl_today": -230, "entries_rejected_today": 1,
+          "last_rejection": { "at": "2026-10-23T04:05:00Z", "reason": "SPREAD_TOO_WIDE" },
+          "risk": { "daily_loss_limit": 2000, "daily_realized": -230, "max_risk_per_trade": 500, "entries_today": 2, "max_entries": 4 }
+        },
+        {
+          "instrument": "NATGASMINI", "state": "DATA_STALE", "state_reason": "No quote for 240s",
+          "contract": null,
+          "session": { "status": "OPEN", "window": "09:00–23:30 IST", "next_open": null, "last_entry_time": null, "forced_exit_time": null },
+          "feed": { "last_quote_at": null, "age_seconds": null, "stale": true, "bid": null, "ask": null, "ltp": null, "spread_ticks": null },
+          "last_decision": null, "position": null,
+          "trades_today": 0, "realized_pnl_today": 0, "entries_rejected_today": 0, "last_rejection": null,
+          "risk": { "daily_loss_limit": 2000, "daily_realized": 0, "max_risk_per_trade": 500, "entries_today": 0, "max_entries": 4 }
+        }
+      ]
+    },
+    "/api/mcx-futures/decisions": {
+      "items": [
+        { "at": "2026-10-23T06:29:00Z", "instrument": "NATGASMINI", "status": "BLOCKED", "direction": "SHORT", "score": 48.0,
+          "components": { "trend": 20, "momentum": 18, "liquidity": 10 }, "vetoes": ["FEED_STALE", "SCORE_BELOW_ENTRY_THRESHOLD"],
+          "cycle_id": "SYNTH-CYCLE-3", "cycle_state": "COOLDOWN", "transition": "ARMED_TO_COOLDOWN", "evidence_at": "2026-10-23T06:28:58Z" },
+        { "at": "2026-10-22T17:45:00Z", "instrument": "NATGASMINI", "status": "WATCH", "direction": null, "score": null,
+          "components": {}, "vetoes": [], "cycle_id": null, "cycle_state": null, "transition": null, "evidence_at": null }
+      ]
+    },
+    "/api/mcx-futures/trades": {
+      "items": [
+        { "trade_id": "SYNTH-T-2", "instrument": "NATGASMINI", "contract": "SYNTHNATGASMINI26NOVFUT", "direction": "SHORT", "version": "MCX_FUT_V1", "mode": "PAPER",
+          "quantity_lots": 1, "lot_size": 250, "entry_at": "2026-10-23T04:00:00Z", "entry_price": 285.4, "exit_at": "2026-10-23T05:00:00Z", "exit_price": 286.1,
+          "exit_reason": "STOP_LOSS", "gross_pnl": -175, "fees": 42.5, "slippage_cost": 25, "net_pnl": -242.5, "state": "CLOSED", "journal_sequence": 18, "rejection_reason": null },
+        { "trade_id": "SYNTH-T-1", "instrument": "NATGASMINI", "contract": null, "direction": "LONG", "version": "MCX_FUT_V1", "mode": "PAPER",
+          "quantity_lots": null, "lot_size": null, "entry_at": "2026-10-22T18:00:00Z", "entry_price": null, "exit_at": null, "exit_price": null,
+          "exit_reason": null, "gross_pnl": null, "fees": null, "slippage_cost": null, "net_pnl": null, "state": "REJECTED", "journal_sequence": 12, "rejection_reason": "SPREAD_TOO_WIDE" }
+      ],
+      "next_before": null
+    },
+    "/api/mcx-futures/performance": {
+      "by_instrument": {
+        "CRUDEOILM": { "trades": 4, "win_rate": 0.5, "expectancy": 37.5, "avg_win": 300, "avg_loss": -225, "profit_factor": 1.33, "max_drawdown": -450, "gross": 150, "fees": 170, "net": -20, "realized": -20, "unrealized": 150 },
+        "NATGASMINI": { "trades": 1, "win_rate": 0, "expectancy": -242.5, "avg_win": null, "avg_loss": -242.5, "profit_factor": null, "max_drawdown": -242.5, "gross": -175, "fees": 42.5, "net": -242.5, "realized": -242.5, "unrealized": null }
+      },
+      "overall": { "trades": 5, "win_rate": 0.4, "expectancy": -18.5, "avg_win": 300, "avg_loss": -230, "profit_factor": 0.87, "max_drawdown": -450, "gross": -25, "fees": 212.5, "net": -262.5, "realized": -262.5, "unrealized": 150 }
+    }
+  }
+}

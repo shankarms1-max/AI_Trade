@@ -1,10 +1,10 @@
 import { observationState } from "@/lib/monitoring";
-import { money, number, timeIST } from "@/lib/format";
+import { money, number, parseTimestamp, timeIST } from "@/lib/format";
 import type { Phase15OrbRange, Phase15PaperTrade } from "@/types";
 
-const clock = (value: string | null | undefined) => value ? new Intl.DateTimeFormat("en-GB", {
+const clock = (value: string | null | undefined) => parseTimestamp(value) != null ? new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false,
-}).format(new Date(value)) : "N/A";
+}).format(new Date(parseTimestamp(value)!)) : "N/A";
 const signed = (value: number) => `${value >= 0 ? "+" : "−"}${number(Math.abs(value))}`;
 
 export function OrbRange({ title, evidence, frozen = false, observedAt }: {

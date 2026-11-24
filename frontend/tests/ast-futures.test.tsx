@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AstFuturesPage from "@/app/ast-futures/page";
 import { Navigation } from "@/components/navigation";
 import { astApi } from "@/lib/ast-futures";
+import { RequestError } from "@/lib/http";
 import type { AstPerformance, AstStatus, AstTrade } from "@/types/ast-futures";
 
 vi.mock("@/lib/ast-futures", () => ({ astApi: { status: vi.fn(), trades: vi.fn(), events: vi.fn(), performance: vi.fn() } }));
@@ -56,7 +57,7 @@ const performance = (overrides: Partial<AstPerformance> = {}): AstPerformance =>
 
 beforeEach(() => {
   vi.mocked(astApi.status).mockReset().mockResolvedValue(status());
-  vi.mocked(astApi.trades).mockReset().mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0, has_more: false });
+  vi.mocked(astApi.trades).mockReset().mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0, has_more: false, fill_basis: "FUTURES_LTP_PAPER_V1" });
   vi.mocked(astApi.events).mockReset().mockResolvedValue({ items: [], total: 0, limit: 25, offset: 0, has_more: false,
     scope: "lifecycle", journal_sequence: 0, journal_head: "GENESIS" });
   vi.mocked(astApi.performance).mockReset().mockResolvedValue(performance());
@@ -144,7 +145,7 @@ describe("AST Futures paper monitor", () => {
     const closed = trade({ state: "CLOSED", exit_timestamp: `${today}T11:00:00+05:30`, exit_price: 26090, exit_reason: "AST_FLIP",
       gross_points: 40, gross_inr: 2600 });
     vi.mocked(astApi.status).mockResolvedValue(watching({ trades_today: [closed], today_gross_points: 40 }));
-    vi.mocked(astApi.trades).mockResolvedValue({ items: [closed], total: 1, limit: 100, offset: 0, has_more: false });
+    vi.mocked(astApi.trades).mockResolvedValue({ items: [closed], total: 1, limit: 100, offset: 0, has_more: false, fill_basis: "FUTURES_LTP_PAPER_V1" });
     vi.mocked(astApi.performance).mockResolvedValue(performance({ closed_trades: 3, wins: 2, losses: 1, win_rate: 2 / 3, gross_points: 55,
       gross_inr: 3575, average_points: 55 / 3, max_realized_drawdown_points: 15, best_trade: { trade_id: "a", trading_date: today, side: "LONG", gross_points: 40 },
       worst_trade: { trade_id: "b", trading_date: today, side: "SHORT", gross_points: -15 },
@@ -170,6 +171,29 @@ describe("AST Futures paper monitor", () => {
     expect(await screen.findByText("FORWARD PAPER PERFORMANCE")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("JOURNAL · AUDIT EVIDENCE")).toBeInTheDocument());
     expect(screen.getByText("PAPER ONLY · NO BROKER ORDERS")).toBeInTheDocument();
+  });
+
+  it("explains the isolated stack instead of erroring when the bridge is not configured (503)", async () => {
+    vi.mocked(astApi.status).mockRejectedValue(new RequestError("not_configured", "x", 503, "SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED"));
+    render(<AstFuturesPage/>);
+    const panel = await screen.findByRole("status", { name: "AST Futures not configured" });
+    expect(within(panel).getByText("AST Futures runs in its isolated stack; not configured in this deployment.")).toBeInTheDocument();
+    expect(within(panel).getByText(/SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED/)).toBeInTheDocument();
+    expect(screen.queryByText(/AST STATUS UNAVAILABLE/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("FORWARD PAPER PERFORMANCE")).not.toBeInTheDocument();
+    expect(screen.queryByText("JOURNAL · AUDIT EVIDENCE")).not.toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
+  it("tolerates a journal that has no cursor yet (null sequence and head)", async () => {
+    vi.mocked(astApi.status).mockResolvedValue(status({ journal_sequence: null, journal_head: null }));
+    vi.mocked(astApi.events).mockResolvedValue({ items: [], total: 0, limit: 25, offset: 0, has_more: false, scope: "lifecycle", journal_sequence: null, journal_head: null });
+    render(<AstFuturesPage/>);
+    const journal = (await screen.findByText("JOURNAL · AUDIT EVIDENCE")).closest("section") as HTMLElement;
+    await waitFor(() => expect(within(journal).getByText("Journal sequence").nextSibling).toHaveTextContent("N/A"));
+    expect(within(journal).getByText("Journal head").nextSibling).toHaveTextContent("N/A");
+    expect(await within(screen.getByLabelText("AST status")).findByText("Sequence N/A")).toBeInTheDocument();
   });
 
   it("shows journal evidence as a read-only audit table", async () => {
