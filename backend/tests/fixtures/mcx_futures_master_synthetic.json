@@ -1,0 +1,16 @@
+{
+  "label": "SYNTHETIC test fixture for ACTS_V3_MCX_FUTURES. Kotak MCX scrip-master row FORMAT; tokens, symbols and expiries are invented. lLotSize/dTickSize/lPrecision mirror the verified 2026-10-22 master facts (CRUDEOILM 10 / 100 / 2, NATGASMINI 250 / 10 / 2). Never a runtime identity.",
+  "CRUDEOILM": [
+    {"pSymbolName": "CRUDEOILM", "pExchSeg": "mcx_fo", "pInstType": "COM", "pOptionType": "  ", "pTrdSymbol": "CRUDEOILMCOM", "pSymbol": 900001, "pExpiryDate": null, "lExpiryDate": 0},
+    {"pSymbolName": "CRUDEOILM", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "CRUDEOILM18DEC26FUT", "pSymbol": 900011, "pExpiryDate": "18Dec2026", "lExpiryDate": 1797638399, "lLotSize": 10, "dStrikePrice;": 0.0, "dTickSize": 100, "lPrecision": 2},
+    {"pSymbolName": "CRUDEOILM", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "CRUDEOILM19JAN27FUT", "pSymbol": 900012, "pExpiryDate": "19Jan2027", "lExpiryDate": 1800403199, "lLotSize": 10, "dStrikePrice;": 0.0, "dTickSize": 100, "lPrecision": 2},
+    {"pSymbolName": "CRUDEOILM", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "CRUDEOILM25NOV26FUT", "pSymbol": 900010, "pExpiryDate": "25Nov2026", "lExpiryDate": 1795651199, "lLotSize": 10, "dStrikePrice;": 0.0, "dTickSize": 100, "lPrecision": 2},
+    {"pSymbolName": "CRUDEOIL", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "CRUDEOIL18DEC26FUT", "pSymbol": 900020, "pExpiryDate": "18Dec2026", "lExpiryDate": 1797638399, "lLotSize": 100, "dStrikePrice;": 0.0, "dTickSize": 100, "lPrecision": 2},
+    {"pSymbolName": "CRUDEOILM", "pExchSeg": "mcx_fo", "pInstType": "OPTFUT", "pOptionType": "CE", "pTrdSymbol": "CRUDEOILM16DEC265600CE", "pSymbol": 900031, "pExpiryDate": "16Dec2026", "lExpiryDate": 1797465599, "lLotSize": 10, "dStrikePrice;": 560000.0, "dTickSize": 10, "lPrecision": 2}
+  ],
+  "NATGASMINI": [
+    {"pSymbolName": "NATGASMINI", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "NATGASMINI24DEC26FUT", "pSymbol": 900111, "pExpiryDate": "24Dec2026", "lExpiryDate": 1798156799, "lLotSize": 250, "dStrikePrice;": 0.0, "dTickSize": 10, "lPrecision": 2},
+    {"pSymbolName": "NATGASMINI", "pExchSeg": "mcx_fo", "pInstType": "FUTCOM", "pOptionType": "XX", "pTrdSymbol": "NATGASMINI26NOV26FUT", "pSymbol": 900110, "pExpiryDate": "26Nov2026", "lExpiryDate": 1795737599, "lLotSize": 250, "dStrikePrice;": 0.0, "dTickSize": 10, "lPrecision": 2},
+    {"pSymbolName": "NATGASMINI", "pExchSeg": "mcx_fo", "pInstType": "OPTFUT", "pOptionType": "PE", "pTrdSymbol": "NATGASMINI23DEC26310PE", "pSymbol": 900131, "pExpiryDate": "23Dec2026", "lExpiryDate": 1798070399, "lLotSize": 250, "dStrikePrice;": 31000.0, "dTickSize": 5, "lPrecision": 2}
+  ]
+}
