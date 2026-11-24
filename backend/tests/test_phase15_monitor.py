@@ -369,3 +369,17 @@ def test_latest_strategy_diagnostics_are_stored_scalars_not_recalculated(session
     assert rows["EMA_PULLBACK"]["direction"] == "BEAR"
     assert rows["SUPERTREND_RSI_VOLUME"]["decision_features"]["volume_ratio"] is None
     assert "DO_NOT_EXPOSE" not in json.dumps(rows)
+
+
+def test_open_position_carried_over_from_a_previous_session_does_not_count_its_stale_mark(session_factory):
+    """Regression (found in the 2026-11-23/24 incident): an open ACTS position entered on an earlier day, with no mark
+    event today, was summed into today's unrealized P&L from its stored document mark while the positions endpoint
+    rejected the same mark as stale. Both surfaces must now agree: no live mark -> excluded (unknown, not -104)."""
+    seed(session_factory)
+    carried = trade_doc(at=AT - timedelta(days=1), mark=-104)
+    acts_trade(session_factory, "acts-carried", "OPEN", carried)
+    result = summary(session_factory, AT)
+    assert result["totals"]["open_positions"] == 1
+    assert result["totals"]["unrealized_gross_pnl"] is None          # unknown is not summed as live or as zero
+    row = next(s for s in result["strategies"] if s["strategy_id"] == "ACTS_V2")
+    assert row["today_trades"] == [] or all(t["current_unrealized_gross_pnl"] is None for t in row["today_trades"])
