@@ -399,3 +399,14 @@ def test_status_warmup_progress_and_old_cursor_null(crude_run):
         cursor.latest_json = json.dumps(latest)
     older = mcx_api.build_status(sessions, now=now, settings=ENABLED)
     assert next(r for r in older["instruments"] if r["instrument"] == "CRUDEOILM")["warmup"] is None
+
+
+def test_paper_entries_are_enabled_by_default_and_collect_only_is_an_explicit_opt_out():
+    """A deployment that sets only MCX_FUTURES_PAPER_ENABLED + the instrument flag must take paper entries. An image
+    swap must never silently turn a trading worker into a collector (regression: the flag once defaulted to false)."""
+    on = McxFuturesSettings.from_env({"MCX_FUTURES_PAPER_ENABLED": "true", "MCX_FUTURES_CRUDEOILM_ENABLED": "true"})
+    assert on.trading_enabled and on.entries_enabled("CRUDEOILM") and not on.entries_enabled("NATGASMINI")
+    off = McxFuturesSettings.from_env({"MCX_FUTURES_PAPER_ENABLED": "true", "MCX_FUTURES_CRUDEOILM_ENABLED": "true",
+                                       "MCX_FUTURES_TRADING_ENABLED": "false"})
+    assert not off.entries_enabled("CRUDEOILM")
+    assert not McxFuturesSettings.from_env({}).entries_enabled("CRUDEOILM")      # nothing enabled -> nothing runs
