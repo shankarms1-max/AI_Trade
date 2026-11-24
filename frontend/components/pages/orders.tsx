@@ -17,8 +17,10 @@ const INTENTS = ["ENTRY", "EXIT"];
 export const ordersQuery = (filters: Parameters<typeof filterParams>[0], status: string | null, intent: string | null, offset: number) =>
   ({ ...filterParams(filters, "all"), status, intent, limit: ORDER_PAGE_SIZE, offset });
 
-export function Orders() {
-  const { filters, get, set } = useUrlState();
+/** `engine` pins the list to one strategy (used inside /strategies/[engineId]); otherwise the global filters apply. */
+export function Orders({ engine }: { engine?: string } = {}) {
+  const { filters: global, get, set } = useUrlState();
+  const filters = engine ? { ...global, engine } : global;
   const { openOrder, openPosition } = useDrawerLinks();
   const status = get("status"), intent = get("intent");
   const offset = Math.max(0, Number(get("offset")) || 0);
@@ -49,7 +51,7 @@ export function Orders() {
     { key: "why", header: "Rejection reason", render: o => <Val>{o.rejection_reason ? title(o.rejection_reason) : null}</Val> },
   ];
   return <div>
-    <PageTitle title="Orders" note={`${filters.mode} · simulated paper orders reconstructed from the journals · broker order id is n/a`}/>
+    {!engine && (<PageTitle title="Orders" note={`${filters.mode} · simulated paper orders reconstructed from the journals · broker order id is n/a`}/>)}
     <LiveGate live={live}>
       <div className="tm-filter-row" style={{ padding: "0 0 8px", background: "none" }} role="group" aria-label="Order filters">
         <FilterSelect label="Status" value={status} options={Object.keys(chips)} onChange={v => set({ status: v, offset: null })}/>

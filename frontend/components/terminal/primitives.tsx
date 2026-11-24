@@ -62,7 +62,7 @@ export function FlagBadges({ flags }: { flags: string[] }) {
 const FAMILY_COLOR: Record<string, string> = { ACTS: "var(--tm-chart-1)", MCX_FUTURES: "var(--tm-chart-2)", AST: "#a78bfa", COMMODITY: "var(--tm-muted)" };
 /** Strategy label with a family colour bar (ACTS blue, MCX futures amber, AST violet, legacy grey). */
 export function StrategyChip({ label, family, version }: { label: string; family?: string | null; version?: string | null }) {
-  return <span className="tm-chip" style={{ "--chip": FAMILY_COLOR[family ?? ""] ?? "var(--tm-muted)" } as React.CSSProperties} title={version ? `${label} · ${version}` : label}>{label}{version ? <small>{version.replace(/^ACTS_/, "")}</small> : null}</span>;
+  return <span className="tm-chip" style={{ "--chip": FAMILY_COLOR[family ?? ""] ?? "var(--tm-muted)" } as React.CSSProperties} title={version ? `${label} · ${version}` : label}>{label}{version ? <small>{version}</small> : null}</span>;
 }
 
 /* ------------------------------------------------------------------ tiles / panels */

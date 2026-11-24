@@ -14,7 +14,6 @@ const dict: Guard<Dict | null> = nullable((value, path) => object(value, path));
 const count: Guard<number> = finite;
 const nBool = nullable(boolean);
 const stringList = array(string);
-const nStringList = nullable(stringList);
 
 const charges: Guard<ChargeBreakdown> = shape<ChargeBreakdown>({ total: finite, orders: nFinite, turnover: nFinite, items: record(finite) });
 const positionCharges = shape({ incurred: nullable(charges), entry: nullable(charges), exit: nullable(charges) });

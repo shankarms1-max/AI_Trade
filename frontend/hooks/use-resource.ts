@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useRef, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { pollStore, type ResourceState } from "@/lib/poll-store";
 
 /** Default cadences: live pages poll every 15 s; analytics and static reference data poll less often. */
@@ -16,15 +16,13 @@ const LOADING = { ...IDLE, loading: true } as ResourceState<never>;
  * `url === null` disables the subscription (e.g. a closed drawer). The parse function should be module-level.
  */
 export function useResource<T>(url: string | null, parse: (json: unknown) => T, interval = LIVE_INTERVAL, options: { keepPrevious?: string } = {}): Resource<T> {
-  const parseRef = useRef(parse);
-  const last = useRef<{ group: string; data: T } | null>(null);
-  parseRef.current = parse;
-  const subscribe = useCallback((listener: () => void) => url == null ? () => {} : pollStore.subscribe(url, { interval, parse: json => parseRef.current(json) }, listener), [url, interval]);
+  const [previous, setPrevious] = useState<{ group: string; data: T } | null>(null);
+  const subscribe = useCallback((listener: () => void) => url == null ? () => {} : pollStore.subscribe(url, { interval, parse }, listener), [url, interval, parse]);
   const getSnapshot = useCallback(() => url == null ? IDLE : pollStore.getSnapshot<T>(url), [url]);
   const state = useSyncExternalStore(subscribe, getSnapshot, () => url == null ? IDLE : LOADING) as ResourceState<T>;
   const refresh = useCallback(() => url == null ? Promise.resolve() : pollStore.refresh(url), [url]);
   const group = options.keepPrevious;
-  if (state.data != null && group) last.current = { group, data: state.data };
-  const placeholder = !!group && state.data == null && last.current?.group === group && url != null;
-  return { ...state, data: placeholder ? last.current!.data : state.data, placeholder, refresh, error: state.failure ? state.failure.message : null };
+  if (group && state.data != null && previous?.data !== state.data) setPrevious({ group, data: state.data });
+  const placeholder = !!group && state.data == null && previous?.group === group && url != null;
+  return { ...state, data: placeholder ? previous!.data : state.data, placeholder, refresh, error: state.failure ? state.failure.message : null };
 }

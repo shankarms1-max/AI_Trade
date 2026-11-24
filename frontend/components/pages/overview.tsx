@@ -11,7 +11,7 @@ import { DataTable } from "@/components/terminal/data-table";
 import { Metrics } from "@/components/pages/metrics";
 import { EmptyState, ResourceView } from "@/components/terminal/states";
 import { PageTitle, Panel, PnL, StatusBadge, StrategyChip, Val } from "@/components/terminal/primitives";
-import { LIVE_INTERVAL, useResource } from "@/hooks/use-resource";
+import { useResource } from "@/hooks/use-resource";
 import { entityParams, filterParams, istToday, windowOf } from "@/lib/filters";
 import { parse, urls } from "@/lib/portfolio-api";
 import { int, istClock, istDateTime, num, title } from "@/lib/terminal-format";
@@ -35,7 +35,7 @@ export function OpenPositionsTable({ compact = true, limit = 50 }: { compact?: b
   </ResourceView>;
 }
 
-function StrategyTable({ cards }: { cards: StrategyCard[] }) {
+export function StrategyTable({ cards }: { cards: StrategyCard[] }) {
   const cols = [
     { key: "strategy", header: "Strategy", render: (c: StrategyCard) => <Link className="tm-link" href={`/strategies/${encodeURIComponent(c.engine_id)}`}><StrategyChip label={c.label} family={c.family}/></Link> },
     { key: "version", header: "Version", render: (c: StrategyCard) => <span>{c.version}{c.retired ? <> <StatusBadge value="RETIRED" tone="na"/></> : null}</span> },

@@ -23,8 +23,10 @@ export function positionsQuery(filters: Parameters<typeof filterParams>[0], tab:
   return { ...filterParams(filters, "all"), tab, direction, limit: PAGE_SIZE, offset };
 }
 
-export function Positions() {
-  const { filters, get, set } = useUrlState();
+/** `engine` pins the list to one strategy (used inside /strategies/[engineId]); otherwise the global filters apply. */
+export function Positions({ engine }: { engine?: string } = {}) {
+  const { filters: global, get, set } = useUrlState();
+  const filters = engine ? { ...global, engine } : global;
   const { openPosition } = useDrawerLinks();
   const rawTab = get("tab");
   const tab: PositionTab = (POSITION_TABS as readonly string[]).includes(rawTab ?? "") ? rawTab as PositionTab : "open";
@@ -42,7 +44,7 @@ export function Positions() {
     return tab === "closed" ? closedColumns(o) : tab === "all" ? allColumns(o) : openColumns(o);
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   return <div>
-    <PageTitle title="Positions" note={`${filters.mode} · simulated paper positions · server-paginated (${PAGE_SIZE}/page)`}/>
+    {!engine && (<PageTitle title="Positions" note={`${filters.mode} · simulated paper positions · server-paginated (${PAGE_SIZE}/page)`}/>)}
     <LiveGate live={live}>
       <AlertBanner items={alerts.data?.items ?? []}/>
       <Tabs label="Position tabs" value={tab} onChange={t => set({ tab: t === "open" ? null : t, offset: null })} tabs={[

@@ -24,8 +24,10 @@ export const tradesQuery = (filters: Filters, local: TradeLocal, sort: string, d
 /** The CSV export is a plain link carrying exactly the active filters (no sort/page: the file is the whole filtered book). */
 export const tradesCsvHref = (filters: Filters, local: TradeLocal) => urls.tradesCsv(tradeFilterParams(filters, local));
 
-export function Tradebook() {
-  const { filters, get, set } = useUrlState();
+/** `engine` pins the list to one strategy (used inside /strategies/[engineId]); otherwise the global filters apply. */
+export function Tradebook({ engine }: { engine?: string } = {}) {
+  const { filters: global, get, set } = useUrlState();
+  const filters = engine ? { ...global, engine } : global;
   const { openPosition } = useDrawerLinks();
   const local: TradeLocal = { result: get("result"), exit_reason: get("exit_reason"), direction: get("direction") };
   const sort = get("sort") ?? "exit_at", desc = get("desc") !== "false";
@@ -58,8 +60,8 @@ export function Tradebook() {
     { key: "score", header: "Entry score", align: "right", sortKey: "entry_score", render: t => <Val>{t.entry_score == null ? null : num(t.entry_score, 1)}</Val> },
   ];
   return <div>
-    <PageTitle title="Tradebook" note={`${filters.mode} · closed trades · sorted by the API`} actions={
-      <a className="tm-btn" href={tradesCsvHref(filters, local)} download="tradebook.csv" data-testid="csv-export">Export CSV</a>}/>
+    {!engine && (<PageTitle title="Tradebook" note={`${filters.mode} · closed trades · sorted by the API`} actions={
+      <a className="tm-btn" href={tradesCsvHref(filters, local)} download="tradebook.csv" data-testid="csv-export">Export CSV</a>}/>)}
     <LiveGate live={live}>
       <div className="tm-filter-row" style={{ padding: "0 0 8px", background: "none" }} role="group" aria-label="Trade filters">
         <FilterSelect label="Direction" value={local.direction} options={DIRECTIONS} onChange={v => set({ direction: v, offset: null })}/>

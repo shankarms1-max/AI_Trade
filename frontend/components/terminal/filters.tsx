@@ -50,7 +50,7 @@ export function GlobalFilterBar({ trailing }: { trailing?: ReactNode }) {
     </label>
     <FilterSelect label="Instrument" value={filters.instrument} options={instruments} onChange={v => set({ instrument: v })}/>
     <FilterSelect label="Version" value={filters.version} options={versions} onChange={v => set({ version: v })}/>
-    {dated ? <DateRangeSelector value={range} from={filters.from} to={filters.to} onChange={(r, from, to) => set({ range: r, from, to })}/> : <span className="tm-hitem tm-muted" title="This page shows the current state, not a date range">Date: not applicable</span>}
+    {dated && pathname !== "/analytics" ? <DateRangeSelector value={range} from={filters.from} to={filters.to} onChange={(r, from, to) => set({ range: r, from, to })}/> : pathname === "/analytics" ? <span className="tm-hitem tm-muted">Date range: set on the page</span> : <span className="tm-hitem tm-muted" title="This page shows the current state, not a date range">Date: not applicable</span>}
     <span className="tm-spacer"/>
     {(filters.engine || filters.instrument || filters.version || filters.range) &&
       <button type="button" className="tm-btn" onClick={() => set({ engine: null, instrument: null, version: null, range: null, from: null, to: null })}>Clear filters</button>}

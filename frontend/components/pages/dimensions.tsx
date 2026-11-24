@@ -15,7 +15,8 @@ export type DimView = { dimension: Dimension; label: string; value: string; deta
  */
 export function dimensionViews(card: StrategyCard): DimView[] {
   const d = card.dimensions;
-  const feedValue = d.feed == null ? "UNAVAILABLE" : boolOf(d.feed, "stale") === true ? "STALE" : boolOf(d.feed, "stale") === false ? "FRESH" : (str(d.feed, "state") ?? "UNAVAILABLE");
+  // an engine that reports MARKET_CLOSED has no live feed to judge: never show FRESH next to a quote that is hours old
+  const feedValue = d.feed == null ? "UNAVAILABLE" : boolOf(d.feed, "stale") === true ? "STALE" : card.operational_state === "MARKET_CLOSED" ? "MARKET_CLOSED" : boolOf(d.feed, "stale") === false ? "FRESH" : (str(d.feed, "state") ?? "UNAVAILABLE");
   const ready = boolOf(d.readiness, "ready");
   const bars = numberOf(d.readiness, "bars_available"), need = numberOf(d.readiness, "bars_required");
   const open = numberOf(d.position, "open") ?? 0;
