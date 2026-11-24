@@ -98,11 +98,20 @@ def performance(pf: Portfolio, *, start: date | None = None, end: date | None = 
         rows = [p for p in closed if p["engine_id"] == key]
         by_strategy.append({"engine_id": key, "label": rows[0]["strategy_label"], "instrument": rows[0]["instrument"],
                             **_stats(rows)})
-    score_b = lambda p: (None if p["score"] is None else "<60" if p["score"] < 60 else "60-65" if p["score"] < 65
-                         else "65-70" if p["score"] < 70 else "70-80" if p["score"] < 80 else ">=80")
-    hour = lambda p: (lambda d: f"{d.astimezone(IST).hour:02d}:00" if d else None)(N.dt(p["entry_at"]))
-    hold = lambda p: (None if p["holding_seconds"] is None else "<5m" if p["holding_seconds"] < 300 else "5-30m"
-                      if p["holding_seconds"] < 1800 else "30m-2h" if p["holding_seconds"] < 7200 else ">2h")
+
+    def score_b(p):
+        s = p["score"]
+        return None if s is None else "<60" if s < 60 else "60-65" if s < 65 else "65-70" if s < 70 else (
+            "70-80" if s < 80 else ">=80")
+
+    def hour(p):
+        d = N.dt(p["entry_at"])
+        return f"{d.astimezone(IST).hour:02d}:00" if d else None
+
+    def hold(p):
+        h = p["holding_seconds"]
+        return None if h is None else "<5m" if h < 300 else "5-30m" if h < 1800 else "30m-2h" if h < 7200 else ">2h"
+
     sens = {}
     for b in (0, 10, 20):
         adj = D(0)

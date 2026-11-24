@@ -1,7 +1,7 @@
 """/api/portfolio/* - unified, read-only financial read model. GET only. Money is computed here, never in the browser."""
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 from zoneinfo import ZoneInfo
 
