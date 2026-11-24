@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EnginesPage from "@/app/engines/page";
 import { EnginesOverview } from "@/components/engines";
@@ -26,6 +26,11 @@ describe("engines overview", () => {
     expect(within(acts).getByText("RUNNING")).toBeInTheDocument();
     expect(within(acts).getByText("PAPER")).toBeInTheDocument();
     expect(within(acts).getByText("NIFTY")).toBeInTheDocument();
+    const toggle = within(acts).getByText("Decision & position");
+    const details = toggle.closest("details");
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(toggle);
+    expect(details).toHaveAttribute("open");
     expect(within(acts).getByText("SCORE_BELOW_ENTRY_THRESHOLD")).toBeInTheDocument();
     expect(within(acts).getByText(/SHORT_PUT_SPREAD SYNTH-NIFTY-25600PE · qty 75 @ 42.50/)).toBeInTheDocument();
     expect(screen.getAllByRole("article")).toHaveLength(5);
@@ -54,7 +59,7 @@ describe("engines overview", () => {
     const card = await screen.findByRole("article", { name: `E-${state} engine` });
     const badge = card.querySelector(`.engine-state[data-state="${state}"] .badge`) as HTMLElement;
     expect(badge).toHaveTextContent(state.replaceAll("_", " "));
-    const expected = { RUNNING: "good", ERROR: "bad", DATA_STALE: "warn", MARKET_CLOSED: "accent" }[state as string] ?? "neutral";
+    const expected = { RUNNING: "good", ERROR: "bad", DATA_STALE: "warn", DATA_UNAVAILABLE: "warn", MARKET_CLOSED: "accent" }[state as string] ?? "neutral";
     expect(badge).toHaveAttribute("data-tone", expected);
   });
 

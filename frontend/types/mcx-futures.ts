@@ -15,7 +15,9 @@ export type McxSession = {
 };
 export type McxFeed = {
   last_quote_at: string | null; age_seconds: number | null; stale: boolean;
-  bid: number | null; ask: number | null; ltp: number | null; spread_ticks: number | null;
+  observed_at: string | null; source_timestamp_available: boolean | null;
+  bid: number | null; ask: number | null; bid_qty: number | null; ask_qty: number | null;
+  ltp: number | null; spread_ticks: number | null;
 };
 export type McxDecision = {
   at: string | null; status: string | null; direction: string | null; score: number | null;
@@ -33,6 +35,8 @@ export type McxRisk = {
 export type McxWarmup = { ready: boolean; bars_available: number; bars_required: number; timeframe_minutes: number; blocking: string[] };
 export type McxInstrument = {
   instrument: McxInstrumentId; state: EngineState; state_reason: string | null; contract: McxContract | null;
+  execution_state: string | null; execution_reason: string | null;
+  open_position_count: number | null; unresolved_exposure_count: number | null;
   session: McxSession; feed: McxFeed; warmup: McxWarmup | null; last_decision: McxDecision | null; position: McxPosition | null;
   trades_today: number; realized_pnl_today: number; entries_rejected_today: number;
   last_rejection: { at: string | null; reason: string | null } | null; risk: McxRisk;

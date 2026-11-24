@@ -65,6 +65,11 @@ def validate_observation(obs: Observation) -> str | None:
             return f"INVALID_{name.upper()}"
     if obs.bid is not None and obs.ask is not None and obs.bid > obs.ask:
         return "CROSSED_QUOTE"
+    for name in ("bid_qty", "ask_qty"):
+        value = getattr(obs, name)
+        if value is not None and (not isinstance(value, (int, float)) or isinstance(value, bool)
+                                  or not isfinite(value) or value < 0):
+            return f"INVALID_{name.upper()}"
     if obs.cum_volume is not None and (not isinstance(obs.cum_volume, (int, float)) or obs.cum_volume < 0):
         return "INVALID_CUM_VOLUME"
     return None

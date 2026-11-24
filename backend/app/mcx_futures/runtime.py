@@ -91,7 +91,8 @@ def enrich(events: list[dict[str, Any]], instrument: str, open_decided_at: str |
 
 
 def status_record(engine: McxFuturesEngine, obs: Observation | None, events: list[dict[str, Any]],
-                  previous: dict[str, Any], calendar: SessionCalendar, now: datetime) -> dict[str, Any]:
+                  previous: dict[str, Any], calendar: SessionCalendar, now: datetime,
+                  paper_entries_enabled: bool = True) -> dict[str, Any]:
     """The JSON the API serves for one instrument; carries forward the last decision between bars."""
     snap = engine.snapshot()
     cfg, spec = engine.config, engine.spec
@@ -107,9 +108,11 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
     feed = previous.get("feed") or {}
     if obs is not None:
         spread = (obs.ask - obs.bid) / spec.tick_size if obs.bid and obs.ask else None
-        feed = {"last_quote_at": (obs.source_ts or obs.at).isoformat(), "observed_at": obs.at.isoformat(),
+        feed = {"last_quote_at": obs.source_ts.isoformat() if obs.source_ts else None,
+                "observed_at": obs.at.isoformat(),
+                "source_timestamp_available": obs.source_ts is not None,
                 "age_seconds": obs.quote_age_seconds(), "stale": (obs.quote_age_seconds() or 0) > cfg.stale_quote_seconds,
-                "bid": obs.bid, "ask": obs.ask, "ltp": obs.ltp,
+                "bid": obs.bid, "ask": obs.ask, "bid_qty": obs.bid_qty, "ask_qty": obs.ask_qty, "ltp": obs.ltp,
                 "spread_ticks": round(spread, 2) if spread is not None else None}
     decision = previous.get("last_decision")
     for e in events:
@@ -137,6 +140,9 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
                     "unrealized_pnl": mark["payload"]["unrealised_gross"] if mark else prev_pos.get("unrealized_pnl")}
     r = snap.get("risk") or {}
     return {"observed_at": obs.at.isoformat() if obs else previous.get("observed_at"),
+            "collector_enabled": True, "paper_entries_enabled": paper_entries_enabled,
+            "execution_state": "PAPER_ENABLED" if paper_entries_enabled else "COLLECT_ONLY",
+            "execution_reason": None if paper_entries_enabled else "MCX_FUTURES_TRADING_ENABLED_FALSE",
             "session": {"status": st.status, "window": window,
                         "next_open": st.next_open.isoformat() if st.next_open else None,
                         "last_entry_time": sess.get("last_entry_at"), "forced_exit_time": sess.get("forced_exit_at"),
@@ -150,14 +156,16 @@ def status_record(engine: McxFuturesEngine, obs: Observation | None, events: lis
 
 
 def step(sessions: sessionmaker[Session], engine: McxFuturesEngine, obs: Observation, cursor: dict[str, Any],
-         calendar: SessionCalendar, now: datetime) -> tuple[McxFuturesEngine, dict[str, Any], list[dict[str, Any]]]:
+         calendar: SessionCalendar, now: datetime, *, allow_entries: bool = True
+         ) -> tuple[McxFuturesEngine, dict[str, Any], list[dict[str, Any]]]:
     """Process one observation and persist atomically. On a lost lock race nothing is written and the caller
     must reload from the store (the engine in memory is discarded)."""
     pos = engine.position
     open_decided = pos.get("decided_at") if pos else None
-    events = engine.on_observation(obs)
+    events = engine.on_observation(obs, allow_entries=allow_entries)
     enriched = enrich(events, engine.spec.instrument, open_decided, engine.spec)
-    latest = status_record(engine, obs, events, cursor.get("latest") or {}, calendar, now)
+    latest = status_record(engine, obs, events, cursor.get("latest") or {}, calendar, now,
+                           paper_entries_enabled=allow_entries)
     lock = store.commit_step(sessions, engine.spec.instrument, cursor["lock_version"], enriched,
                              state=engine.snapshot(), latest=latest, observed_at=obs.at.isoformat(),
                              contract=contract_json(engine.spec), engine_version=STRATEGY_ID,

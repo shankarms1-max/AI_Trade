@@ -125,7 +125,7 @@ def _mcx(sessions: sessionmaker[Session], now: datetime, settings=None) -> list[
         out.append({"id": f"mcx-{row['instrument'].lower()}", "label": f"ACTS V3 {row['instrument']}",
                     "family": "MCX_FUTURES", "version": "ACTS_V3_MCX_FUTURES", "instrument": row["instrument"],
                     "mode": "PAPER", "state": row["state"], "state_reason": row["state_reason"],
-                    "last_update": row["feed"].get("last_quote_at"),
+                    "last_update": row["feed"].get("observed_at") or row["feed"].get("last_quote_at"),
                     "last_decision": {"at": d.get("at"), "status": d.get("status"), "direction": d.get("direction"),
                                       "score": d.get("score"),
                                       "primary_blocker": (d.get("vetoes") or [None])[0] if d else None} if d else None,

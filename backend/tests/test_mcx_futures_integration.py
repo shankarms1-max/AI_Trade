@@ -3,6 +3,7 @@
 idempotence, the concurrent-writer guard, PAPER-only start-up and the market-only capability check."""
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 import json
 from pathlib import Path
@@ -28,6 +29,7 @@ import mcx_futures_paper_worker as worker  # noqa: E402
 
 ENABLED = McxFuturesSettings.from_env({"MCX_FUTURES_PAPER_ENABLED": "true", "MCX_FUTURES_CRUDEOILM_ENABLED": "true",
                                        "MCX_FUTURES_NATGASMINI_ENABLED": "true",
+                                       "MCX_FUTURES_TRADING_ENABLED": "true",
                                        "MCX_FUTURES_KILL_SWITCH_FILE": "/nonexistent/kill"})
 
 
@@ -55,7 +57,7 @@ class FakeMarket:
 
     def quote(self, token, trading_symbol):
         o = self.obs[self.i]
-        return {"at": o.at, "ltp": o.ltp, "bid": o.bid, "ask": o.ask, "bid_qty": None, "ask_qty": None,
+        return {"at": o.at, "ltp": o.ltp, "bid": o.bid, "ask": o.ask, "bid_qty": o.bid_qty, "ask_qty": o.ask_qty,
                 "cum_volume": o.cum_volume, "oi": None, "source_ts": o.source_ts}
 
     def advance(self):
@@ -86,6 +88,15 @@ def test_pipeline_processes_every_observation_and_chain_verifies(crude_run):
     assert results.count("OK") == len(obs)
     v = store.verify_chain(sessions, "CRUDEOILM")
     assert v["ok"] and v["events"] > len(obs) / 4
+    with sessions() as session:
+        captured = session.scalars(select(McxFuturesEvent).where(
+            McxFuturesEvent.instrument == "CRUDEOILM", McxFuturesEvent.event_type == "OBSERVATION"
+        ).order_by(McxFuturesEvent.sequence)).all()
+    assert len(captured) == len(obs)
+    first = json.loads(captured[0].payload)["payload"]
+    assert first["quote"]["at"] == obs[0].at.isoformat()
+    assert first["quote"]["bid_qty"] == obs[0].bid_qty
+    assert first["contract_token"] == runner.spec.token
     assert store.verify_chain(sessions, "NATGASMINI") == {"ok": True, "events": 0, "head_hash": "GENESIS"}
 
 
@@ -118,11 +129,18 @@ def test_status_and_engines_api_reflect_journal(crude_run):
     assert natgas["state"] == "IDLE"  # enabled, never observed: not dressed up as running
     later = mcx_api.build_status(sessions, now=now + timedelta(minutes=5), settings=ENABLED)
     assert next(r for r in later["instruments"] if r["instrument"] == "CRUDEOILM")["state"] == "DATA_STALE"
+    assert next(r for r in later["instruments"] if r["instrument"] == "CRUDEOILM")["feed"]["age_seconds"] > 300
+    after_close = mcx_api.build_status(sessions, now=now.replace(hour=23, minute=56), settings=ENABLED)
+    assert next(r for r in after_close["instruments"] if r["instrument"] == "CRUDEOILM")["state"] == \
+        "MARKET_CLOSED"
     skewed = mcx_api.build_status(sessions, now=now - timedelta(minutes=10), settings=ENABLED)
     assert next(r for r in skewed["instruments"] if r["instrument"] == "CRUDEOILM")["state_reason"] == \
         "FEED_TIMESTAMP_IN_FUTURE_CLOCK_SKEW"  # a future-dated feed is never reported as healthy
     off = mcx_api.build_status(sessions, now=now, settings=McxFuturesSettings.from_env({}))
-    assert {r["state"] for r in off["instruments"]} == {"DISABLED"}
+    # Standalone worker state wins over unrelated API-container environment flags.
+    assert {r["instrument"]: r["state"] for r in off["instruments"]} == {
+        "CRUDEOILM": "RUNNING", "NATGASMINI": "DISABLED"}
+    assert next(r for r in off["instruments"] if r["instrument"] == "CRUDEOILM")["execution_state"] == "PAPER_ENABLED"
     perf = mcx_api.performance(instrument="CRUDEOILM", sessions=sessions)
     assert perf["by_instrument"]["CRUDEOILM"]["trades"] >= 1 and perf["mode"] == "PAPER"
     page = mcx_api.trades(instrument="CRUDEOILM", limit=2, before=None, sessions=sessions)
@@ -188,6 +206,123 @@ def test_only_paper_mode_can_start_and_flags_default_off(monkeypatch):
         worker.main(["--mode", "LIVE", "--instrument", "CRUDEOILM"])
     defaults = McxFuturesSettings.from_env({})
     assert not defaults.enabled("CRUDEOILM") and not defaults.enabled("NATGASMINI")
+    assert not defaults.entries_enabled("CRUDEOILM")
+
+
+def test_collect_only_mode_is_persisted_and_reported_without_api_env_flags():
+    sessions = _sessions()
+    stream = observations_from_bars(trend_bars(date(2026, 11, 24), start_price=5600, slope=0.6,
+                                               tick=1.0, minutes=2), 1.0)
+    flags = McxFuturesSettings.from_env({"MCX_FUTURES_PAPER_ENABLED": "true",
+                                         "MCX_FUTURES_CRUDEOILM_ENABLED": "true",
+                                         "MCX_FUTURES_TRADING_ENABLED": "false"})
+    market = FakeMarket("CRUDEOILM", stream)
+    runner = worker.Runner("CRUDEOILM", sessions, market, flags, clock=lambda: stream[0].at)
+    assert runner.tick() == "OK"
+    status = mcx_api.build_status(sessions, now=stream[0].at + timedelta(seconds=1),
+                                  settings=McxFuturesSettings.from_env({}))
+    crude = next(row for row in status["instruments"] if row["instrument"] == "CRUDEOILM")
+    assert crude["state"] == "RUNNING"
+    assert crude["execution_state"] == "COLLECT_ONLY"
+    assert crude["execution_reason"] == "MCX_FUTURES_TRADING_ENABLED_FALSE"
+    assert crude["warmup"]["ready"] is False
+    with sessions() as session:
+        assert not session.scalars(select(McxFuturesTrade)).all()
+
+
+def test_missing_source_quote_timestamp_is_not_relabelled_as_capture_time():
+    sessions = _sessions()
+    original = observations_from_bars(trend_bars(date(2026, 11, 24), start_price=5600,
+                                                 slope=0.6, tick=1.0, minutes=1), 1.0)[0]
+    quote = replace(original, source_ts=None)
+    market = FakeMarket("CRUDEOILM", [quote])
+    runner = worker.Runner("CRUDEOILM", sessions, market, ENABLED, clock=lambda: quote.at)
+    assert runner.tick() == "OK"
+    row = next(item for item in mcx_api.build_status(sessions, now=quote.at + timedelta(seconds=1),
+                                                      settings=ENABLED)["instruments"]
+               if item["instrument"] == "CRUDEOILM")
+    assert row["state"] == "DATA_UNAVAILABLE"
+    assert row["state_reason"] == "NO_SOURCE_QUOTE_TIMESTAMP"
+    assert row["feed"]["last_quote_at"] is None
+    assert row["feed"]["observed_at"] == quote.at.isoformat()
+
+
+def test_legacy_worker_mode_and_quote_source_remain_unverified():
+    sessions = _sessions()
+    at = "2026-11-24T12:00:00+05:30"
+    store.commit_step(sessions, "CRUDEOILM", 0, [], state={},
+                      latest={"observed_at": at, "session": {"status": "OPEN"},
+                              "feed": {"last_quote_at": at, "bid": 5600.0, "ask": 5601.0}},
+                      observed_at=at)
+    row = next(item for item in mcx_api.build_status(
+        sessions, now=datetime.fromisoformat(at) + timedelta(seconds=1),
+        settings=McxFuturesSettings.from_env({}))["instruments"]
+        if item["instrument"] == "CRUDEOILM")
+    assert row["state"] == "DATA_UNAVAILABLE"
+    assert row["execution_state"] == "LEGACY_MODE_UNVERIFIED"
+    assert row["feed"]["last_quote_at"] is None
+    assert row["feed"]["observed_at"] == at
+    assert row["feed"]["bid_qty"] is None
+
+
+def test_restart_uses_stored_held_contract_without_resolving_a_new_master():
+    from app.mcx_futures.config import CRUDEOILM
+    from app.mcx_futures.costs import DEFAULT_SCHEDULE
+    from app.mcx_futures.engine import McxFuturesEngine
+    from tests.test_mcx_futures_support import spec_for
+
+    sessions = _sessions()
+    spec = spec_for("CRUDEOILM")
+    state = McxFuturesEngine(CRUDEOILM, spec, DEFAULT_SCHEDULE).snapshot()
+    state["position"] = {"direction": "LONG"}  # synthetic restart identity fixture
+    store.commit_step(sessions, "CRUDEOILM", 0, [], state=state, latest={}, observed_at=None,
+                      contract=spec.to_dict())
+
+    class NoDiscovery:
+        def master_rows(self, *_):
+            raise AssertionError("held contract must not be replaced by a current master")
+
+    now = datetime(2026, 11, 24, 12, tzinfo=worker.IST)
+    runner = worker.Runner("CRUDEOILM", sessions, NoDiscovery(), ENABLED, clock=lambda: now)
+    runner._load(now)
+    assert runner.spec.token == spec.token
+    assert runner.engine.spec.to_dict() == spec.to_dict()
+
+
+def test_prior_session_open_exposure_stays_visible_in_status():
+    sessions = _sessions()
+    with sessions.begin() as session:
+        session.add(McxFuturesTrade(trade_id="synthetic-prior-open", instrument="CRUDEOILM",
+                                    trading_date=date(2026, 11, 23), state="OPEN",
+                                    document=json.dumps({"trade_id": "synthetic-prior-open", "instrument": "CRUDEOILM",
+                                                         "state": "OPEN", "entry_at": "2026-11-23T22:00:00+05:30",
+                                                         "entry_price": 5600.0, "direction": "LONG", "quantity_lots": 1})))
+    now = datetime(2026, 11, 24, 12, tzinfo=worker.IST)
+    row = next(item for item in mcx_api.build_status(sessions, now=now, settings=ENABLED)["instruments"]
+               if item["instrument"] == "CRUDEOILM")
+    assert row["open_position_count"] == 1
+    assert row["position"]["entry_at"] == "2026-11-23T22:00:00+05:30"
+
+
+def test_trade_count_includes_open_entry_and_realized_uses_exit_day():
+    sessions = _sessions()
+    with sessions.begin() as session:
+        session.add(McxFuturesTrade(trade_id="today-open", instrument="CRUDEOILM",
+                                    trading_date=date(2026, 11, 24), state="OPEN",
+                                    document=json.dumps({"trade_id": "today-open", "instrument": "CRUDEOILM",
+                                                         "entry_at": "2026-11-24T10:00:00+05:30",
+                                                         "entry_price": 5600.0, "direction": "LONG"})))
+        session.add(McxFuturesTrade(trade_id="yesterday-closed", instrument="CRUDEOILM",
+                                    trading_date=date(2026, 11, 23), state="CLOSED",
+                                    document=json.dumps({"trade_id": "yesterday-closed", "instrument": "CRUDEOILM",
+                                                         "entry_at": "2026-11-23T22:00:00+05:30",
+                                                         "exit_at": "2026-11-24T11:00:00+05:30",
+                                                         "net_pnl": 125.0})))
+    row = next(item for item in mcx_api.build_status(
+        sessions, now=datetime(2026, 11, 24, 12, tzinfo=worker.IST), settings=ENABLED)["instruments"]
+        if item["instrument"] == "CRUDEOILM")
+    assert row["trades_today"] == 1
+    assert row["realized_pnl_today"] == 125.0
 
 
 def test_kill_switch_and_closed_session_do_not_touch_market(tmp_path):

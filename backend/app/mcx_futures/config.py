@@ -252,7 +252,7 @@ _COMMON_WEIGHTS = {"trend": 25.0, "momentum": 20.0, "structure": 20.0, "strength
 
 CRUDEOILM = InstrumentConfig(
     instrument="CRUDEOILM",
-    version="MCXF_CRUDEOILM_V1",
+    version="MCXF_CRUDEOILM_V1_1",  # executable best-level depth + explicit paper-entry gate
     calibration_status="PRE_REGISTERED_UNVALIDATED",
     quotation_unit="BBL",
     feature_timeframe_minutes=3,
@@ -317,7 +317,7 @@ CRUDEOILM = InstrumentConfig(
 
 NATGASMINI = InstrumentConfig(
     instrument="NATGASMINI",
-    version="MCXF_NATGASMINI_V1",
+    version="MCXF_NATGASMINI_V1_1",  # executable best-level depth + explicit paper-entry gate
     calibration_status="PRE_REGISTERED_UNVALIDATED",
     quotation_unit="MMBTU",
     feature_timeframe_minutes=5,

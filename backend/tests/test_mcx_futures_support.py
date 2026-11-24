@@ -32,7 +32,7 @@ def ist(y: int, mo: int, d: int, h: int, mi: int, s: int = 0) -> datetime:
 def obs(at: datetime, ltp: float, half: float = 1.0, cum: float | None = None,
         age: float = 0.0, bid: float | None = None, ask: float | None = None) -> Observation:
     return Observation(at=at, ltp=ltp, bid=ltp - half if bid is None else bid, ask=ltp + half if ask is None else ask,
-                       cum_volume=cum, source_ts=at - timedelta(seconds=age))
+                       bid_qty=1000, ask_qty=1000, cum_volume=cum, source_ts=at - timedelta(seconds=age))
 
 
 def trading_days(start: date, count: int) -> list[date]:
@@ -104,7 +104,7 @@ def observations_from_bars(bars: pd.DataFrame, tick: float, half_ticks: float = 
                                       (30, row["high"], before), (45, row["close"], before + row["volume"])):
             at = ts + timedelta(seconds=second)
             out.append(Observation(at=at, ltp=price, bid=price - half, ask=price + half, cum_volume=volume,
-                                   source_ts=at))
+                                   bid_qty=1000, ask_qty=1000, source_ts=at))
     return out
 
 

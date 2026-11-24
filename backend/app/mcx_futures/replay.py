@@ -74,8 +74,16 @@ def validate_bars(bars: pd.DataFrame) -> list[dict[str, Any]]:
             b, a = record.get("bid"), record.get("ask")
             if b is not None and a is not None and isfinite(float(b)) and isfinite(float(a)) and a >= b:
                 bid, ask = float(b), float(a)
+        depth = {}
+        for side in ("bid_qty", "ask_qty"):
+            value = record.get(side)
+            try:
+                quantity = float(value) if value is not None else None
+            except (TypeError, ValueError):
+                quantity = None
+            depth[side] = quantity if quantity is not None and isfinite(quantity) and quantity >= 0 else None
         rows.append({"ts": ts, "open": o, "high": h, "low": low, "close": c, "volume": volume, "bid": bid,
-                     "ask": ask})
+                     "ask": ask, **depth})
         previous = ts
     return rows
 
@@ -92,8 +100,10 @@ class _Feed:
         self.event_counts: dict[str, int] = defaultdict(int)
         self.cum: dict[str, float] = {}
 
-    def send(self, at: datetime, ltp: float, half: float, cum: float | None) -> None:
-        obs = Observation(at=at, ltp=ltp, bid=ltp - half, ask=ltp + half, cum_volume=cum, source_ts=at)
+    def send(self, at: datetime, ltp: float, half: float, cum: float | None,
+             bid_qty: float | None, ask_qty: float | None) -> None:
+        obs = Observation(at=at, ltp=ltp, bid=ltp - half, ask=ltp + half, bid_qty=bid_qty,
+                          ask_qty=ask_qty, cum_volume=cum, source_ts=at)
         for event in self.engine.on_observation(obs):
             self.event_counts[event["type"]] += 1
             if event["type"] == "EXIT":
@@ -123,7 +133,8 @@ class _Feed:
         cum_before = None if volume is None else before
         half = ((row["ask"] - row["bid"]) / 2 if row["bid"] is not None and row["ask"] is not None
                 else self.half_spread_ticks * self.tick)
-        self.send(ts, row["open"], half, cum_before)
+        quantities = (row["bid_qty"], row["ask_qty"])
+        self.send(ts, row["open"], half, cum_before, *quantities)
         pending = self.engine.s["pending_entry"]
         position = self.engine.position
         side = (pending or position or {}).get("direction")
@@ -139,8 +150,8 @@ class _Feed:
             touch = self.stop_touch(previous_price, price, half)
             if touch is not None:
                 mid = previous_second + (second_offset - previous_second) / 2
-                self.send(ts + timedelta(seconds=mid), touch, half, cum_before)
-            self.send(ts + timedelta(seconds=second_offset), price, half, cum)
+                self.send(ts + timedelta(seconds=mid), touch, half, cum_before, *quantities)
+            self.send(ts + timedelta(seconds=second_offset), price, half, cum, *quantities)
             previous_price, previous_second = price, second_offset
 
 
@@ -166,6 +177,7 @@ def replay(bars: pd.DataFrame, config: InstrumentConfig, spec: ContractSpec, cos
         "events": feed.events if collect_events else None,
         "assumptions": {
             "quote": "bar bid/ask half spread" if "bid" in bars.columns else f"ltp +/- {half_spread_ticks} ticks",
+            "depth": "explicit bid_qty/ask_qty input; unavailable depth blocks simulated fills",
             "path": "O,+15s extreme,+30s extreme,+45s close; adverse extreme first for pending/open positions",
             "intrabar_stop": "fill at stop (+slippage) when crossed inside the bar; at open when the bar gaps through",
         },

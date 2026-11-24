@@ -12,7 +12,9 @@ const contract = shape<McxContract>({ trading_symbol: string, token: nString, ex
   quotation_unit: nString, source: nString });
 const session = shape<McxSession>({ status: oneOf(["OPEN", "CLOSED", "PRE_OPEN"] as const), window: nString, next_open: nTimestamp,
   last_entry_time: nString, forced_exit_time: nString });
-const feed = shape<McxFeed>({ last_quote_at: nTimestamp, age_seconds: nFinite, stale: boolean, bid: nFinite, ask: nFinite, ltp: nFinite,
+const feed = shape<McxFeed>({ last_quote_at: nTimestamp, age_seconds: nFinite, stale: boolean,
+  observed_at: nTimestamp, source_timestamp_available: nullable(boolean),
+  bid: nFinite, ask: nFinite, bid_qty: nFinite, ask_qty: nFinite, ltp: nFinite,
   spread_ticks: nFinite });
 const decision = shape<McxDecision>({ at: nTimestamp, status: nString, direction: nString, score: nFinite, components, vetoes,
   component_max: record(finite), market_state: nString, cycle_id: nString, cycle_state: nString, rearm_reason: nString });
@@ -22,6 +24,7 @@ const risk = shape<McxRisk>({ daily_loss_limit: nFinite, daily_realized: nFinite
   max_entries: nFinite });
 const warmup = shape<McxWarmup>({ ready: boolean, bars_available: finite, bars_required: finite, timeframe_minutes: finite, blocking: vetoes });
 const instrumentStatus = shape<McxInstrument>({ instrument, state: oneOf(ENGINE_STATES), state_reason: nString, contract: nullable(contract),
+  execution_state: nString, execution_reason: nString, open_position_count: nFinite, unresolved_exposure_count: nFinite,
   session, feed, warmup: nullable(warmup), last_decision: nullable(decision), position: nullable(position), trades_today: finite, realized_pnl_today: finite,
   entries_rejected_today: finite, last_rejection: nullable(shape({ at: nTimestamp, reason: nString })), risk });
 

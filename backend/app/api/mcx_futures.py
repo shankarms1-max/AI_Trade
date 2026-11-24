@@ -1,7 +1,7 @@
 """Read-only ACTS_V3_MCX_FUTURES projections (PAPER only). GET routes only; no engine is instantiated here."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import json
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db.session import get_session_factory
 from app.mcx_futures.models import INSTRUMENTS, McxFuturesCursor, McxFuturesEvent, McxFuturesTrade
 from app.mcx_futures.runtime import split_components
+from app.mcx_futures.session import SessionCalendar
 from app.mcx_futures.settings import McxFuturesSettings
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -35,7 +36,8 @@ def _age(at: str | None, now: datetime) -> float | None:
         return None
 
 
-def derive_state(latest: dict[str, Any], enabled: bool, now: datetime, stale_after: int) -> tuple[str, str | None]:
+def derive_state(latest: dict[str, Any], enabled: bool, now: datetime, stale_after: int,
+                 calendar: SessionCalendar | None = None) -> tuple[str, str | None]:
     """Server-side truth: never report RUNNING from a cached snapshot older than the stale threshold."""
     if not enabled:
         return "DISABLED", "MCX_FUTURES_PAPER_FLAG_OFF"
@@ -43,8 +45,11 @@ def derive_state(latest: dict[str, Any], enabled: bool, now: datetime, stale_aft
         return "IDLE", "NO_OBSERVATION_RECORDED_YET"
     if latest.get("error"):
         return "ERROR", str(latest["error"])
+    current_session = (calendar or SessionCalendar()).state(now)
+    if current_session.status != "OPEN":
+        return "MARKET_CLOSED", "OUTSIDE_MCX_SESSION_OR_HOLIDAY"
     session = (latest.get("session") or {}).get("status")
-    age = _age((latest.get("feed") or {}).get("last_quote_at") or latest.get("observed_at"), now)
+    age = _age((latest.get("feed") or {}).get("last_quote_at"), now)
     if session != "OPEN":
         # A closed-session snapshot is only trusted until the next scheduled open.
         nxt = (latest.get("session") or {}).get("next_open")
@@ -53,8 +58,10 @@ def derive_state(latest: dict[str, Any], enabled: bool, now: datetime, stale_aft
         return "MARKET_CLOSED", (latest.get("session") or {}).get("reason")
     if age is not None and age < -FUTURE_TOLERANCE_SECONDS:
         return "DATA_STALE", "FEED_TIMESTAMP_IN_FUTURE_CLOCK_SKEW"
-    if age is None or age > stale_after:
-        return "DATA_STALE", f"LAST_QUOTE_AGE_{int(age)}S" if age is not None else "NO_QUOTE_TIMESTAMP"
+    if age is None:
+        return "DATA_UNAVAILABLE", "NO_SOURCE_QUOTE_TIMESTAMP"
+    if age > stale_after:
+        return "DATA_STALE", f"LAST_QUOTE_AGE_{int(age)}S"
     return "RUNNING", None
 
 
@@ -97,29 +104,67 @@ def build_status(sessions: sessionmaker[Session], now: datetime | None = None,
     now = now or datetime.now(timezone.utc)
     settings = settings or McxFuturesSettings.from_env()
     today = now.astimezone(IST).date()
+    calendar = SessionCalendar(holidays=frozenset(date.fromisoformat(day) for day in settings.holidays))
     out = []
     with sessions() as session:
         cursors = {c.instrument: c for c in session.scalars(select(McxFuturesCursor)).all()}
         for inst in INSTRUMENTS:
             c = cursors.get(inst)
             latest = json.loads(c.latest_json) if c else {}
-            state, reason = derive_state(latest, settings.enabled(inst), now, settings.stale_after_seconds)
-            docs = [d for d in _docs(session, inst) if (d.get("entry_at") or d.get("at") or "")[:10] == str(today)]
-            closed = [d for d in docs if d["state"] == "CLOSED"]
-            open_ = next((d for d in docs if d["state"] == "OPEN"), None)
+            # The API process may have different env flags from the standalone worker.
+            # Once the worker has persisted a mode, its cursor is the authority.
+            legacy_worker = bool(c and c.observed_at and "paper_entries_enabled" not in latest)
+            collector_enabled = latest.get("collector_enabled", legacy_worker or settings.enabled(inst))
+            paper_entries_enabled = latest.get("paper_entries_enabled")
+            # Earlier workers used capture time as a fallback in last_quote_at. Its
+            # provenance cannot be recovered from the cursor, so never label it
+            # as an exchange quote timestamp in the new API.
+            state_latest = ({**latest, "feed": {**(latest.get("feed") or {}), "last_quote_at": None}}
+                            if legacy_worker else latest)
+            state, reason = derive_state(state_latest, collector_enabled, now, settings.stale_after_seconds, calendar)
+            execution_state = ("PAPER_DISABLED" if not collector_enabled else
+                               "LEGACY_MODE_UNVERIFIED" if legacy_worker else
+                               "PAPER_ENABLED" if paper_entries_enabled else "COLLECT_ONLY")
+            execution_reason = ("MCX_FUTURES_PAPER_OR_INSTRUMENT_FLAG_OFF" if not collector_enabled else
+                                "WORKER_MODE_NOT_PERSISTED" if legacy_worker else
+                                None if paper_entries_enabled else "MCX_FUTURES_TRADING_ENABLED_FALSE")
+            all_docs = _docs(session, inst)
+            docs = [d for d in all_docs if (d.get("entry_at") or d.get("at") or "")[:10] == str(today)]
+            entered = [d for d in docs if d["state"] in ("OPEN", "CLOSED", "UNRESOLVED_EXPOSURE")
+                       and d.get("entry_at")]
+            closed = [d for d in all_docs if d["state"] == "CLOSED"
+                      and (d.get("exit_at") or "")[:10] == str(today)]
+            open_ = next((d for d in all_docs if d["state"] == "OPEN"), None)
+            unresolved = [d for d in all_docs if d["state"] == "UNRESOLVED_EXPOSURE"]
             rej = [d for d in docs if d["state"] == "ENTRY_REJECTED"]
+            persisted_feed = latest.get("feed") or {}
+            feed = {"last_quote_at": None, "observed_at": latest.get("observed_at"),
+                    "source_timestamp_available": None,
+                    "bid": None, "ask": None, "bid_qty": None, "ask_qty": None,
+                    "ltp": None, "spread_ticks": None, **persisted_feed,
+                    "age_seconds": _age(persisted_feed.get("last_quote_at"), now),
+                    "capture_latency_seconds": persisted_feed.get("age_seconds"),
+                    "stale": state in ("DATA_STALE", "DATA_UNAVAILABLE") or not persisted_feed}
+            if legacy_worker:
+                feed["last_quote_at"] = None
             out.append({"instrument": inst, "state": state, "state_reason": reason,
+                        "execution_state": execution_state, "execution_reason": execution_reason,
+                        "open_position_count": sum(d["state"] == "OPEN" for d in all_docs),
+                        "unresolved_exposure_count": len(unresolved),
                         "contract": json.loads(c.contract_json) or None if c else None,
                         "session": latest.get("session") or {"status": "CLOSED", "window": None, "next_open": None,
                                                               "last_entry_time": None, "forced_exit_time": None},
                         # feed.stale follows the server-derived state (age, clock skew), not only quote age.
-                        "feed": {**(latest.get("feed") or {"last_quote_at": None, "age_seconds": None,
-                                                           "bid": None, "ask": None, "ltp": None,
-                                                           "spread_ticks": None}),
-                                 "stale": state == "DATA_STALE" or not latest.get("feed")},
+                        "feed": feed,
                         "last_decision": latest.get("last_decision"), "warmup": latest.get("warmup"),
-                        "position": latest.get("position") if open_ else None,
-                        "trades_today": len(closed),
+                        "position": (latest.get("position") or {
+                            "direction": open_.get("direction"), "entry_at": open_.get("entry_at"),
+                            "entry_price": open_.get("entry_price"), "quantity_lots": open_.get("quantity_lots"),
+                            "mark_price": (open_.get("last_mark") or {}).get("mark_price"),
+                            "mark_at": (open_.get("last_mark") or {}).get("at"),
+                            "unrealized_pnl": (open_.get("last_mark") or {}).get("unrealized_pnl"),
+                            "stop_price": open_.get("stop_price")}) if open_ else None,
+                        "trades_today": len(entered),
                         "realized_pnl_today": sum(float(d.get("net_pnl") or 0) for d in closed),
                         "entries_rejected_today": len(rej),
                         "last_rejection": ({"at": rej[-1].get("at"), "reason": rej[-1].get("rejection_reason")}

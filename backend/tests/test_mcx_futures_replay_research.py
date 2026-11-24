@@ -15,7 +15,8 @@ from app.mcx_futures.session import SessionCalendar
 from tests.test_mcx_futures_support import random_walk_bars, spec_for, synth_spec, trading_days, trend_bars
 
 CRUDE_SPEC = spec_for("CRUDEOILM")
-TREND = trend_bars(date(2026, 11, 24), start_price=5600, slope=0.6, tick=1.0, minutes=600, wiggle=2.0)
+TREND = trend_bars(date(2026, 11, 24), start_price=5600, slope=0.6, tick=1.0,
+                   minutes=600, wiggle=2.0).assign(bid_qty=1000.0, ask_qty=1000.0)
 # SYNTHETIC short evening sessions keep the long-series research test fast.
 SYNTH_CAL = SessionCalendar(source="SYNTHETIC_TEST_CALENDAR", open_time=time(20, 0), default_close=time(22, 30),
                             seasonal_closes=())
@@ -30,9 +31,18 @@ def test_replay_has_no_lookahead() -> None:
     assert full["metrics"]["trades"] >= 1
 
 
+def test_replay_without_depth_cannot_claim_executable_fill() -> None:
+    no_depth = replay(TREND.drop(columns=["bid_qty", "ask_qty"]), CRUDEOILM,
+                      CRUDE_SPEC, DEFAULT_SCHEDULE)
+    assert no_depth["metrics"]["trades"] == 0
+    assert no_depth["open_position_at_end"] is None
+    assert no_depth["assumptions"]["depth"].startswith("explicit")
+
+
 def _with_extra_bar(base: pd.DataFrame, **bar: float) -> pd.DataFrame:
     ts = base["ts"].iloc[-1] + timedelta(minutes=1)
-    return pd.concat([base, pd.DataFrame([{"ts": ts, "volume": 100.0, **bar}])], ignore_index=True)
+    return pd.concat([base, pd.DataFrame([{"ts": ts, "volume": 100.0,
+                                           "bid_qty": 1000.0, "ask_qty": 1000.0, **bar}])], ignore_index=True)
 
 
 def test_intrabar_stop_rule_crossing_and_gap_through() -> None:

@@ -12,7 +12,7 @@ import type { Engine, EngineMode, EngineState } from "@/types/engines";
 
 /** Every state has its own colour AND its own text; colour is never the only signal. */
 export const STATE_TONE: Record<EngineState, string> = {
-  RUNNING: "good", IDLE: "neutral", MARKET_CLOSED: "accent", DATA_STALE: "warn", ERROR: "bad", DISABLED: "neutral", NOT_CONFIGURED: "neutral",
+  RUNNING: "good", IDLE: "neutral", MARKET_CLOSED: "accent", DATA_STALE: "warn", DATA_UNAVAILABLE: "warn", ERROR: "bad", DISABLED: "neutral", NOT_CONFIGURED: "neutral",
 };
 export function EngineStateBadge({ state }: { state: EngineState }) {
   return <span className="engine-state" data-state={state}><Badge value={state} tone={STATE_TONE[state]}/></span>;
@@ -48,7 +48,9 @@ export function EngineCard({ engine, now }: { engine: Engine; now: number }) {
     </header>
     <div className="engine-badges"><ModeBadge mode={engine.mode}/>{engine.instrument && <Badge value={engine.instrument} tone="neutral"/>}</div>
     {engine.state_reason && <p className="engine-reason">{engine.state_reason}</p>}
-    <dl className="engine-fields">
+    <details className="engine-evidence">
+      <summary aria-label={`Decision and position for ${engine.label}`}>Decision &amp; position<Icon name="chevron" size={14}/></summary>
+      <dl className="engine-fields">
       <div><dt>Last update</dt><dd title={stampIST(engine.last_update)}>{age(engine.last_update, now)}</dd></div>
       <div><dt>Trades today</dt><dd>{dash(engine.trades_today, integer)}</dd></div>
       <div><dt>Realized today</dt><dd className={tone(engine.realized_pnl_today)}>{pnl(engine.realized_pnl_today)}</dd></div>
@@ -56,7 +58,8 @@ export function EngineCard({ engine, now }: { engine: Engine; now: number }) {
       <div className="engine-wide"><dt>Position</dt><dd>{positionText(engine)}{position && <small>Mark {dash(position.mark_price, v => number(v))} · {position.mark_at ? timeIST(position.mark_at) : `mark time ${DASH}`}</small>}</dd></div>
       <div className="engine-wide"><dt>Last decision</dt><dd>{decisionText(engine)}</dd></div>
       <div className="engine-wide"><dt>Latest block reason</dt><dd>{engine.last_decision?.primary_blocker ? <code>{engine.last_decision.primary_blocker}</code> : DASH}</dd></div>
-    </dl>
+      </dl>
+    </details>
   </article>;
 }
 
@@ -67,12 +70,12 @@ function useEngines() {
 
 const NOT_CONFIGURED = <p><strong>ENGINE STATUS NOT CONFIGURED</strong> · /api/engines/status is not available in this deployment.</p>;
 
-/** Overview strip on `/`: one card per engine, above the existing ACTS workspace. */
+/** Overview strip on `/`: one expandable row per engine. */
 export function EnginesOverview() {
   const poll = useEngines();
   const status = poll.data?.value;
   return <section className="engines-overview" aria-label="Engines overview">
-    <div className="section-title"><div><h2>Engines</h2><p>Every paper, research and futures engine · read-only{status ? ` · as of ${timeIST(status.generated_at)}` : ""}</p></div>
+    <div className="section-title"><div><h2>Engine status</h2>{status && <p>As of {timeIST(status.generated_at)}</p>}</div>
       <Link href="/engines">All engines<Icon name="arrow" size={13}/></Link></div>
     <PollStatus poll={poll} label="ENGINE STATUS" notConfigured={NOT_CONFIGURED}/>
     {!status ? !poll.failure && <div className="engine-grid is-loading" aria-busy="true">Loading engine status…</div>

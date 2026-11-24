@@ -29,8 +29,22 @@ def quote_problem(obs: Observation, cfg: Any, spec: ContractSpec) -> str | None:
     age = obs.quote_age_seconds()
     if age is None:
         return "QUOTE_AGE_UNAVAILABLE"
+    if age < 0:
+        return "FUTURE_QUOTE_TIMESTAMP"
     if age > cfg.stale_quote_seconds:
         return "STALE_QUOTE"
+    return None
+
+
+def depth_problem(obs: Observation, direction: str, lots: int, spec: ContractSpec,
+                  *, exit_side: bool = False) -> str | None:
+    """Kotak best-level quantities are underlying units; require enough on the side we hit."""
+    side = "bid" if (direction == SHORT) != exit_side else "ask"
+    quantity = obs.bid_qty if side == "bid" else obs.ask_qty
+    if quantity is None:
+        return f"{side.upper()}_DEPTH_UNAVAILABLE"
+    if quantity < lots * spec.lot_size:
+        return f"{side.upper()}_DEPTH_INSUFFICIENT"
     return None
 
 
@@ -47,6 +61,9 @@ def entry_fill(pending: dict[str, Any], obs: Observation, cfg: Any, spec: Contra
     if latency > cfg.max_entry_latency_seconds:
         return None, "ENTRY_LATENCY_EXCEEDED"
     problem = quote_problem(obs, cfg, spec)
+    if problem:
+        return None, problem
+    problem = depth_problem(obs, pending["direction"], cfg.lots, spec)
     if problem:
         return None, problem
     spread = spread_ticks(obs, spec)

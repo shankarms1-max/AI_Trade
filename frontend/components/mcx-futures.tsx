@@ -82,9 +82,11 @@ export function McxInstrumentPanel({ row, now, detailLink = true }: { row: McxIn
     <header className="mcx-instrument-head">
       <span className={`instrument-icon ${row.instrument === "CRUDEOILM" ? "crude" : "gas"}`}><Icon name={row.instrument === "CRUDEOILM" ? "flame" : "gas"}/></span>
       <div><h2>{detailLink ? <Link href={`/mcx-futures/${row.instrument}`}>{row.instrument}</Link> : row.instrument}</h2><small>{MCX_NAMES[row.instrument]} · MCX futures · PAPER</small></div>
-      <EngineStateBadge state={row.state}/>
+      <div className="engine-badges"><EngineStateBadge state={row.state}/>{row.execution_state && <Badge value={row.execution_state}/>}</div>
     </header>
     {row.state_reason && <p className="engine-reason">{row.state_reason}</p>}
+    {row.execution_reason && <p className="engine-reason">Paper execution: {row.execution_reason}</p>}
+    {!!row.unresolved_exposure_count && <p className="attention-line" role="alert">{integer(row.unresolved_exposure_count)} unresolved paper exposure · Review the exact contract journal.</p>}
     <div className="mcx-blocks">
       <Panel title="CONTRACT">{contract ? <dl className="commodity-fields">
         <div><dt>Trading symbol</dt><dd>{contract.trading_symbol}</dd></div><div><dt>Expiry</dt><dd>{contract.expiry ? dateIST(contract.expiry) : DASH}</dd></div>
@@ -97,8 +99,12 @@ export function McxInstrumentPanel({ row, now, detailLink = true }: { row: McxIn
         <div><dt>Last entry</dt><dd>{clock(session.last_entry_time)}</dd></div><div><dt>Forced exit</dt><dd>{clock(session.forced_exit_time)}</dd></div>
       </dl></Panel>
       <Panel title="FEED" action={<Badge value={feed.stale ? "STALE" : feed.last_quote_at ? "FRESH" : "NO_QUOTE"}/>}><dl className="commodity-fields">
-        <div><dt>Last quote</dt><dd>{stampIST(feed.last_quote_at)}</dd></div><div><dt>Quote age</dt><dd>{quoteAge == null ? DASH : `${ageLabel(Math.round(quoteAge))} ago`}</dd></div>
-        <div><dt>Bid / Ask</dt><dd>{price(feed.bid)} / {price(feed.ask)}</dd></div><div><dt>LTP</dt><dd>{price(feed.ltp)}</dd></div>
+        <div><dt>Source quote time</dt><dd>{stampIST(feed.last_quote_at)}</dd></div>
+        <div><dt>Captured at</dt><dd>{stampIST(feed.observed_at)}</dd></div>
+        <div><dt>Quote age</dt><dd>{quoteAge == null ? DASH : `${ageLabel(Math.round(quoteAge))} ago`}</dd></div>
+        <div><dt>Bid / Ask</dt><dd>{price(feed.bid)} / {price(feed.ask)}</dd></div>
+        <div><dt>Best depth (units)</dt><dd>{dash(feed.bid_qty, integer)} / {dash(feed.ask_qty, integer)}</dd></div>
+        <div><dt>LTP</dt><dd>{price(feed.ltp)}</dd></div>
         <div><dt>Spread</dt><dd>{dash(feed.spread_ticks, v => `${number(v, 1)} ticks`)}</dd></div>
       </dl></Panel>
       <Panel title="WARM-UP" action={warmup ? <Badge value={warmup.ready ? "READY" : "WARMING_UP"} tone={warmup.ready ? "good" : "warn"}/> : undefined}>
@@ -150,7 +156,7 @@ export function McxFuturesOverview() {
         const row = status.instruments.find(item => item.instrument === id);
         return <SectionBoundary key={id} label={id}>{row ? <McxInstrumentPanel row={row} now={poll.data!.now}/> : <Missing instrument={id}/>}</SectionBoundary>;
       })}</div>}
-    {status && <p className="accounting-note">As of {stampIST(status.generated_at)}. Realized P&amp;L counts closed paper trades; unrealized is the open position marked to its last quote. {DASH} means not reported.</p>}
+    {status && <p className="accounting-note">As of {stampIST(status.generated_at)}. Realized P&amp;L counts closed paper trades; unrealized is the open position marked to its last quote. Net and fees use an unverified transaction-cost schedule and are estimates. {DASH} means not reported.</p>}
   </>;
 }
 
@@ -216,7 +222,7 @@ function TradeBlotter({ instrument }: { instrument: McxInstrumentId }) {
     {!poll.data ? !poll.failure && <Empty>Loading paper trades</Empty> : !trades.length ? <Empty>No paper trades recorded yet</Empty> : <>
       <div className="table-wrap sticky-first"><ResponsiveTable aria-label={`${instrument} paper trades`} data-layout="scroll" className="mcx-blotter"><thead><tr>
         <th>Entry (IST)</th><th>Side</th><th>Contract</th><th>Lots × size</th><th>Entry</th><th>Exit</th><th>Exit / rejection</th>
-        <th>Gross</th><th>Fees</th><th>Slippage</th><th>Net</th><th>State</th><th>Version</th><th>Journal seq</th></tr></thead>
+        <th>Gross</th><th>Est. fees</th><th>Slippage</th><th>Est. net</th><th>State</th><th>Version</th><th>Journal seq</th></tr></thead>
         <TradeRows trades={trades}/></ResponsiveTable></div>
       <div className="commodity-pagination"><span>{trades.length} paper records loaded</span>
         {older?.failure && <span className="negative">Older page failed: {describeFailure(older.failure)}</span>}
@@ -238,7 +244,7 @@ function PerfMetrics({ perf, label }: { perf: McxPerf; label: string }) {
     </div>
     <dl className="commodity-fields pnl-split">
       <div><dt>Gross</dt><dd className={tone(perf.gross)}>{inr(perf.gross)}</dd></div><div><dt>Fees</dt><dd>{inr(perf.fees)}</dd></div>
-      <div><dt>Net</dt><dd className={tone(perf.net)}>{inr(perf.net)}</dd></div>
+      <div><dt>Estimated net</dt><dd className={tone(perf.net)}>{inr(perf.net)}</dd></div>
       <div><dt>Realized (closed)</dt><dd className={tone(perf.realized)}>{inr(perf.realized)}</dd></div>
       <div><dt>Unrealized (open, marked)</dt><dd className={tone(perf.unrealized)}>{inr(perf.unrealized)}</dd></div>
     </dl>

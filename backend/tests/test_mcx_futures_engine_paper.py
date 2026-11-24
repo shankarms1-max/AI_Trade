@@ -183,7 +183,8 @@ def _engine_at(stream: list[Observation], kind: str) -> tuple[McxFuturesEngine, 
 def test_unfilled_entry_is_rejected_with_reason_and_not_consumed(crude_stream: list[Observation]) -> None:
     engine, decided = _engine_at(crude_stream, "ENTRY_PENDING")
     at = decided.at + timedelta(seconds=15)
-    wide = Observation(at=at, ltp=decided.ltp, bid=decided.ltp - 3, ask=decided.ltp + 3, source_ts=at)
+    wide = Observation(at=at, ltp=decided.ltp, bid=decided.ltp - 3, ask=decided.ltp + 3,
+                       bid_qty=1000, ask_qty=1000, source_ts=at)
     events = engine.on_observation(wide)
     rejected = [e for e in events if e["type"] == "ENTRY_REJECTED"]
     assert rejected and rejected[0]["payload"]["reason"] == "SPREAD_TOO_WIDE"
@@ -194,15 +195,60 @@ def test_unfilled_entry_is_rejected_with_reason_and_not_consumed(crude_stream: l
     assert engine.position is None
     stale_engine, decided = _engine_at(crude_stream, "ENTRY_PENDING")
     stale = Observation(at=at, ltp=decided.ltp, bid=decided.ltp - 1, ask=decided.ltp + 1,
-                        source_ts=at - timedelta(seconds=90))
+                        bid_qty=1000, ask_qty=1000, source_ts=at - timedelta(seconds=90))
     reasons = [e["payload"]["reason"] for e in stale_engine.on_observation(stale) if e["type"] == "ENTRY_REJECTED"]
     assert reasons == ["STALE_QUOTE"]
     late_engine, decided = _engine_at(crude_stream, "ENTRY_PENDING")
     late = decided.at + timedelta(seconds=31)
     reasons = [e["payload"]["reason"] for e in late_engine.on_observation(
-        Observation(at=late, ltp=decided.ltp, bid=decided.ltp - 1, ask=decided.ltp + 1, source_ts=late))
+        Observation(at=late, ltp=decided.ltp, bid=decided.ltp - 1, ask=decided.ltp + 1,
+                    bid_qty=1000, ask_qty=1000, source_ts=late))
         if e["type"] == "ENTRY_REJECTED"]
     assert reasons == ["ENTRY_LATENCY_EXCEEDED"]
+
+
+def test_collect_only_releases_pending_entry_without_a_fill(crude_stream: list[Observation]) -> None:
+    engine, decided = _engine_at(crude_stream, "ENTRY_PENDING")
+    at = decided.at + timedelta(seconds=15)
+    quote = Observation(at=at, ltp=decided.ltp, bid=decided.ltp - 1, ask=decided.ltp + 1,
+                        bid_qty=1000, ask_qty=1000, source_ts=at)
+    events = engine.on_observation(quote, allow_entries=False)
+    assert [e["payload"]["reason"] for e in events if e["type"] == "ENTRY_REJECTED"] == [
+        "PAPER_EXECUTION_DISABLED"]
+    assert not any(e["type"] == "ENTRY_FILLED" for e in events)
+    assert engine.position is None
+    assert engine.s["cycle"]["consumed_directions"] == []
+
+
+def test_executable_depth_and_future_quote_time_are_required() -> None:
+    from app.mcx_futures.spec import IST
+    from datetime import datetime
+
+    at = datetime(2026, 11, 24, 12, 0, 15, tzinfo=IST)
+    pending = {"direction": "LONG", "decided_at": (at - timedelta(seconds=15)).isoformat()}
+    base = dict(at=at, ltp=5600.0, bid=5599.0, ask=5601.0, source_ts=at)
+    assert paper.entry_fill(pending, Observation(**base), CRUDEOILM, CRUDE_SPEC, [])[1] == \
+        "ASK_DEPTH_UNAVAILABLE"
+    assert paper.entry_fill(pending, Observation(**base, bid_qty=10, ask_qty=9), CRUDEOILM,
+                            CRUDE_SPEC, [])[1] == "ASK_DEPTH_INSUFFICIENT"
+    assert paper.entry_fill(pending, Observation(**base, bid_qty=10, ask_qty=10), CRUDEOILM,
+                            CRUDE_SPEC, [])[0] is not None
+    future = Observation(at=at, ltp=5600, bid=5599, ask=5601, bid_qty=10, ask_qty=10,
+                         source_ts=at + timedelta(seconds=6))
+    assert paper.entry_fill(pending, future, CRUDEOILM, CRUDE_SPEC, [])[1] == "FUTURE_QUOTE_TIMESTAMP"
+
+
+def test_missing_exit_depth_keeps_position_unpriced(crude_stream: list[Observation]) -> None:
+    engine, filled = _engine_at(crude_stream, "ENTRY_FILLED")
+    position = engine.position
+    assert position is not None
+    at = filled.at + timedelta(seconds=15)
+    quote = Observation(at=at, ltp=filled.ltp, bid=filled.ltp - 1, ask=filled.ltp + 1,
+                        source_ts=at, bid_qty=None, ask_qty=None)
+    events = engine.on_observation(quote)
+    assert any(e["type"] == "MARK_UNAVAILABLE" for e in events)
+    assert not any(e["type"] in ("MARK", "EXIT") for e in events)
+    assert engine.position is not None
 
 
 def test_stale_feed_never_marks_and_exits_only_on_fresh_quote(crude_stream: list[Observation]) -> None:
@@ -213,12 +259,13 @@ def test_stale_feed_never_marks_and_exits_only_on_fresh_quote(crude_stream: list
     for k in range(1, 9):  # 2 minutes of stale quotes (exchange timestamp frozen)
         at = t + timedelta(seconds=15 * k)
         events = engine.on_observation(Observation(at=at, ltp=price, bid=price - 1, ask=price + 1,
+                                                   bid_qty=1000, ask_qty=1000,
                                                    source_ts=filled.at - timedelta(seconds=60)))
         kinds = [e["type"] for e in events]
         assert "MARK" not in kinds and "EXIT" not in kinds and "MARK_UNAVAILABLE" in kinds
     fresh_at = t + timedelta(seconds=15 * 9)
     events = engine.on_observation(Observation(at=fresh_at, ltp=price, bid=price - 1, ask=price + 1,
-                                               source_ts=fresh_at))
+                                               bid_qty=1000, ask_qty=1000, source_ts=fresh_at))
     exits = [e for e in events if e["type"] == "EXIT"]
     assert exits and exits[0]["payload"]["trade"]["exit_reason"] == "STALE_FEED_EXIT"
     assert exits[0]["payload"]["trade"]["exit_price"] == price - 1 and price - 1 > stop
@@ -228,7 +275,8 @@ def test_engine_stop_gap_through_and_forced_exit(crude_stream: list[Observation]
     engine, filled = _engine_at(crude_stream, "ENTRY_FILLED")
     stop = engine.position["stop"]
     at = filled.at + timedelta(seconds=15)
-    events = engine.on_observation(Observation(at=at, ltp=stop - 20, bid=stop - 21, ask=stop - 19, source_ts=at))
+    events = engine.on_observation(Observation(at=at, ltp=stop - 20, bid=stop - 21, ask=stop - 19,
+                                               bid_qty=1000, ask_qty=1000, source_ts=at))
     trade = [e for e in events if e["type"] == "EXIT"][0]["payload"]["trade"]
     assert trade["exit_reason"] == "STOP" and trade["exit_price"] == stop - 22  # worse bid - 1 tick slippage
     assert trade["gross_pnl"] == pytest.approx((stop - 22 - trade["entry_price"]) * 10)
@@ -236,7 +284,7 @@ def test_engine_stop_gap_through_and_forced_exit(crude_stream: list[Observation]
     forced, filled = _engine_at(crude_stream, "ENTRY_FILLED")
     late = filled.at.replace(hour=23, minute=45, second=0)
     events = forced.on_observation(Observation(at=late, ltp=filled.ltp, bid=filled.ltp - 1, ask=filled.ltp + 1,
-                                               source_ts=late))
+                                               bid_qty=1000, ask_qty=1000, source_ts=late))
     assert [e["payload"]["trade"]["exit_reason"] for e in events if e["type"] == "EXIT"] == ["SESSION_FORCED_EXIT"]
 
 

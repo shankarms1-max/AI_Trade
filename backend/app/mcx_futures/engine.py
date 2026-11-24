@@ -27,7 +27,7 @@ from app.mcx_futures.spec import ContractSpec
 
 SCHEMA = "ACTS_V3_MCX_FUTURES_ENGINE_STATE_V1"
 EVENT_TYPES = (
-    "OBSERVATION_REJECTED", "BAR", "DECISION", "ENTRY_PENDING", "ENTRY_FILLED", "ENTRY_REJECTED", "MARK",
+    "OBSERVATION", "OBSERVATION_REJECTED", "BAR", "DECISION", "ENTRY_PENDING", "ENTRY_FILLED", "ENTRY_REJECTED", "MARK",
     "MARK_UNAVAILABLE", "EXIT", "CYCLE", "SESSION", "RISK_BLOCK",
 )
 GENESIS = "0" * 64
@@ -125,7 +125,7 @@ class McxFuturesEngine:
         out.append(event)
 
     # -- main entry point ----------------------------------------------------------------------------------------
-    def on_observation(self, obs: Observation) -> list[dict[str, Any]]:
+    def on_observation(self, obs: Observation, *, allow_entries: bool = True) -> list[dict[str, Any]]:
         out: list[dict[str, Any]] = []
         problem = validate_observation(obs)
         if problem:
@@ -156,16 +156,33 @@ class McxFuturesEngine:
         if new_session:
             self._roll_session(out, state.session, obs.at)
         self.s["counters"]["observations"] += 1
+        self._emit(out, "OBSERVATION", obs.at, {
+            "quote": obs.to_dict(), "contract_token": self.spec.token,
+            "contract_expiry": self.spec.expiry.isoformat(),
+            "lot_size": self.spec.lot_size, "tick_size": self.spec.tick_size,
+        })
         built = self._builder.add(obs)
         if not built.accepted:  # pragma: no cover - guarded above
             self._emit(out, "OBSERVATION_REJECTED", obs.at, {"reason": built.reason})
             return out
-        fresh = paper.quote_problem(obs, self.config, self.spec) is None
+        fresh_problem = paper.quote_problem(obs, self.config, self.spec)
+        held = self.s["position"]
+        if fresh_problem is None and held:
+            fresh_problem = paper.depth_problem(obs, held["direction"], held["lots"], self.spec,
+                                                exit_side=True)
+        fresh = fresh_problem is None
         if new_session or built.gaps:
             self._gap_guard(out, obs, built.gaps)
-        just_filled = self._resolve_pending_entry(out, obs)
+        just_filled = self._resolve_pending_entry(out, obs, allow_entries)
+        if just_filled and self.s["position"]:
+            fresh_problem = paper.depth_problem(obs, self.s["position"]["direction"],
+                                                self.s["position"]["lots"], self.spec, exit_side=True)
+            fresh = fresh_problem is None
+            if fresh_problem:
+                self._emit(out, "MARK_UNAVAILABLE", obs.at, {"reason": fresh_problem,
+                                                              "stop": self.s["position"]["stop"]})
         if self.s["position"] and not just_filled:
-            self._manage_position(out, obs, fresh)
+            self._manage_position(out, obs, fresh_problem)
         completed: list[dict[str, Any]] = []
         for bar in built.completed:
             self._emit(out, "BAR", obs.at, {"timeframe_minutes": 1, "bar": bar})
@@ -173,7 +190,7 @@ class McxFuturesEngine:
         for bar in completed:
             self._append_bar(out, obs.at, bar)
         if completed:
-            self._decide(out, obs, completed[-1])
+            self._decide(out, obs, completed[-1], allow_entries)
         if fresh:
             self.s["last_fresh_at"] = obs.at.isoformat()
         self.s["last_ltp"] = obs.ltp
@@ -227,13 +244,15 @@ class McxFuturesEngine:
             self._emit(out, "RISK_BLOCK", obs.at, {"rule": "DATA_GAP_OBSERVED", "evidence": None, "gaps": gaps})
 
     # -- execution -----------------------------------------------------------------------------------------------
-    def _resolve_pending_entry(self, out: list[dict[str, Any]], obs: Observation) -> bool:
+    def _resolve_pending_entry(self, out: list[dict[str, Any]], obs: Observation, allow_entries: bool) -> bool:
         pending = self.s["pending_entry"]
         if pending is None:
             return False
         self.s["pending_entry"] = None
         session = self.s["session"]
         extra: list[str] = []
+        if not allow_entries:
+            extra.append("PAPER_EXECUTION_DISABLED")
         if session["session_id"] != pending["session_id"]:
             extra.append("SESSION_CHANGED")
         if obs.at >= datetime.fromisoformat(session["last_entry_at"]):
@@ -271,12 +290,12 @@ class McxFuturesEngine:
             "bid": obs.bid, "ask": obs.ask, "quote_age_seconds": obs.quote_age_seconds(), "consumed": False})
         self._emit(out, "CYCLE", obs.at, {"event": "RESERVATION_RELEASED", "cycle": audit})
 
-    def _manage_position(self, out: list[dict[str, Any]], obs: Observation, fresh: bool) -> None:
+    def _manage_position(self, out: list[dict[str, Any]], obs: Observation, fresh_problem: str | None) -> None:
         position = self.s["position"]
-        if not fresh:
+        if fresh_problem:
             position["stale_since"] = position["stale_since"] or obs.at.isoformat()
             self._emit(out, "MARK_UNAVAILABLE", obs.at, {
-                "reason": paper.quote_problem(obs, self.config, self.spec), "stop": position["stop"],
+                "reason": fresh_problem, "stop": position["stop"],
                 "stale_since": position["stale_since"]})
             return
         position["stale_since"] = None
@@ -323,7 +342,8 @@ class McxFuturesEngine:
             "mae_points": position["mae_points"], "mfe_points": position["mfe_points"]})
 
     # -- decisions -----------------------------------------------------------------------------------------------
-    def _decide(self, out: list[dict[str, Any]], obs: Observation, bar: dict[str, Any]) -> None:
+    def _decide(self, out: list[dict[str, Any]], obs: Observation, bar: dict[str, Any],
+                allow_entries: bool) -> None:
         cfg = self.config
         session = self.s["session"]
         bar_end = datetime.fromisoformat(bar["end"])
@@ -354,6 +374,8 @@ class McxFuturesEngine:
                 self.s["risk"], obs.at, atr=atr, cfg=cfg, spec=self.spec, session=session, position_open=False,
                 quote_age=obs.quote_age_seconds())
         blockers = list(dict.fromkeys(evaluation["vetoes"] + risk_blockers))
+        if not allow_entries:
+            blockers.append("PAPER_EXECUTION_DISABLED")
         before = cycle.audit(self.s["cycle"])
         result = cycle.decide(self.s["cycle"], obs.at, evaluation, blockers, cfg)
         exit_signal = None

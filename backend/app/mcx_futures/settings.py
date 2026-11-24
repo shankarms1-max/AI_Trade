@@ -13,6 +13,7 @@ TRUE = {"1", "true", "yes", "on"}
 @dataclass(frozen=True)
 class McxFuturesSettings:
     paper_enabled: bool
+    trading_enabled: bool
     instruments_enabled: dict[str, bool]
     mode: str
     kill_switch_file: str
@@ -24,6 +25,7 @@ class McxFuturesSettings:
         e = os.environ if env is None else env
         mode = e.get("MCX_FUTURES_MODE", "PAPER").strip().upper()
         return cls(paper_enabled=e.get("MCX_FUTURES_PAPER_ENABLED", "false").strip().lower() in TRUE,
+                   trading_enabled=e.get("MCX_FUTURES_TRADING_ENABLED", "false").strip().lower() in TRUE,
                    instruments_enabled={i: e.get(f"MCX_FUTURES_{i}_ENABLED", "false").strip().lower() in TRUE
                                         for i in INSTRUMENTS},
                    mode=mode,
@@ -37,6 +39,9 @@ class McxFuturesSettings:
 
     def enabled(self, instrument: str) -> bool:
         return self.paper_enabled and self.instruments_enabled.get(instrument, False)
+
+    def entries_enabled(self, instrument: str) -> bool:
+        return self.enabled(instrument) and self.trading_enabled
 
     def killed(self) -> bool:
         return os.path.exists(self.kill_switch_file)

@@ -19,7 +19,7 @@ export function CommodityLiveOverview() {
   const observed = data?.research?.instruments.some(row => row.observation_count > 0) ?? false;
   const exposure = data?.paper?.instruments?.some(row => (row.open_positions ?? 0) > 0 || (row.unresolved_exposure ?? 0) > 0) ?? false;
   const records = data?.paper?.instruments?.reduce((total, row) => total + (row.closed_trades ?? 0), 0) ?? 0;
-  const showLegacy = expanded || observed || exposure;
+  const showLegacy = expanded || exposure;
   return <>
     <h2 className="commodity-live-title">ACTS V3 MCX Futures — PAPER</h2>
     <McxFuturesOverview/>

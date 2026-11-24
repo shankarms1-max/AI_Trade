@@ -1,7 +1,7 @@
 /** GET /api/engines/status — read-only cross-engine overview. Null always means "unknown", never zero. */
 export const ENGINE_FAMILIES = ["ACTS", "MCX_FUTURES", "AST", "PARALLEL", "RESEARCH"] as const;
 export const ENGINE_MODES = ["PAPER", "RESEARCH", "LIVE"] as const;
-export const ENGINE_STATES = ["RUNNING", "IDLE", "MARKET_CLOSED", "DATA_STALE", "ERROR", "DISABLED", "NOT_CONFIGURED"] as const;
+export const ENGINE_STATES = ["RUNNING", "IDLE", "MARKET_CLOSED", "DATA_STALE", "DATA_UNAVAILABLE", "ERROR", "DISABLED", "NOT_CONFIGURED"] as const;
 export type EngineFamily = typeof ENGINE_FAMILIES[number];
 export type EngineMode = typeof ENGINE_MODES[number];
 export type EngineState = typeof ENGINE_STATES[number];

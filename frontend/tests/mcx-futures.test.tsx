@@ -24,6 +24,19 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const notConfigured = { status: 503, body: { status: "UNAVAILABLE", code: "SOURCE_UNAVAILABLE_OR_NOT_CONFIGURED" } };
 
 describe("/mcx-futures", () => {
+  it("shows collector-only execution separately from live feed state", async () => {
+    const status = fixtures.fixtures["/api/mcx-futures/status"];
+    routes["/api/mcx-futures/status"] = { body: { ...status, instruments: [
+      { ...status.instruments[0], execution_state: "COLLECT_ONLY",
+        execution_reason: "MCX_FUTURES_TRADING_ENABLED_FALSE", open_position_count: 0,
+        unresolved_exposure_count: 0 }, status.instruments[1]] } };
+    render(<McxFuturesPage/>);
+    const crude = await screen.findByRole("region", { name: "CRUDEOILM paper engine" });
+    expect(within(crude).getByText("RUNNING")).toBeInTheDocument();
+    expect(within(crude).getByText("COLLECT ONLY")).toBeInTheDocument();
+    expect(within(crude).getByText(/Paper execution: MCX_FUTURES_TRADING_ENABLED_FALSE/)).toBeInTheDocument();
+  });
+
   it("shows both instruments side by side, PAPER labelled, with the unvalidated calibration stated", async () => {
     render(<McxFuturesPage/>);
     const crude = await screen.findByRole("region", { name: "CRUDEOILM paper engine" });
