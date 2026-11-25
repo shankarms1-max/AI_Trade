@@ -1,9 +1,9 @@
-# AWS execution procedure — trading terminal release `__SHA__`
+# AWS execution procedure — trading terminal release `2438b3bab3e006580b2bd63da94758dfe189fef0`
 
 Host: `ip-172-26-7-186` (16.4.18.3, user `ubuntu`). Everything below is copy-paste ready. Rules baked into every
 block: no line continuations (a terminal that inserts blank lines breaks `\`); the script runs inside its own
 `bash`, so a failure stops the script and never closes your SSH session; **no `docker compose`, no prune, no
-`deploy.sh` / `update_server.sh`, no global restart**; the old container is always kept under a `-pre-__SHA__` name;
+`deploy.sh` / `update_server.sh`, no global restart**; the old container is always kept under a `-pre-2438b3bab3e006580b2bd63da94758dfe189fef0` name;
 every swap rolls back automatically when its health or API checks fail; secrets are never printed (environment is
 copied container-to-container through process substitution, and only non-secret flag NAMES/values are shown).
 
@@ -55,12 +55,12 @@ observation. Any real broker exposure would be a separate, explicitly authorised
 
 ## Block 3 — deploy: backend + frontend + MCX paper workers (build ~8-10 min, swaps ~1 min)
 
-Prerequisite: branch `feature/trading-terminal` is pushed to GitHub at `__SHA__`.
+Prerequisite: branch `feature/trading-terminal` is pushed to GitHub at `2438b3bab3e006580b2bd63da94758dfe189fef0`.
 
 ```bash
 bash <<'EOF'
 set -uo pipefail
-cd /home/ubuntu/AI_Trade; SHA=__SHA__; S=${SHA:0:7}; B=/home/ubuntu/build-$S; BI=ai-trade-mcx-futures:$S; FI=nifty-research-frontend:$S; NET=ai_trade_app_network
+cd /home/ubuntu/AI_Trade; SHA=2438b3bab3e006580b2bd63da94758dfe189fef0; S=${SHA:0:7}; B=/home/ubuntu/build-$S; BI=ai-trade-mcx-futures:$S; FI=nifty-research-frontend:$S; NET=ai_trade_app_network
 git fetch -q origin feature/trading-terminal || { echo "ABORT: fetch failed (is the branch pushed?)"; exit 1; }
 [ -d $B ] || git worktree add -f $B $SHA >/dev/null; [ "$(git -C $B rev-parse HEAD)" = "$SHA" ] || { echo "ABORT: build dir is not at $SHA"; exit 1; }
 echo "== 1/6 build backend image (3-5 min)"; docker build -q -f $B/backend/Dockerfile -t $BI $B >/dev/null || { echo "ABORT: backend build failed; nothing changed"; exit 1; }
@@ -123,13 +123,13 @@ while MCX is open each MCX engine must show `state=RUNNING`, `paper=ENABLED` and
 ## Rollback (per component, instant)
 
 ```bash
-docker rm -f ai_trade-backend-1 && docker rename ai_trade-backend-1-pre-__SHA7__ ai_trade-backend-1 && docker start ai_trade-backend-1
+docker rm -f ai_trade-backend-1 && docker rename ai_trade-backend-1-pre-2438b3b ai_trade-backend-1 && docker start ai_trade-backend-1
 ```
 ```bash
-docker rm -f ai_trade-frontend-1 && docker rename ai_trade-frontend-1-pre-__SHA7__ ai_trade-frontend-1 && docker start ai_trade-frontend-1
+docker rm -f ai_trade-frontend-1 && docker rename ai_trade-frontend-1-pre-2438b3b ai_trade-frontend-1 && docker start ai_trade-frontend-1
 ```
 ```bash
-docker rm -f mcx-futures-crudeoilm && docker rename mcx-futures-crudeoilm-pre-__SHA7__ mcx-futures-crudeoilm && docker start mcx-futures-crudeoilm
+docker rm -f mcx-futures-crudeoilm && docker rename mcx-futures-crudeoilm-pre-2438b3b mcx-futures-crudeoilm && docker start mcx-futures-crudeoilm
 ```
 Replace `crudeoilm` with `natgasmini` for the other worker. Tables and journals are never touched by a rollback.
 Kill switch for new MCX paper entries without a restart: `touch /home/ubuntu/AI_Trade/mcx-control/MCX_FUTURES_KILL`
