@@ -111,6 +111,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
         return _unavailable(strategy)
     rejections: list[str | None] = []
     failed_marks: dict[str, bool] = {}
+    marked_today: set[str] = set()  # mirrors app.parallel_paper.monitor (carried-over stale marks are not live)
     blocked_signals: set[tuple] = set()
     rejected_trades: set[str] = set()
     for event in events:
@@ -125,6 +126,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
                     rejected_trades.add(event.trade_id)
             elif event.event_type == "ACTS_MARK" and event.trade_id:
                 failed_marks[event.trade_id] = payload.get("available") is False
+                marked_today.add(event.trade_id)
         else:
             if event.event_type == "OBSERVATION":
                 decision = payload.get("decision") or {}
@@ -142,6 +144,7 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
                     rejected_trades.add(event.trade_id)
             elif event.event_type == "MARK" and event.trade_id:
                 failed_marks[event.trade_id] = payload.get("available") is False
+                marked_today.add(event.trade_id)
 
     entered: list[dict] = []
     closed_today: list[dict] = []
@@ -151,7 +154,12 @@ def _project(strategy: str, cursor: Any, rows: Sequence[Any], events: Sequence[A
         doc = json.loads(row.document)
         if strategy == "ACTS_V2" and doc.get("strategy_version") != "ACTS_V2":
             continue
-        mark_available = not failed_marks.get(row.id, False)
+        # DELIBERATE BEHAVIOUR CHANGE (2026-11-25, same rule as app.parallel_paper.monitor): a position carried over from
+        # an earlier session with no mark event today must not contribute its stale stored mark. Parity with the
+        # optimised path is still what this module exists to prove.
+        carried_stale = row.state in ACTIVE_EXPOSURE and row.id not in marked_today and not _on_day(
+            doc.get("entry_timestamp"), day)
+        mark_available = not carried_stale and not failed_marks.get(row.id, False)
         unresolved_count += row.state == "UNRESOLVED_EXPOSURE"
         expired_count += row.state == "CLOSED" and expiry.is_unpriced(doc)
         if row.state in ACTIVE_EXPOSURE:
