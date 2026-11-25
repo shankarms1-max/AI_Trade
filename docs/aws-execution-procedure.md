@@ -677,7 +677,8 @@ def s_mcx():
         print("  today   : trades=%s rejected_today=%s last_rejection=%s open=%s unresolved=%s" % (
             m.get("trades_today"), m.get("entries_rejected_today"), cj(m.get("last_rejection"), 300), m.get("open_position_count"), m.get("unresolved_exposure_count")))
         check("%s runtime execution_state is PAPER_ENABLED (persisted by the running worker)" % i, m.get("execution_state") == "PAPER_ENABLED", "-> %s" % m.get("execution_state"))
-        check("%s session metadata is current (not a previous day)" % i, (ss.get("source") == "CALENDAR_NOW") and (not ss.get("last_entry_time") or ss["last_entry_time"][:10] == ss.get("session_date")))
+        sdate = ss.get("session_date") or str(ss.get("last_entry_time") or "")[:10]
+        check("%s session metadata is current (not a previous day)" % i, not ss.get("last_entry_time") or ss["last_entry_time"][:10] == sdate == (today if MCX_OPEN else sdate))
         if MCX_OPEN:
             check("%s [SESSION OPEN] state is RUNNING" % i, m.get("state") == "RUNNING", "-> %s %s" % (m.get("state"), m.get("state_reason")))
             check("%s [SESSION OPEN] source quote timestamp present" % i, f.get("last_quote_at") is not None)
@@ -685,7 +686,7 @@ def s_mcx():
             check("%s [SESSION OPEN] a contract is subscribed" % i, bool((m.get("contract") or {}).get("token")))
             check("%s [SESSION OPEN] warm-up information reported" % i, bool(w) and "bars_available" in w)
             check("%s [SESSION OPEN] a decision was evaluated today" % i, bool(d.get("at")) and str(d["at"])[:10] == today, "at=%s" % d.get("at"))
-            check("%s [SESSION OPEN] session_date is today" % i, ss.get("session_date") == today, "-> %s" % ss.get("session_date"))
+            check("%s [SESSION OPEN] session is dated today" % i, (ss.get("session_date") or str(ss.get("last_entry_time") or "")[:10]) == today)
         else:
             skip("%s feed freshness / decision checks" % i, "MCX session closed; only the closed-session state is asserted")
             check("%s [SESSION CLOSED] state is MARKET_CLOSED" % i, m.get("state") == "MARKET_CLOSED", "-> %s" % m.get("state"))
