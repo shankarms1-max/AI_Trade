@@ -1,3 +1,4 @@
-import { UnifiedOverview } from "@/components/unified-overview";
+import { Overview } from "@/components/pages/overview";
 import { SectionBoundary } from "@/components/section-boundary";
-export default function Page(){return <SectionBoundary label="Unified overview"><UnifiedOverview/></SectionBoundary>;}
+
+export default function Page() { return <SectionBoundary label="Overview"><Overview/></SectionBoundary>; }

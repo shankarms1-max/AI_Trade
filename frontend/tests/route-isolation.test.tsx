@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
-import Page from "@/app/page";
+// "/" is now the terminal Overview; the legacy overview composition is still exported and keeps its isolation guarantees.
+import { UnifiedOverview as Page } from "@/components/unified-overview";
 import Phase15Page from "@/app/phase15/page";
 import ErrorPage from "@/app/error";
 import GlobalError from "@/app/global-error";

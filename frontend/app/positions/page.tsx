@@ -1,2 +1,5 @@
-import { Phase15Positions } from "@/components/phase15-paper-trades";
-export default function PositionsPage(){return <><h1 className="route-title">Positions & exposure</h1><Phase15Positions/></>;}
+import { Positions } from "@/components/pages/positions";
+import { SectionBoundary } from "@/components/section-boundary";
+
+/** Replaces the legacy Phase 15 positions view (its components remain for /phase15). */
+export default function PositionsPage() { return <SectionBoundary label="Positions"><Positions/></SectionBoundary>; }
