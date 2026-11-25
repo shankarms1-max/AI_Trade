@@ -71,8 +71,9 @@ swap() { OLD=$1; ALIAS=$2; IMG=$3; HC=$4; EXTRA=${5:-}; KEEP=$OLD-pre-$S
   docker ps -a --format '{{.Names}}' | grep -qx $KEEP && { echo "SKIP $OLD: $KEEP exists (already swapped)"; return 0; }
   MOUNTS=$(docker inspect -f '{{range .Mounts}}-v {{if eq .Type "volume"}}{{.Name}}{{else}}{{.Source}}{{end}}:{{.Destination}}{{if not .RW}}:ro{{end}} {{end}}' $OLD)
   rb() { echo "!! ROLLBACK $OLD: $1"; docker rm -f $OLD >/dev/null 2>&1; docker rename $KEEP $OLD && docker start $OLD >/dev/null && echo "restored $OLD"; return 1; }
+  mapfile -t CMD < <(docker inspect -f '{{range .Config.Cmd}}{{println .}}{{end}}' $KEEP)
   docker rename $OLD $KEEP && docker stop $KEEP >/dev/null
-  docker run -d --name $OLD --network $NET --network-alias $ALIAS --restart unless-stopped --env-file <(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $KEEP | grep -v '^NEXT_PUBLIC_') $MOUNTS $EXTRA --log-opt max-size=10m --log-opt max-file=5 --health-cmd "$HC" --health-interval 20s $IMG >/dev/null || { rb "run failed"; return 1; }
+  docker run -d --name $OLD --network $NET --network-alias $ALIAS --restart unless-stopped --env-file <(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $KEEP | grep -v '^NEXT_PUBLIC_') $MOUNTS $EXTRA --log-opt max-size=10m --log-opt max-file=5 --health-cmd "$HC" --health-interval 20s $IMG "${CMD[@]}" >/dev/null || { rb "run failed"; return 1; }
   for i in $(seq 1 30); do s=$(docker inspect -f '{{.State.Health.Status}}' $OLD); [ "$s" = healthy ] && break; sleep 3; done; [ "$s" = healthy ] || { rb "not healthy"; return 1; }
   echo "swapped $OLD -> $IMG"; }
 echo "== 4/6 backend"; swap ai_trade-backend-1 backend $BI "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=5)\"" || exit 1
@@ -94,6 +95,14 @@ What it guarantees: nothing is replaced until both images built; a failed health
 component back and stops; MCX workers with open exposure are skipped (never restarted under a position); paper
 entries are explicitly enabled on refreshed workers (`MCX_FUTURES_TRADING_ENABLED=true`); the kill switch directory
 mount is preserved. `acts-paper` is not touched.
+
+## Block 3b — CORRECTION for the MCX workers (defect found in production on 25 Nov)
+
+Block 3 as first issued started the two MCX containers with the image default command (the API server) instead of the
+worker command, so no worker ran from 08:55 IST until this fix; Block 3's health check passed vacuously because MCX was
+still closed at 08:55. `swap()` above now copies the old container's command. The corrected, rehearsed (real Docker,
+success and rollback paths) one-shot fix is the block issued in the session; the original block's `swap()` must not be
+re-used without the command carry-over.
 
 ## Block 4 — post-deploy operational verification and reconciliation (read-only)
 
