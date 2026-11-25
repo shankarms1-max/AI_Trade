@@ -121,7 +121,7 @@ button.tm-btn:hover,a.tm-btn:hover{background:var(--tm-hover)}
 button.tm-btn[aria-pressed=true],button.tm-btn[aria-selected=true]{background:var(--tm-surface-3);border-color:var(--tm-info);color:var(--tm-text)}
 button.tm-btn:disabled{opacity:.45;cursor:not-allowed}
 .tm-select,.tm-input{background:var(--tm-surface);color:var(--tm-text);border:1px solid var(--tm-border-strong);border-radius:var(--tm-radius);min-height:26px;padding:2px 6px;font-size:11.5px;max-width:190px}
-.tm-field{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--tm-muted);text-transform:uppercase;letter-spacing:.05em}
+.tm-field{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:100%;font-size:10.5px;color:var(--tm-muted);text-transform:uppercase;letter-spacing:.05em}
 .tm-segment{display:inline-flex;gap:0;flex-wrap:wrap}
 .tm-segment .tm-btn{border-radius:0;margin-left:-1px}
 .tm-segment .tm-btn:first-child{border-radius:3px 0 0 3px;margin-left:0}.tm-segment .tm-btn:last-child{border-radius:0 3px 3px 0}
@@ -251,3 +251,5 @@ details.tm-details>summary{cursor:pointer;color:var(--tm-text-2);font-size:11.5p
 /* legacy pages inside the new shell: keep them within the content width */
 .tm-content .page-heading h1,.tm-content .page-head h1,.tm-content .route-title{font-size:16px;margin:0 0 6px}
 .tm-content .panel{border-radius:var(--tm-radius)}
+
+@media (max-width:520px){.tm-field{flex-wrap:wrap}.tm-select,.tm-input{max-width:100%;min-width:0}}
