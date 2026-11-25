@@ -92,8 +92,8 @@ elif mode == "cmd":
 elif mode == "env":
     sys.stdout.write("\n".join(env) + "\n")
 elif mode == "diff":
-    flag = extra[0]
-    skip = ("MCX_FUTURES_MODE", "MCX_FUTURES_PAPER_ENABLED", "MCX_FUTURES_TRADING_ENABLED", flag)
+    flag = extra[0]          # "-" = a service (backend/frontend): nothing is enforced, everything must match
+    skip = () if flag == "-" else ("MCX_FUTURES_MODE", "MCX_FUTURES_PAPER_ENABLED", "MCX_FUTURES_TRADING_ENABLED", flag)
     n, nim = load(extra[1])
     a, b = canon(c, im, skip), canon(n, nim, skip)
     bad = []
@@ -101,10 +101,10 @@ elif mode == "diff":
         if a[k] != b[k]:
             bad.append("%s: original=%s new=%s" % (k, json.dumps(a[k])[:200], json.dumps(b[k])[:200]))
     newenv = dict(e.partition("=")[::2] for e in n["Config"].get("Env") or [])
-    for k, v in (("MCX_FUTURES_MODE", "PAPER"), ("MCX_FUTURES_PAPER_ENABLED", "true"), ("MCX_FUTURES_TRADING_ENABLED", "true"), (flag, "true")):
+    for k, v in (() if flag == "-" else (("MCX_FUTURES_MODE", "PAPER"), ("MCX_FUTURES_PAPER_ENABLED", "true"), ("MCX_FUTURES_TRADING_ENABLED", "true"), (flag, "true"))):
         if newenv.get(k) != v:
             bad.append("env %s must be %s, is %s" % (k, v, newenv.get(k)))
-    print("\n".join(bad) if bad else "effective configuration identical (entrypoint, command, user, workdir, mounts, network+aliases, restart, limits, log, env) apart from the image and the enforced PAPER flags")
+    print("\n".join(bad) if bad else "effective configuration identical (entrypoint, command, user, workdir, mounts, network+aliases, restart, limits, log, env) apart from the image%s" % ("" if flag == "-" else " and the enforced PAPER flags"))
     sys.exit(1 if bad else 0)
 PYGEN
 )
@@ -330,7 +330,8 @@ for i in INST:
         check("%s quote is fresh (<90 s)" % i, f.get("age_seconds") is not None and f["age_seconds"] < 90, "-> %s" % f.get("age_seconds"))
         check("%s bid/ask/ltp present (real market data)" % i, None not in (f.get("bid"), f.get("ask"), f.get("ltp")))
         check("%s contract subscribed (token, expiry in the future)" % i, bool((m.get("contract") or {}).get("token")) and str((m.get("contract") or {}).get("expiry")) > datetime.now(IST).date().isoformat())
-        check("%s session metadata is for today" % i, ss.get("session_date") == str(datetime.now(IST).date()))
+        sdate = ss.get("session_date") or str(ss.get("last_entry_time") or "")[:10]   # 2438b3b API has no session_date field
+        check("%s session metadata is for today (last entry / forced exit dated today)" % i, sdate == str(datetime.now(IST).date()) and str(ss.get("forced_exit_time") or "")[:10] == sdate, "-> %s" % sdate)
     c = (get("/api/portfolio/strategies/mcx-" + i.lower()).get("config") or {})
     check("%s deployed config hash == persisted worker hash" % i, c.get("matches_running_worker") is True, "deployed %s | persisted %s" % ((c.get("config_id") or "")[-12:], (c.get("persisted_config_hash") or "")[:12]))
     tf = w.get("timeframe_minutes") or (c.get("parameters") or {}).get("feature_timeframe_minutes") or 1

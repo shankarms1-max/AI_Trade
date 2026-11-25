@@ -169,7 +169,8 @@ for i in INST:
         check("%s quote is fresh (<90 s)" % i, f.get("age_seconds") is not None and f["age_seconds"] < 90, "-> %s" % f.get("age_seconds"))
         check("%s bid/ask/ltp present (real market data)" % i, None not in (f.get("bid"), f.get("ask"), f.get("ltp")))
         check("%s contract subscribed (token, expiry in the future)" % i, bool((m.get("contract") or {}).get("token")) and str((m.get("contract") or {}).get("expiry")) > datetime.now(IST).date().isoformat())
-        check("%s session metadata is for today" % i, ss.get("session_date") == str(datetime.now(IST).date()))
+        sdate = ss.get("session_date") or str(ss.get("last_entry_time") or "")[:10]   # 2438b3b API has no session_date field
+        check("%s session metadata is for today (last entry / forced exit dated today)" % i, sdate == str(datetime.now(IST).date()) and str(ss.get("forced_exit_time") or "")[:10] == sdate, "-> %s" % sdate)
     c = (get("/api/portfolio/strategies/mcx-" + i.lower()).get("config") or {})
     check("%s deployed config hash == persisted worker hash" % i, c.get("matches_running_worker") is True, "deployed %s | persisted %s" % ((c.get("config_id") or "")[-12:], (c.get("persisted_config_hash") or "")[:12]))
     tf = w.get("timeframe_minutes") or (c.get("parameters") or {}).get("feature_timeframe_minutes") or 1

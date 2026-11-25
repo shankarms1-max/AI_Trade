@@ -12,7 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.mcx_futures import store
+from app.mcx_futures import cycle, store
 from app.mcx_futures.bars import Observation
 from app.mcx_futures.config import STRATEGY_ID, InstrumentConfig
 from app.mcx_futures.costs import CostSchedule
@@ -190,4 +190,37 @@ def open_engine(cfg: InstrumentConfig, spec: ContractSpec, costs: CostSchedule, 
     except ValueError:
         if state.get("position") or state.get("pending_entry"):
             raise RuntimeError("MCX_FUTURES_IDENTITY_CHANGED_WITH_EXPOSURE_REFUSED")
-        return McxFuturesEngine(cfg, spec, costs, calendar=calendar)
+        engine = McxFuturesEngine(cfg, spec, costs, calendar=calendar)
+        carry_market_state(state, engine)
+        return engine
+
+
+def _contract_identity(spec: dict[str, Any] | None) -> dict[str, Any]:
+    """The tradable contract itself; ``source`` (which daily scrip-master file it was read from) is metadata."""
+    return {k: v for k, v in (spec or {}).items() if k != "source"}
+
+
+def carry_market_state(state: dict[str, Any], engine: McxFuturesEngine) -> int:
+    """A FLAT engine whose identity changed (new config / cost version, or simply the next day's scrip master) keeps the
+    MARKET DATA it already observed - completed feature bars and same-session risk and cycle counters - as long as the
+    bars describe the same contract, timeframe, calendar and state schema. Without this, the daily scrip-master refresh
+    discarded every bar each morning and the strategy re-warmed from zero (no historical backfill exists).
+    Partial bars, session, position and pending entries are never carried. Returns the number of bars carried."""
+    cfg = engine.config
+    if (state.get("schema") != engine.s["schema"] or state.get("instrument") != cfg.instrument
+            or state.get("calendar_source") != engine.s["calendar_source"]
+            or _contract_identity(state.get("spec")) != _contract_identity(engine.s["spec"])):
+        return 0
+    bars = list(state.get("bars") or [])
+    if any(b.get("minutes") != cfg.feature_timeframe_minutes for b in bars):
+        return 0                                   # timeframe changed: bars mean something else
+    engine.s["bars"] = bars[-cfg.feature_window_bars:]
+    engine.s["last_ltp"], engine.s["last_atr"] = state.get("last_ltp"), state.get("last_atr")
+    if isinstance(state.get("risk"), dict) and state["risk"].get("session_id"):
+        engine.s["risk"] = state["risk"]           # same-session loss/entry budgets are never reset by a redeploy
+    if isinstance(state.get("cycle"), dict) and state["cycle"].get("policy") == cycle.POLICY_VERSION:
+        engine.s["cycle"] = state["cycle"]         # a consumed opportunity stays consumed
+    engine.s["carried_market_state"] = {
+        "bars": len(engine.s["bars"]), "previous_config_hash": state.get("config_hash"),
+        "previous_cost_schedule": state.get("cost_schedule"), "previous_spec_source": (state.get("spec") or {}).get("source")}
+    return len(engine.s["bars"])
