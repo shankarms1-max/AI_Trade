@@ -253,3 +253,6 @@ details.tm-details>summary{cursor:pointer;color:var(--tm-text-2);font-size:11.5p
 .tm-content .panel{border-radius:var(--tm-radius)}
 
 @media (max-width:520px){.tm-field{flex-wrap:wrap}.tm-select,.tm-input{max-width:100%;min-width:0}}
+/* Long identifiers (e.g. ACTS_V3_MCX_FUTURES) in titles/chips must wrap instead of widening the page on phones. */
+.tm-chip,.tm-chip small,.tm-content h1,.tm-content h1 small{max-width:100%;min-width:0;overflow-wrap:anywhere}
+@media (max-width:520px){.tm-content h1 .tm-chip{display:inline-flex;flex-wrap:wrap;white-space:normal;row-gap:2px}.tm-content h1 .tm-chip small{white-space:normal;overflow-wrap:anywhere;word-break:break-word}}
