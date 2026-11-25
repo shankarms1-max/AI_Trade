@@ -71,7 +71,7 @@ swap() { OLD=$1; ALIAS=$2; IMG=$3; HC=$4; EXTRA=${5:-}; KEEP=$OLD-pre-$S
   docker ps -a --format '{{.Names}}' | grep -qx $KEEP && { echo "SKIP $OLD: $KEEP exists (already swapped)"; return 0; }
   MOUNTS=$(docker inspect -f '{{range .Mounts}}-v {{if eq .Type "volume"}}{{.Name}}{{else}}{{.Source}}{{end}}:{{.Destination}}{{if not .RW}}:ro{{end}} {{end}}' $OLD)
   rb() { echo "!! ROLLBACK $OLD: $1"; docker rm -f $OLD >/dev/null 2>&1; docker rename $KEEP $OLD && docker start $OLD >/dev/null && echo "restored $OLD"; return 1; }
-  mapfile -t CMD < <(docker inspect -f '{{range .Config.Cmd}}{{println .}}{{end}}' $KEEP)
+  mapfile -t CMD < <(docker inspect -f '{{range .Config.Cmd}}{{println .}}{{end}}' $OLD)
   docker rename $OLD $KEEP && docker stop $KEEP >/dev/null
   docker run -d --name $OLD --network $NET --network-alias $ALIAS --restart unless-stopped --env-file <(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $KEEP | grep -v '^NEXT_PUBLIC_') $MOUNTS $EXTRA --log-opt max-size=10m --log-opt max-file=5 --health-cmd "$HC" --health-interval 20s $IMG "${CMD[@]}" >/dev/null || { rb "run failed"; return 1; }
   for i in $(seq 1 30); do s=$(docker inspect -f '{{.State.Health.Status}}' $OLD); [ "$s" = healthy ] && break; sleep 3; done; [ "$s" = healthy ] || { rb "not healthy"; return 1; }
@@ -567,7 +567,7 @@ swap() { OLD=$1; ALIAS=$2; IMG=$3; HC=$4; EXTRA=${5:-}; KEEP=$OLD-pre-$S
   docker ps -a --format '{{.Names}}' | grep -qx $KEEP && { echo "SKIP $OLD: $KEEP exists (already swapped)"; return 0; }
   MOUNTS=$(docker inspect -f '{{range .Mounts}}-v {{if eq .Type "volume"}}{{.Name}}{{else}}{{.Source}}{{end}}:{{.Destination}}{{if not .RW}}:ro{{end}} {{end}}' $OLD)
   rb() { echo "!! ROLLBACK $OLD: $1"; docker rm -f $OLD >/dev/null 2>&1; docker rename $KEEP $OLD && docker start $OLD >/dev/null && echo "restored $OLD"; return 1; }
-  mapfile -t CMD < <(docker inspect -f '{{range .Config.Cmd}}{{println .}}{{end}}' $KEEP)
+  mapfile -t CMD < <(docker inspect -f '{{range .Config.Cmd}}{{println .}}{{end}}' $OLD)
   docker rename $OLD $KEEP && docker stop $KEEP >/dev/null
   docker run -d --name $OLD --network $NET --network-alias $ALIAS --restart unless-stopped --env-file <(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $KEEP | grep -v '^NEXT_PUBLIC_') $MOUNTS $EXTRA --log-opt max-size=10m --log-opt max-file=5 --health-cmd "$HC" --health-interval 20s $IMG "${CMD[@]}" >/dev/null || { rb "run failed"; return 1; }
   for i in $(seq 1 30); do s=$(docker inspect -f '{{.State.Health.Status}}' $OLD); [ "$s" = healthy ] && break; sleep 3; done; [ "$s" = healthy ] || { rb "not healthy"; return 1; }
