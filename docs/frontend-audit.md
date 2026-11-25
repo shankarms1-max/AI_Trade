@@ -66,7 +66,7 @@ Before/after screenshots: `docs/screenshots/` (1440x900 and 390x844; see its REA
 | Check | Result |
 |---|---|
 | Frontend unit/component tests | 443 passed (37 files) |
-| Backend suite | __BACKEND_RESULT__ |
+| Backend suite | 2,307 passed, 72 skipped, 0 failed (11 min 06 s) |
 | Portfolio-layer tests | 32 passed, including expired-position, stale-mark, partial-total and no-double-count cases |
 | Cross-page financial consistency (`frontend/scripts/e2e-consistency.mjs`) | 40 of 40 checks pass: the realized net, realized gross and closed-trade count shown on Overview, Tradebook, Analytics, Positions (closed tab) and the CSV export equal the `/api/portfolio/summary` values for 5 filter windows (including an empty one) |
 | Viewports | 1920x1080, 1440x900, 1280x800, 768x1024, 390x844: 0 page-level horizontal overflow on the terminal pages (a 390px overflow on `/strategies/mcx-natgasmini` was found, root-caused to a nowrap identifier chip and fixed; 0 overflow in 70 subsequent runs) |
