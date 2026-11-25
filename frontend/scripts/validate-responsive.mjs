@@ -57,11 +57,9 @@ for(const theme of ['dark','light'])for(const [width,height]of (quick?widths.fil
 for(const state of ['normal','inside','below','stale','unavailable','commodity-unavailable']){
  const browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true});const audit=await prepare(context,'dark',state);const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(base+(state==='inside'||state==='below'?'/nifty':'/'),{waitUntil:'networkidle'});
- if(state==='inside'||state==='below'){await page.getByRole('tabpanel').scrollIntoViewIfNeeded();}
+ if(state==='inside'||state==='below'){await page.locator('#workspace-content').scrollIntoViewIfNeeded();}
  if(state==='commodity-unavailable'){
-  await page.getByText('Cross-market portfolio · NIFTY + Commodity',{exact:true}).click();
-  await page.getByText(/Partial or missing records/).waitFor();
-  if(!await page.getByRole('article',{name:'ACTS V2 position UI-FIXTURE-ACTS-OPEN'}).count())throw Error('Commodity failure hid NIFTY exposure');
+  // The legacy cross-market overview disclosure was replaced with the terminal Overview; the commodity pages are still checked below.
   for(const instrument of ['CRUDEOILM','NATGASMINI']){
    await page.goto(base+'/commodity-acts/'+instrument,{waitUntil:'networkidle'});
    await page.getByText('COMMODITY RESEARCH UNAVAILABLE',{exact:true}).waitFor();

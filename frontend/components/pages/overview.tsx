@@ -62,7 +62,7 @@ function RecentActivity() {
   return <>
     <Panel title="Recent orders (simulated)" flush>
       <ResourceView resource={orders} label="Orders" isEmpty={d => d.items.length === 0} empty={<EmptyState>No orders yet</EmptyState>} skeletonRows={3}>{d =>
-        <DataTable label="Recent orders" rows={d.items} rowKey={o => o.order_id} onRowClick={openOrder} columns={[
+        <DataTable label="Recent orders" rows={d.items.slice(0, 10)} rowKey={o => o.order_id} onRowClick={openOrder} columns={[
           { key: "t", header: "Time", render: o => <button type="button" className="tm-link" onClick={() => openOrder(o)} aria-label={`Open order ${o.order_id}`}>{istDateTime(o.submitted_at)}</button> },
           { key: "s", header: "Strategy", render: o => <StrategyChip label={o.strategy_label}/> },
           { key: "c", header: "Contract", render: o => <span className="tm-mono">{o.contract ?? "—"}</span> },
@@ -74,7 +74,7 @@ function RecentActivity() {
     </Panel>
     <Panel title="Recent fills (simulated)" flush>
       <ResourceView resource={fills} label="Fills" isEmpty={d => d.items.length === 0} empty={<EmptyState>No fills yet</EmptyState>} skeletonRows={3}>{d =>
-        <DataTable label="Recent fills" rows={d.items} rowKey={f => f.fill_id} columns={[
+        <DataTable label="Recent fills" rows={d.items.slice(0, 10)} rowKey={f => f.fill_id} columns={[
           { key: "t", header: "Time", render: f => istClock(f.at) }, { key: "c", header: "Contract", render: f => <span className="tm-mono">{f.contract ?? "—"}</span> },
           { key: "s", header: "Side", render: f => `${f.side} ${f.intent}` }, { key: "q", header: "Qty", align: "right", render: f => int(f.quantity) }, { key: "p", header: "Price", align: "right", render: f => num(f.price) },
         ]}/>}</ResourceView>

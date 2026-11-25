@@ -8,6 +8,7 @@ import { Navigation } from "@/components/navigation";
 import { GlobalHeader } from "@/components/global-header";
 import { FiltersProvider } from "@/components/filters-context";
 import { DrawerHost } from "@/components/pages/drawers";
+import { ClientOnly } from "@/components/terminal/client-only";
 import { LoadingState } from "@/components/terminal/states";
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           <Navigation/>
           <div className="tm-main">
             <GlobalHeader/>
-            <div className="tm-content" id="workspace-content" tabIndex={-1}>{children}</div>
+            <div className="tm-content" id="workspace-content" tabIndex={-1}><ClientOnly>{children}</ClientOnly></div>
             <footer className="tm-footer"><span>AI Trade · PAPER trading only · all figures simulated</span><span>Read-only · no order, square-off or enable controls · times Asia/Kolkata</span></footer>
           </div>
         </div>

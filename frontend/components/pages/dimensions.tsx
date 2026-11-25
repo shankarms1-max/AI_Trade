@@ -30,7 +30,7 @@ export function dimensionViews(card: StrategyCard): DimView[] {
   ];
 }
 export function DimensionBadges({ card }: { card: StrategyCard }) {
-  return <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
+  return <span style={{ display: "inline-flex", gap: 4, flexWrap: "nowrap" }}>
     {dimensionViews(card).map(v => <StatusBadge key={v.dimension} dimension={v.dimension} label={v.label} value={v.value} title={`${v.label}: ${title(v.value)}${v.detail ? ` (${v.detail})` : ""}`}/>)}
   </span>;
 }
