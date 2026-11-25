@@ -187,21 +187,38 @@ def header(sessions: sessionmaker[Session] = Depends(get_session_factory)) -> di
     mcx = SessionCalendar().state(now)
     nse_open = engines_api.nifty_session_open(now)
     feeds = [r for r in rows if r["family"] in ("ACTS", "MCX_FUTURES")]
-    fresh = [r for r in feeds if r["state"] == "RUNNING"]
-    stale = [r for r in feeds if r["state"] == "DATA_STALE"]
     in_session = nse_open or mcx.status == "OPEN"
-    connectivity = ("CONNECTED_INFERRED" if fresh else "DISCONNECTED_INFERRED" if (in_session and stale) else
-                    "NOT_APPLICABLE_MARKETS_CLOSED" if not in_session else "UNKNOWN")
+    # Every configured, ACTIVE engine is accounted for exactly once: fresh, stale, unavailable or market closed.
+    # DISABLED / NOT_CONFIGURED engines are not active feeds (counted separately, never as "fresh").
+    klass = {"RUNNING": "fresh", "DATA_STALE": "stale", "MARKET_CLOSED": "market_closed"}
+    active, inactive = [], []
+    for r in feeds:
+        if r["state"] in ("DISABLED", "NOT_CONFIGURED"):
+            inactive.append(r)
+        else:
+            active.append({**r, "classification": klass.get(r["state"], "unavailable")})
+    count = lambda k: sum(1 for r in active if r["classification"] == k)  # noqa: E731
+    fresh, stale, unavailable, closed = count("fresh"), count("stale"), count("unavailable"), count("market_closed")
+    live = fresh + stale + unavailable          # feeds that should be producing observations right now
+    connectivity = ("NOT_APPLICABLE_MARKETS_CLOSED" if live == 0 and not in_session else
+                    "UNKNOWN" if live == 0 else
+                    "CONNECTED_INFERRED" if fresh == live else
+                    "PARTIAL_INFERRED" if fresh > 0 else "DISCONNECTED_INFERRED")
     items = service.alerts(pf, rows)
     return {"as_of": iso(now), "now_ist": now.astimezone(IST).isoformat(), "timezone": "Asia/Kolkata",
             "nse": {"status": "OPEN" if nse_open else "CLOSED"},
             "mcx": {"status": mcx.status, "window": (f"{mcx.session.open_at:%H:%M}-{mcx.session.close_at:%H:%M} IST"
                                                     if mcx.session else None),
                     "next_open": iso(mcx.next_open)},
-            "broker_connectivity": {"state": connectivity, "basis": "inferred from fresh market observations; the "
-                                    "broker session itself is not probed (no extra broker traffic)"},
-            "data_freshness": {"fresh_feeds": len(fresh), "stale_feeds": len(stale), "feeds": len(feeds),
-                               "stale": [r["label"] for r in stale]},
+            "broker_connectivity": {"state": connectivity, "basis": "inferred from fresh market observations of "
+                                    "every active in-session feed; the broker session itself is not probed (no extra "
+                                    "broker traffic)"},
+            "data_freshness": {"fresh_feeds": fresh, "stale_feeds": stale, "unavailable_feeds": unavailable,
+                               "market_closed_feeds": closed, "feeds": len(active), "inactive_feeds": len(inactive),
+                               "stale": [r["label"] for r in active if r["classification"] in ("stale", "unavailable")],
+                               "by_feed": [{"id": r["id"], "label": r["label"], "state": r["state"],
+                                            "classification": r["classification"], "reason": r.get("state_reason")}
+                                           for r in active]},
             "critical_alerts": sum(1 for a in items if a["severity"] == "CRITICAL"),
             "warning_alerts": sum(1 for a in items if a["severity"] == "WARNING"),
             "default_mode": "PAPER", "live_execution": "NONE"}

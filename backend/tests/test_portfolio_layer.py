@@ -55,7 +55,7 @@ def test_futures_charges_ctt_on_sell_stamp_on_buy():
 
 def test_zero_brokerage_is_reported_as_unverified_not_free():
     st = ChargeModel(Decimal(0)).status()
-    assert "UNVERIFIED" in st["brokerage"] and ChargeModel(Decimal(10)).status()["brokerage"] == "CONFIGURED_SCENARIO"
+    assert "PUBLISHED_SCHEDULE" in st["brokerage"] and "not confirmed" in st["brokerage"] and ChargeModel(Decimal(10)).status()["brokerage"] == "CONFIGURED_SCENARIO"
     assert ChargeModel(Decimal(0)).options(date(2026, 11, 24), [(100.0, -1)], 65)["total"] > 0
 
 
@@ -115,7 +115,7 @@ def test_summary_totals_partial_and_exclusions(world):
     p = s["pnl"]
     assert p["unrealized_gross"] == -130 + 100                      # T3 + M2 only
     assert p["partial"] is True and p["excluded_open_positions"] == 1 and "PARTIAL" in p["note"]   # T4 excluded
-    assert s["counts"]["open_positions"] == 3 and s["counts"]["unresolved_positions"] == 1
+    assert s["counts"]["open_positions"] == 3 and s["counts"]["unresolved_positions"] == 2   # T4 + expired-unpriced T6
     assert s["counts"]["rejected_orders"] == 2                     # T5 short + hedge entry orders
     # total_net = realized_net + unrealized - entry charges already paid on open positions
     open_entry = sum(x["charges"]["entry"]["total"] for x in (pos(pf, "T3"), pos(pf, "M2")))
@@ -193,7 +193,7 @@ def test_fills_only_exist_for_filled_orders(world):
 def test_positions_tabs_and_unresolved_first(world):
     _, _, pf = world
     opn = service.positions_list(pf, tab="open")
-    assert opn["tab_counts"] == {"open": 3, "unresolved": 2, "closed": 5}   # closed incl. T6 (expired, unpriced)
+    assert opn["tab_counts"] == {"open": 3, "unresolved": 2, "closed": 5, "closed_priced": 4, "expired_unpriced": 1}
     assert opn["items"][0]["trade_id"].startswith("T4")             # attention first
     assert {p["status"] for p in service.positions_list(pf, tab="closed")["items"]} == {"CLOSED", "EXPIRED_UNPRICED"}
 
@@ -335,6 +335,58 @@ def test_api_is_get_only_validated_and_complete():
         assert c.get("/api/portfolio/trades.csv").headers["content-type"].startswith("text/csv")
         for path in ("summary", "positions", "orders"):
             assert c.post(f"/api/portfolio/{path}").status_code == 405
+    finally:
+        app.dependency_overrides.clear()
+        service._CACHE.clear()
+
+
+# ------------------------------------------------------------------ unpriced exposure must never disappear
+def test_expired_unpriced_exposure_is_visible_in_every_window_and_marks_totals_partial(world):
+    _, _, pf = world
+    t6 = pos(pf, "T6")
+    assert t6["flags"] == ["EXPIRED_UNPRICED"]
+    # a window that contains neither its entry nor its exit, and a window far in the past, both still disclose it
+    for start, end in ((TODAY, TODAY), (date(2026, 1, 5), date(2026, 1, 5)), (date(2026, 11, 19), date(2026, 11, 19))):
+        s = service.summary(pf, start=start, end=end)
+        assert s["pnl"]["partial"] is True and s["pnl"]["excluded_unpriced_exposure"] == 1, (start, end)
+        assert "terminalised without a settlement price" in s["pnl"]["note"] and "unknown, not zero" in s["pnl"]["note"]
+        assert s["counts"]["expired_unpriced"] == 1 and s["counts"]["unresolved_positions"] >= 1
+        assert any(a["position_id"] == t6["position_id"] and a["flags"] == ["EXPIRED_UNPRICED"] for a in s["attention"])
+    scoped = service.summary(pf, start=TODAY, end=TODAY, engine="mcx-crudeoilm")      # another engine: not disclosed there
+    assert scoped["pnl"]["excluded_unpriced_exposure"] == 0
+
+
+def test_expired_unpriced_position_raises_a_critical_alert_and_counts_in_the_header(world):
+    _, _, pf = world
+    a = [x for x in service.alerts(pf) if x["code"] == "EXPIRED_POSITION_UNPRICED"]
+    assert len(a) == 1 and a[0]["severity"] == "CRITICAL" and a[0]["position_id"] == pos(pf, "T6")["position_id"]
+    assert "UNKNOWN" in a[0]["message"] and "Do not edit the journal" in a[0]["action"]
+
+
+def test_charge_scopes_are_explicit_and_reconcile(world):
+    _, _, pf = world
+    s = service.summary(pf, start=date(2026, 1, 1), end=TODAY)
+    p = s["pnl"]
+    assert abs((p["realized_gross"] - p["realized_net"]) - p["charges_on_closed_trades"]) < 0.011
+    assert abs(p["incurred_charges"] - p["charges_on_closed_trades"] - p["charges_not_in_closed_trades"]) < 0.011
+    assert "Analytics" in p["incurred_charges_scope"]
+    perf = analytics.performance(pf, start=date(2026, 1, 1), end=TODAY)
+    assert "closed priced trades" in perf["overall"]["charges_scope"]
+
+
+def test_header_accounts_for_every_active_feed_exactly_once():
+    S, _ = build()
+    app.dependency_overrides[get_session_factory] = lambda: S
+    service._CACHE.clear()
+    try:
+        h = TestClient(app).get("/api/portfolio/header").json()
+        f = h["data_freshness"]
+        assert f["fresh_feeds"] + f["stale_feeds"] + f["unavailable_feeds"] + f["market_closed_feeds"] == f["feeds"]
+        assert len(f["by_feed"]) == f["feeds"] and all(x["classification"] in (
+            "fresh", "stale", "unavailable", "market_closed") for x in f["by_feed"])
+        live = f["fresh_feeds"] + f["stale_feeds"] + f["unavailable_feeds"]
+        if live and f["fresh_feeds"] < live:       # a degraded feed can never be reported as plain CONNECTED
+            assert h["broker_connectivity"]["state"] in ("PARTIAL_INFERRED", "DISCONNECTED_INFERRED")
     finally:
         app.dependency_overrides.clear()
         service._CACHE.clear()

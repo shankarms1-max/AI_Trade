@@ -99,6 +99,35 @@ def perf(docs: list[dict[str, Any]]) -> dict[str, Any]:
             "realized": sum(nets), "unrealized": unreal if any(d["state"] == "OPEN" for d in docs) else None}
 
 
+def current_session(calendar: SessionCalendar, instrument: str, now: datetime) -> dict[str, Any]:
+    from app.mcx_futures.config import CONFIGS
+
+    st = calendar.state(now)
+    cfg = CONFIGS[instrument]
+    out: dict[str, Any] = {"status": st.status, "window": None, "next_open": st.next_open.isoformat() if st.next_open else None,
+                           "last_entry_time": None, "forced_exit_time": None, "session_date": None,
+                           "reason": None if st.status == "OPEN" else "OUTSIDE_MCX_SESSION_OR_HOLIDAY",
+                           "as_of": now.isoformat(), "source": "CALENDAR_NOW"}
+    if st.session:
+        last_entry, forced = st.session.cutoffs(cfg.last_entry_minutes_before_close, cfg.forced_exit_minutes_before_close)
+        out.update(window=f"{st.session.open_at:%H:%M}-{st.session.close_at:%H:%M} IST",
+                   last_entry_time=last_entry.isoformat(), forced_exit_time=forced.isoformat(),
+                   session_date=st.session.open_at.astimezone(IST).date().isoformat())
+    return out
+
+
+def historical_session(persisted: dict[str, Any] | None, calendar: SessionCalendar, now: datetime) -> dict[str, Any] | None:
+    """The session block the worker last persisted, flagged when it belongs to an earlier session."""
+    if not persisted:
+        return None
+    cutoff = persisted.get("last_entry_time") or persisted.get("forced_exit_time")
+    day = str(cutoff)[:10] if cutoff else None
+    st = calendar.state(now)
+    today = st.session.open_at.astimezone(IST).date().isoformat() if st.session else None
+    return {**persisted, "session_date": day, "is_current_session": bool(day and day == today),
+            "note": None if day and day == today else "HISTORICAL: persisted by the worker for an earlier session"}
+
+
 def build_status(sessions: sessionmaker[Session], now: datetime | None = None,
                  settings: McxFuturesSettings | None = None) -> dict[str, Any]:
     now = now or datetime.now(timezone.utc)
@@ -152,8 +181,10 @@ def build_status(sessions: sessionmaker[Session], now: datetime | None = None,
                         "open_position_count": sum(d["state"] == "OPEN" for d in all_docs),
                         "unresolved_exposure_count": len(unresolved),
                         "contract": json.loads(c.contract_json) or None if c else None,
-                        "session": latest.get("session") or {"status": "CLOSED", "window": None, "next_open": None,
-                                                              "last_entry_time": None, "forced_exit_time": None},
+                        # CURRENT session metadata comes from the calendar for `now`; whatever the worker last persisted
+                        # is shown separately as history so yesterday's cut-off times are never presented as today's.
+                        "session": current_session(calendar, inst, now),
+                        "last_observed_session": historical_session(latest.get("session"), calendar, now),
                         # feed.stale follows the server-derived state (age, clock skew), not only quote age.
                         "feed": feed,
                         "last_decision": latest.get("last_decision"), "warmup": latest.get("warmup"),

@@ -12,6 +12,7 @@ import type { Header } from "@/types/portfolio";
 
 const CONNECTIVITY: Record<string, { text: string; tone: Tone }> = {
   CONNECTED_INFERRED: { text: "Connected", tone: "pos" },
+  PARTIAL_INFERRED: { text: "Partial", tone: "warn" },
   DISCONNECTED_INFERRED: { text: "Disconnected", tone: "neg" },
   NOT_APPLICABLE_MARKETS_CLOSED: { text: "N/A · closed", tone: "na" },
   UNKNOWN: { text: "Unknown", tone: "na" },
@@ -30,11 +31,13 @@ function Clock() {
 
 function Freshness({ header }: { header: Header }) {
   const f = header.data_freshness;
-  const stale = f.stale_feeds > 0;
+  const unavailable = f.unavailable_feeds ?? 0, closed = f.market_closed_feeds ?? 0;
+  const bad = f.stale_feeds + unavailable;
+  const text = `${f.fresh_feeds} fresh · ${bad} stale/unavail.${closed ? ` · ${closed} closed` : ""}`;
   return <span className="tm-hitem">
-    <StatusBadge value={`${f.fresh_feeds} fresh · ${f.stale_feeds} stale`} tone={stale ? "warn" : f.fresh_feeds > 0 ? "pos" : "na"} label="Feeds"
-      title={stale ? `Stale feeds: ${f.stale.join(", ")}` : `${f.fresh_feeds} of ${f.feeds} feeds fresh`}/>
-    {stale && <span className="tm-muted">stale: {f.stale.join(", ")}</span>}
+    <StatusBadge value={text} tone={bad > 0 ? "warn" : f.fresh_feeds > 0 ? "pos" : "na"} label="Feeds"
+      title={bad > 0 ? `Stale or unavailable feeds: ${f.stale.join(", ")}` : `${f.fresh_feeds} of ${f.feeds} active feeds fresh`}/>
+    {bad > 0 && <span className="tm-muted">stale: {f.stale.join(", ")}</span>}
   </span>;
 }
 

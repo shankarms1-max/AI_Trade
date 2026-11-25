@@ -97,6 +97,9 @@ def acts_position(row: Any, doc: dict[str, Any], now: datetime, charges: ChargeM
               "ENTRY_REJECTED": "REJECTED"}.get(state, "EXPIRED_UNPRICED" if unpriced else "CLOSED")
     flags: list[str] = []
     local = now.astimezone(IST)
+    if status == "EXPIRED_UNPRICED":
+        # The worker terminalised the position at expiry without inventing a settlement price: its P&L is UNKNOWN.
+        flags.append("EXPIRED_UNPRICED")
     if status in ("OPEN", "UNRESOLVED"):
         if expiry and (expiry < local.date() or (expiry == local.date() and local.time() >= NIFTY_CLOSE)):
             flags.append("EXPIRED_NOT_SETTLED")

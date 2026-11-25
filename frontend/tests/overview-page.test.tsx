@@ -156,6 +156,17 @@ describe("Global header", () => {
     expect(screen.getByText("Disconnected").closest(".tm-badge")).toHaveAttribute("data-tone", "neg");
   });
 
+  it("counts unavailable feeds as degraded and shows PARTIAL connectivity when only some in-session feeds are fresh", async () => {
+    const h = structuredClone(fx.header);
+    h.data_freshness = { fresh_feeds: 1, stale_feeds: 0, unavailable_feeds: 2, market_closed_feeds: 0, feeds: 3, stale: ["ACTS V3 CRUDEOILM", "ACTS V3 NATGASMINI"] };
+    h.broker_connectivity.state = "PARTIAL_INFERRED";
+    stubApi({ ...fixtureRoutes(), header: h });
+    renderWithApp(<GlobalHeader/>);
+    expect(await screen.findByText(/1 fresh · 2 stale\/unavail\./)).toBeInTheDocument();
+    expect(screen.getByText(/stale: ACTS V3 CRUDEOILM, ACTS V3 NATGASMINI/)).toBeInTheDocument();
+    expect(screen.getByText("Partial").closest(".tm-badge")).toHaveAttribute("data-tone", "warn");
+  });
+
   it("opens a compact alerts popover with code, engine, message, since and action", async () => {
     stubApi(fixtureRoutes());
     renderWithApp(<GlobalHeader/>);

@@ -75,7 +75,7 @@ export const parseTrades = shape({
 const pnl = shape({
   realized_gross: nFinite, realized_net: nFinite, unrealized_gross: nFinite, incurred_charges: nFinite,
   incurred_charges_detail: nullable(charges), estimated_exit_charges: nFinite, total_net_pnl: nFinite, net_liquidation_pnl: nFinite,
-  partial: boolean, excluded_open_positions: count, excluded_unpriced_closed: count, note: nString,
+  partial: boolean, excluded_open_positions: count, excluded_unpriced_closed: count, excluded_unpriced_exposure: nullable(count), note: nString,
 });
 export const parseSummary = shape({
   as_of: string, window: shape({ from: nString, to: nString, timezone: string }), mode: string, currency: string, pnl,
@@ -165,7 +165,7 @@ export const parseHeader = shape({
   as_of: string, now_ist: string, timezone: string, nse: shape({ status: string }),
   mcx: shape({ status: string, window: nString, next_open: nString }),
   broker_connectivity: shape({ state: string, basis: string }),
-  data_freshness: shape({ fresh_feeds: count, stale_feeds: count, feeds: count, stale: stringList }),
+  data_freshness: shape({ fresh_feeds: count, stale_feeds: count, unavailable_feeds: nullable(count), market_closed_feeds: nullable(count), feeds: count, inactive_feeds: nullable(count), stale: stringList }),
   critical_alerts: count, warning_alerts: count, default_mode: string, live_execution: string,
 }) as Guard<Header>;
 export const parseSources = shape({

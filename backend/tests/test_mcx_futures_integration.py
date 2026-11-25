@@ -410,3 +410,23 @@ def test_paper_entries_are_enabled_by_default_and_collect_only_is_an_explicit_op
                                        "MCX_FUTURES_TRADING_ENABLED": "false"})
     assert not off.entries_enabled("CRUDEOILM")
     assert not McxFuturesSettings.from_env({}).entries_enabled("CRUDEOILM")      # nothing enabled -> nothing runs
+
+
+def test_session_metadata_is_current_and_persisted_history_is_labelled(crude_run):
+    """Yesterday's cut-off times must never be presented as today's session (seen in production on 25 Nov)."""
+    sessions, runner, results, obs = crude_run
+    now = obs[-1].at + timedelta(seconds=5)
+    same = next(r for r in mcx_api.build_status(sessions, now=now, settings=ENABLED)["instruments"]
+                if r["instrument"] == "CRUDEOILM")
+    day = now.date().isoformat()
+    assert same["session"]["source"] == "CALENDAR_NOW" and same["session"]["session_date"] == day
+    assert same["session"]["last_entry_time"][:10] == day and same["session"]["forced_exit_time"][:10] == day
+    assert same["last_observed_session"]["is_current_session"] is True
+    nxt_now = now + timedelta(days=1)                      # next calendar day, still inside a trading session
+    nxt = next(r for r in mcx_api.build_status(sessions, now=nxt_now, settings=ENABLED)["instruments"]
+               if r["instrument"] == "CRUDEOILM")
+    assert nxt["session"]["status"] in ("OPEN", "CLOSED") and nxt["session"]["as_of"] == nxt_now.isoformat()
+    if nxt["session"]["session_date"]:
+        assert nxt["session"]["last_entry_time"][:10] == nxt["session"]["session_date"] != day
+    hist = nxt["last_observed_session"]
+    assert hist["is_current_session"] is False and hist["session_date"] == day and "HISTORICAL" in hist["note"]

@@ -32,7 +32,7 @@ def test_crudeoilm_long_reference_pnl_and_costs() -> None:
     from datetime import datetime
 
     trade = paper.close(_position("LONG", 5600.0, 5590.0), datetime(2026, 11, 24, 12, 30, tzinfo=IST), 5615.0,
-                        "TEST", DEFAULT_SCHEDULE, CRUDE_SPEC)
+                        "TEST", DEFAULT_SCHEDULE.with_brokerage(20), CRUDE_SPEC)   # the Rs 20 scenario, explicitly
     assert trade["gross_pnl"] == 150.0  # (5615 - 5600) x 10 x 1
     costs = trade["costs"]
     assert (costs["buy_value"], costs["sell_value"], costs["turnover"]) == (56000.0, 56150.0, 112150.0)
@@ -40,8 +40,19 @@ def test_crudeoilm_long_reference_pnl_and_costs() -> None:
                               "brokerage": 40.0, "gst": 7.644114}
     assert costs["total"] == 56.85
     assert trade["net_pnl"] == pytest.approx(93.15)
-    assert costs["statuses"]["exchange_txn"].startswith("UNVERIFIED_ASSUMPTION")
-    assert costs["statuses"]["ctt"] == "STATUTORY" and costs["statuses"]["brokerage"] == "ASSUMPTION"
+    assert costs["statuses"]["exchange_txn"].startswith("PUBLISHED_RATE_NOT_RECONFIRMED")
+    assert costs["statuses"]["ctt"] == "STATUTORY" and costs["statuses"]["brokerage"].startswith("PUBLISHED_SCHEDULE")
+
+
+def test_default_schedule_charges_no_brokerage_per_the_published_kotak_api_schedule() -> None:
+    from app.mcx_futures.spec import IST
+    from datetime import datetime
+
+    assert DEFAULT_SCHEDULE.version.endswith("_V2") and DEFAULT_SCHEDULE.brokerage_per_order.value == 0.0
+    trade = paper.close(_position("LONG", 5600.0, 5590.0), datetime(2026, 11, 24, 12, 30, tzinfo=IST), 5615.0,
+                        "TEST", DEFAULT_SCHEDULE, CRUDE_SPEC)
+    assert trade["costs"]["items"]["brokerage"] == 0.0 and trade["costs"]["total"] == 9.65   # statutory only
+    assert trade["net_pnl"] == pytest.approx(140.35)
 
 
 def test_natgasmini_short_reference_pnl_and_costs() -> None:
@@ -49,7 +60,7 @@ def test_natgasmini_short_reference_pnl_and_costs() -> None:
     from datetime import datetime
 
     trade = paper.close(_position("SHORT", 310.0, 312.0), datetime(2026, 11, 24, 12, 30, tzinfo=IST), 308.5,
-                        "TEST", DEFAULT_SCHEDULE, GAS_SPEC)
+                        "TEST", DEFAULT_SCHEDULE.with_brokerage(20), GAS_SPEC)
     assert trade["gross_pnl"] == 375.0  # (308.5 - 310.0) x -1 x 250
     costs = trade["costs"]
     assert (costs["sell_value"], costs["buy_value"]) == (77500.0, 77125.0)  # short: entry is the sell

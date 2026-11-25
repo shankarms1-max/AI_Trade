@@ -9,8 +9,8 @@ const cost = (v: number | null) => <Val>{v == null ? null : rupees(v)}</Val>;
 /** Top-of-page metrics. Every number is the API's; partial totals are labelled next to the total, never hidden. */
 export function Metrics({ summary, risk, riskFailed }: { summary: Summary; risk: Risk | null; riskFailed: boolean }) {
   const { pnl, counts } = summary;
-  const excluded = pnl.excluded_open_positions, unpriced = pnl.excluded_unpriced_closed;
-  const partialNote = pnl.partial ? `PARTIAL · excludes ${excluded} open position${excluded === 1 ? "" : "s"} without an executable mark${unpriced ? ` and ${unpriced} closed without exit price` : ""}` : null;
+  const excluded = pnl.excluded_open_positions, unpriced = pnl.excluded_unpriced_closed + (pnl.excluded_unpriced_exposure ?? 0);
+  const partialNote = pnl.partial ? `PARTIAL · excludes ${excluded} open position${excluded === 1 ? "" : "s"} without an executable mark${unpriced ? ` and ${unpriced} expired/closed without a price` : ""}` : null;
   const nothingPriced = excluded > 0 && excluded >= counts.open_positions;
   const budgets = (risk?.engines ?? []).filter(e => e.max_entries_per_day != null || e.remaining_daily_loss_budget != null || e.open_positions > 0 || e.daily_loss_limit != null);
   return <>

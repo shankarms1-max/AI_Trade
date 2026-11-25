@@ -52,7 +52,7 @@ class ChargeModel:
             return cls(D(0))
 
     def status(self) -> dict[str, str]:
-        brokerage = ("UNVERIFIED_ASSUMPTION: Kotak Neo API schedule lists Rs 0/order; account plan not verified"
+        brokerage = ("PUBLISHED_SCHEDULE: Kotak Neo Trade API orders carry no brokerage (kotakneo.com/trade-api); this account's plan is not confirmed"
                      if self.brokerage_per_order == 0 else "CONFIGURED_SCENARIO")
         return {"brokerage": brokerage, "stt": "STATUTORY", "stamp_duty": "STATUTORY", "sebi_fee": "STATUTORY",
                 "gst": "STATUTORY", "exchange": "APPROX (NSE options 0.0495% pre-Oct-2024 / 0.03503% after); "

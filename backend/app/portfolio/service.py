@@ -192,7 +192,7 @@ def select_positions(pf: Portfolio, *, strategy: str | None = None, engine: str 
 
 
 def needs_attention(p: dict[str, Any]) -> bool:
-    return p["status"] in ("OPEN", "UNRESOLVED") and (bool(p["flags"]) or p["status"] == "UNRESOLVED")
+    return p["status"] in ("OPEN", "UNRESOLVED", "EXPIRED_UNPRICED") and (bool(p["flags"]) or p["status"] == "UNRESOLVED")
 
 
 # --------------------------------------------------------------------------------------------------------- summary
@@ -206,19 +206,26 @@ def summary(pf: Portfolio, *, start: date | None = None, end: date | None = None
     open_ = [p for p in pos if p["status"] in ("OPEN", "UNRESOLVED")]
     rg = sum((D(str(p["realized_gross"])) for p in closed if p["realized_gross"] is not None), D(0))
     rn = sum((D(str(p["realized_net"])) for p in closed if p["realized_net"] is not None), D(0))
-    unpriced = [p for p in closed if p["realized_gross"] is None]
+    unpriced_closed = [p for p in closed if p["realized_gross"] is None]
+    # Expired positions the worker terminalised WITHOUT a price. Their P&L is unknown, so they are excluded from every
+    # total, but they stay visible in EVERY date window (not only the window of their entry) until reconciled.
+    expired_unpriced = [p for p in pos if p["status"] == "EXPIRED_UNPRICED"]
+    unpriced = unpriced_closed + expired_unpriced
     inc = None
     for p in entered:
         inc = add(inc, (p["charges"] or {}).get("entry"))
     for p in closed:
         inc = add(inc, (p["charges"] or {}).get("exit"))
+    on_closed = None  # charges attributable to the closed trades counted in realized_net (entry + exit)
+    for p in closed:
+        on_closed = add(add(on_closed, (p["charges"] or {}).get("entry")), (p["charges"] or {}).get("exit"))
     fresh = [p for p in open_ if p["unrealized_gross"] is not None]
     stale = [p for p in open_ if p["unrealized_gross"] is None]
     unreal = sum((D(str(p["unrealized_gross"])) for p in fresh), D(0))
     open_entry = sum((D(str(((p["charges"] or {}).get("entry") or {}).get("total", 0))) for p in fresh), D(0))
     est_exit = sum((D(str(p["est_exit_charges"])) for p in fresh if p["est_exit_charges"] is not None), D(0))
     total_net = rn + unreal - open_entry
-    unresolved = [p for p in open_ if needs_attention(p)]
+    unresolved = [p for p in open_ if needs_attention(p)] + expired_unpriced
     orders = [o for o in pf.orders if (not filters.get("engine") or o["engine_id"] == filters["engine"])
               and (not filters.get("instrument") or o["instrument"] == filters["instrument"])
               and (not filters.get("strategy") or filters["strategy"] in (o["strategy_id"], o["engine_id"]))]
@@ -232,12 +239,24 @@ def summary(pf: Portfolio, *, start: date | None = None, end: date | None = None
             "incurred_charges": (inc or {"total": 0.0})["total"], "incurred_charges_detail": inc,
             "estimated_exit_charges": money(est_exit), "total_net_pnl": money(total_net),
             "net_liquidation_pnl": money(total_net - est_exit),
+            "charges_on_closed_trades": (on_closed or {"total": 0.0})["total"],
+            "charges_not_in_closed_trades": money(D(str((inc or {"total": 0.0})["total"])) - D(
+                str((on_closed or {"total": 0.0})["total"]))),
+            "incurred_charges_scope": ("Entry charges of positions ENTERED in the window plus exit charges of positions "
+                                       "CLOSED in the window. Analytics 'charges' = gross - net of closed priced trades "
+                                       "only (their entry + exit). The difference is charges_not_in_closed_trades: entry "
+                                       "charges of positions still open / unpriced, less entry charges of closed trades "
+                                       "entered before the window."),
             "partial": bool(stale or unpriced), "excluded_open_positions": len(stale),
-            "excluded_unpriced_closed": len(unpriced),
-            "note": ("PARTIAL: %d open position(s) without a fresh executable mark and %d closed position(s) without "
-                     "an exit price are excluded from these totals." % (len(stale), len(unpriced))) if (
+            "excluded_unpriced_closed": len(unpriced_closed),
+            "excluded_unpriced_exposure": len(expired_unpriced),
+            "note": ("PARTIAL: %d open position(s) without a fresh executable mark, %d closed position(s) without an "
+                     "exit price and %d expired position(s) terminalised without a settlement price are excluded from "
+                     "these totals (their P&L is unknown, not zero)." % (len(stale), len(unpriced_closed),
+                                                                        len(expired_unpriced))) if (
                 stale or unpriced) else None},
         "counts": {"open_positions": len(open_), "unresolved_positions": len(unresolved),
+                   "expired_unpriced": len(expired_unpriced),
                    "executed_trades": len(entered), "closed_trades": len(closed), "winning_trades": len(wins),
                    "pending_orders": sum(1 for o in orders if o["status"] in ("PENDING", "PARTIALLY_FILLED")),
                    "rejected_orders": sum(1 for o in in_win if o["status"] == "REJECTED"),
@@ -270,7 +289,9 @@ def positions_list(pf: Portfolio, *, tab: str = "open", limit: int = 50, offset:
     counts = {"open": sum(1 for p in pf.positions if p["status"] == "OPEN"),
               "unresolved": sum(1 for p in pf.positions if needs_attention(p) or p["status"] in (
                   "UNRESOLVED", "EXPIRED_UNPRICED")),
-              "closed": sum(1 for p in pf.positions if p["status"] in ("CLOSED", "EXPIRED_UNPRICED"))}
+              "closed": sum(1 for p in pf.positions if p["status"] in ("CLOSED", "EXPIRED_UNPRICED")),
+              "closed_priced": sum(1 for p in pf.positions if p["status"] == "CLOSED"),
+              "expired_unpriced": sum(1 for p in pf.positions if p["status"] == "EXPIRED_UNPRICED")}
     return {"tab": tab, "tab_counts": counts, **_page(pos, limit, offset)}
 
 
@@ -350,9 +371,17 @@ def trades_csv(pf: Portfolio, **kw: Any) -> str:
 def alerts(pf: Portfolio, engine_rows: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for p in pf.positions:
+        base = {"engine_id": p["engine_id"], "engine": p["strategy_label"], "position_id": p["position_id"]}
+        if p["status"] == "EXPIRED_UNPRICED":
+            out.append({**base, "severity": "CRITICAL", "code": "EXPIRED_POSITION_UNPRICED",
+                        "message": f"{p['contract']} expired {p['expiry']} and was terminalised without a settlement "
+                                   "price. Its P&L is UNKNOWN and excluded from totals (not zero) until it is "
+                                   "reconciled from an official settlement price.",
+                        "since": p["expiry"], "action": "Do not edit the journal. Reconcile from the official NSE "
+                        "settlement price; totals stay marked PARTIAL until then."})
+            continue
         if p["status"] not in ("OPEN", "UNRESOLVED"):
             continue
-        base = {"engine_id": p["engine_id"], "engine": p["strategy_label"], "position_id": p["position_id"]}
         if "EXPIRED_NOT_SETTLED" in p["flags"]:
             out.append({**base, "severity": "CRITICAL", "code": "EXPIRED_POSITION_NOT_SETTLED",
                         "message": f"{p['contract']} expired {p['expiry']} but the position is still {p['status']} "

@@ -50,7 +50,7 @@ class CostSchedule:
 
 
 DEFAULT_SCHEDULE = CostSchedule(
-    version="MCX_NONAGRI_FUT_COSTS_2026_V1",
+    version="MCX_NONAGRI_FUT_COSTS_2026_V2",
     effective_from=date(2026, 11, 1),
     ctt=Rate("CTT", 0.0001, "FRACTION_OF_VALUE", "SELL_SIDE_VALUE", "STATUTORY",
              "Finance Act 2013 Commodity Transaction Tax, non-agricultural futures 0.01% on sell side"),
@@ -60,10 +60,15 @@ DEFAULT_SCHEDULE = CostSchedule(
                   "SEBI turnover fee Rs 10 per crore"),
     gst=Rate("GST", 0.18, "FRACTION_OF_CHARGES", "BROKERAGE+EXCHANGE+SEBI", "STATUTORY", "GST 18% on services"),
     exchange_txn=Rate("MCX_TRANSACTION_CHARGE", 2.10 / 1e5, "FRACTION_OF_VALUE", "TURNOVER",
-                      "UNVERIFIED_ASSUMPTION - verify against current MCX circular",
-                      "Assumed Rs 2.10 per lakh of futures turnover"),
-    brokerage_per_order=Rate("BROKERAGE", 20.0, "RUPEES_PER_EXECUTED_ORDER", "ORDER", "ASSUMPTION",
-                             "Scenarios Rs 0 / 10 / 20 per executed order; default 20"),
+                      "PUBLISHED_RATE_NOT_RECONFIRMED_FOR_2026 - Kotak product page and the MCX Sep-2024 revision both "
+                      "list Rs 2.10 per lakh (0.0021%) for futures; no 2026 circular found",
+                      "Rs 2.10 per lakh of futures turnover (kotaksecurities.com product page; MCX revision effective "
+                      "2024-10-01)"),
+    brokerage_per_order=Rate("BROKERAGE", 0.0, "RUPEES_PER_EXECUTED_ORDER", "ORDER",
+                             "PUBLISHED_SCHEDULE_ACCOUNT_PLAN_UNCONFIRMED",
+                             "Kotak Neo Trade API pricing page (kotakneo.com/trade-api): API orders carry no brokerage, "
+                             "only exchange/SEBI/GST/statutory charges. Earlier versions assumed Rs 20 per order "
+                             "(V1); scenarios Rs 0 / 10 / 20 remain available via with_brokerage()")
 )
 
 

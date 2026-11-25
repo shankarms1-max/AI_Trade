@@ -48,6 +48,7 @@ def _stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "win_rate": round(len(wins) / len(rows), 4) if rows else None,
         "gross_pnl": money(_dec(gross)), "net_pnl": money(_dec(net)),
         "charges": money(_dec(g - n for g, n in zip(gross, net))),
+        "charges_scope": "closed priced trades only: entry + exit charges (gross - net)",
         "gross_profit": money(gp), "gross_loss": money(gl),
         "expectancy_net": money(_dec(net) / len(rows)) if rows else None,
         "avg_win": money(gp / len(wins)) if wins else None, "avg_loss": money(gl / len(losses)) if losses else None,

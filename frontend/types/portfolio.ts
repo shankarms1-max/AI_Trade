@@ -68,7 +68,7 @@ export type TradesPage = {
 export type Pnl = {
   realized_gross: number | null; realized_net: number | null; unrealized_gross: number | null; incurred_charges: number | null;
   incurred_charges_detail: ChargeBreakdown | null; estimated_exit_charges: number | null; total_net_pnl: number | null;
-  net_liquidation_pnl: number | null; partial: boolean; excluded_open_positions: number; excluded_unpriced_closed: number;
+  net_liquidation_pnl: number | null; partial: boolean; excluded_open_positions: number; excluded_unpriced_closed: number; excluded_unpriced_exposure?: number; charges_on_closed_trades?: number; charges_not_in_closed_trades?: number; incurred_charges_scope?: string;
   note: string | null;
 };
 export type AttentionItem = { position_id: string; engine_id: string; label: string; contract: string; flags: string[] };
@@ -159,7 +159,7 @@ export type Header = {
   as_of: string; now_ist: string; timezone: string; nse: { status: string };
   mcx: { status: string; window: string | null; next_open: string | null };
   broker_connectivity: { state: string; basis: string };
-  data_freshness: { fresh_feeds: number; stale_feeds: number; feeds: number; stale: string[] };
+  data_freshness: { fresh_feeds: number; stale_feeds: number; unavailable_feeds?: number; market_closed_feeds?: number; feeds: number; inactive_feeds?: number; stale: string[]; by_feed?: { id: string; label: string; state: string; classification: string; reason: string | null }[] };
   critical_alerts: number; warning_alerts: number; default_mode: string; live_execution: string;
 };
 export type SourceRow = { source: string; status: string; records: number; note: string | null };
