@@ -60,5 +60,20 @@ the MCX engine records its own net using a Rs 20/order assumption, which is show
 
 ## Verification after the redesign
 
-(Filled in below after integration: before/after screenshots, re-run of the browser audit, cross-page
-consistency test, production acceptance status.)
+Same method and data as the audit (production build, same-origin proxy, real NIFTY journal + synthetic MCX rows).
+Before/after screenshots: `docs/screenshots/` (1440x900 and 390x844; see its README for what is real and synthetic).
+
+| Check | Result |
+|---|---|
+| Frontend unit/component tests | 443 passed (37 files) |
+| Backend suite | __BACKEND_RESULT__ |
+| Portfolio-layer tests | 32 passed, including expired-position, stale-mark, partial-total and no-double-count cases |
+| Cross-page financial consistency (`frontend/scripts/e2e-consistency.mjs`) | 40 of 40 checks pass: the realized net, realized gross and closed-trade count shown on Overview, Tradebook, Analytics, Positions (closed tab) and the CSV export equal the `/api/portfolio/summary` values for 5 filter windows (including an empty one) |
+| Viewports | 1920x1080, 1440x900, 1280x800, 768x1024, 390x844: 0 page-level horizontal overflow on the terminal pages (a 390px overflow on `/strategies/mcx-natgasmini` was found, root-caused to a nowrap identifier chip and fixed; 0 overflow in 70 subsequent runs) |
+| Console errors on terminal pages | 0 |
+| Legacy deep links | preserved (grouped under More / Legacy); F-08 (hydration #418 on an unknown MCX instrument, 404 page) is unchanged and cosmetic |
+| Production browser verification | **NOT DONE**: no authorised production access in this session. Procedure in `docs/aws-execution-procedure.md`, Block 4 prints RECONCILE PASS/FAIL from inside the backend container |
+
+Residual limitations (unchanged): brokerage and the MCX exchange charge rate are unverified assumptions; ACTS records
+no costs, so ACTS net is model-derived; margin/capital is not recorded and is shown as unavailable; AST data comes from
+an isolated host and was not reachable.
