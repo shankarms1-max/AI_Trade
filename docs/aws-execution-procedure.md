@@ -61,6 +61,7 @@ Prerequisite: branch `feature/trading-terminal` is pushed to GitHub at `2438b3ba
 bash <<'EOF'
 set -uo pipefail
 cd /home/ubuntu/AI_Trade; SHA=2438b3bab3e006580b2bd63da94758dfe189fef0; S=${SHA:0:7}; B=/home/ubuntu/build-$S; BI=ai-trade-mcx-futures:$S; FI=nifty-research-frontend:$S; NET=ai_trade_app_network
+H=$(TZ=Asia/Kolkata date +%H%M); echo "== IST $H | $(free -m | awk '/Mem/{print $7" MB RAM available"}') | $(free -m | awk '/Swap/{print $4" MB swap free"}')"; if [ "${FORCE:-0}" != 1 ] && [ "$H" -ge 0855 ] && [ "$H" -lt 1535 ]; then echo "ABORT: IST $H is inside NSE hours; the build would compete with the live NIFTY worker. Re-run after 15:35 IST (or before 08:55), or run it as FORCE=1 bash ... to override."; exit 1; fi
 git fetch -q origin feature/trading-terminal || { echo "ABORT: fetch failed (is the branch pushed?)"; exit 1; }
 [ -d $B ] || git worktree add -f $B $SHA >/dev/null; [ "$(git -C $B rev-parse HEAD)" = "$SHA" ] || { echo "ABORT: build dir is not at $SHA"; exit 1; }
 echo "== 1/6 build backend image (3-5 min)"; docker build -q -f $B/backend/Dockerfile -t $BI $B >/dev/null || { echo "ABORT: backend build failed; nothing changed"; exit 1; }
@@ -85,6 +86,7 @@ for I in crudeoilm natgasmini; do W=mcx-futures-$I; U=$(echo $I | tr a-z A-Z)
   if [ "$EXP" != 0 ]; then echo "SKIP $W: $EXP open/pending exposure. Re-run this block when it is flat; the running worker keeps trading meanwhile."; continue; fi
   swap $W $W $BI "python /app/worker/mcx_futures_paper_worker.py --mode PAPER --instrument $U --health" "-e MCX_FUTURES_TRADING_ENABLED=true" || echo "!! $W not swapped (rolled back)"
 done
+echo "== effective MCX worker settings (must show PAPER, PAPER_ENABLED=true, TRADING_ENABLED=true)"; for W in mcx-futures-crudeoilm mcx-futures-natgasmini; do echo "$W image=$(docker inspect -f '{{.Config.Image}}' $W) $(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' $W | grep -E '^MCX_FUTURES_(MODE|PAPER_ENABLED|TRADING_ENABLED)=' | tr '\n' ' ')"; done
 echo "== DONE. Old containers kept as *-pre-$S. Hard-refresh the browser (Ctrl+Shift+R)."
 EOF
 ```
